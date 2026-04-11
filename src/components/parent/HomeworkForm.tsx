@@ -23,6 +23,8 @@ const DEFAULT_TYPES = [
   { id: "housework", name: "家务", icon: "🧹", default_points: 2 },
 ];
 
+const ALL_ICONS = ["📝", "✏️", "📋", "🎨", "⚽", "🏀", "🎸", "🧮", "🔬", "📐", "✍️", "🗣️", "🎹", "📖", "💻", "📚", "🔢", "🇨🇳", "🏐", "👯", "🎭", "🧹", "📸", "🎵", "🌟", "🧩", "🖊️", "📏", "🎯", "🏃"];
+
 interface HomeworkFormProps {
   homework?: Database["public"]["Tables"]["homeworks"]["Row"];
   onSuccess?: () => void;
@@ -34,12 +36,17 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
   const [children, setChildren] = useState<Child[]>([]);
   const [customTypes, setCustomTypes] = useState<CustomType[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showCustomTypeForm, setShowCustomTypeForm] = useState(false);
+  const [customTypeForm, setCustomTypeForm] = useState({ name: "", icon: "📝", points: 3 });
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
+  const isEditing = !!homework;
 
   const [formData, setFormData] = useState({
     child_id: homework?.child_id || "",
     type_id: homework?.type_id || "",
     type_name: homework?.type_name || "",
-    type_icon: homework?.type_icon || "",
+    type_icon: homework?.type_icon || "📝",
     title: homework?.title || "",
     description: homework?.description || "",
     repeat_type: homework?.repeat_type || "daily",
@@ -49,6 +56,7 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
     point_value: homework?.point_value || 3,
     estimated_minutes: homework?.estimated_minutes || 30,
     daily_cutoff_time: homework?.daily_cutoff_time || "20:00",
+    required_checkpoint_type: homework?.required_checkpoint_type || "",
   });
 
   useEffect(() => {
@@ -90,13 +98,59 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
   ];
 
   const handleTypeSelect = (type: (typeof allTypes)[0]) => {
+    // Auto-fill title unless user has manually customized it
+    const prevDefaultTitle = formData.type_name
+      ? (() => {
+          const found = DEFAULT_TYPES.find((t) => t.name === formData.type_name);
+          if (found) return found.name + "练习";
+          const custom = customTypes.find((t) => t.name === formData.type_name);
+          if (custom) return custom.name + "练习";
+        })()
+      : null;
+    // If no previous type, or current title matches previous default, it's auto-filled
+    const isAutoTitle = !prevDefaultTitle || formData.title === prevDefaultTitle;
+
     setFormData((prev) => ({
       ...prev,
       type_id: type.is_custom ? type.id : "",
       type_name: type.name,
       type_icon: type.icon,
       point_value: type.default_points,
+      title: isAutoTitle ? type.name + "练习" : prev.title,
     }));
+  };
+
+  const handleAddCustomType = async () => {
+    if (showCustomTypeForm) {
+      // Submit the custom type
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: newType, error } = await supabase
+        .from("custom_homework_types")
+        .insert({
+          parent_id: session.user.id,
+          name: customTypeForm.name.trim(),
+          icon: customTypeForm.icon,
+          default_points: customTypeForm.points,
+        })
+        .select()
+        .single();
+
+      if (error || !newType) {
+        alert("创建自定义类型失败，请重试");
+        return;
+      }
+
+      setCustomTypes((prev) => [...prev, newType]);
+      handleTypeSelect({ id: newType.id, name: newType.name, icon: newType.icon, default_points: newType.default_points, is_custom: true });
+      setShowCustomTypeForm(false);
+      setCustomTypeForm({ name: "", icon: "📝", points: 3 });
+    } else {
+      setShowCustomTypeForm(true);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,6 +169,7 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
       type_icon: formData.type_icon,
       title: formData.title,
       description: formData.description || null,
+      required_checkpoint_type: formData.required_checkpoint_type || null,
       repeat_type: formData.repeat_type,
       repeat_days:
         formData.repeat_type === "weekly" ? formData.repeat_days : null,
@@ -188,6 +243,114 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
               <div className="text-xs mt-1 truncate">{type.name}</div>
             </button>
           ))}
+          <button
+            type="button"
+            onClick={handleAddCustomType}
+            className="p-3 rounded-xl border-2 border-dashed border-forest-300 text-center transition-all hover:border-primary hover:bg-primary/5"
+          >
+            <div className="text-2xl text-forest-400">＋</div>
+            <div className="text-xs mt-1 text-forest-500">自定义</div>
+          </button>
+        </div>
+
+        {/* Custom type creation form */}
+        {showCustomTypeForm && (
+          <div className="mt-3 p-4 rounded-xl border-2 border-primary/30 bg-primary/5 space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customTypeForm.name}
+                onChange={(e) => setCustomTypeForm((p) => ({ ...p, name: e.target.value }))}
+                placeholder="类型名称，如：数学练习"
+                className="flex-1 px-3 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
+              />
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={customTypeForm.points}
+                onChange={(e) => setCustomTypeForm((p) => ({ ...p, points: parseInt(e.target.value) }))}
+                placeholder="积分"
+                className="w-20 px-3 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-forest-600 mb-1 block">图标</label>
+              <div className="flex gap-1 flex-wrap">
+                {ALL_ICONS.map((icon) => (
+                  <button
+                    key={icon}
+                    type="button"
+                    onClick={() => setCustomTypeForm((p) => ({ ...p, icon }))}
+                    className={`w-9 h-9 text-xl rounded-lg border-2 transition-all
+                      ${customTypeForm.icon === icon ? "border-primary bg-primary/10" : "border-forest-200"}`}
+                  >
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Icon override */}
+        <div className="mt-3 flex items-center gap-2">
+          <label className="text-sm text-forest-600">图标</label>
+          <button
+            type="button"
+            onClick={() => setShowIconPicker(!showIconPicker)}
+            className="w-9 h-9 text-xl rounded-lg border-2 border-forest-200 flex items-center justify-center hover:border-primary"
+          >
+            {formData.type_icon}
+          </button>
+        </div>
+        {showIconPicker && (
+          <div className="flex gap-1 flex-wrap mt-2">
+            {ALL_ICONS.map((icon) => (
+              <button
+                key={icon}
+                type="button"
+                onClick={() => {
+                  setFormData((prev) => ({ ...prev, type_icon: icon }));
+                  setShowIconPicker(false);
+                }}
+                className={`w-9 h-9 text-xl rounded-lg border-2 transition-all
+                  ${formData.type_icon === icon ? "border-primary bg-primary/10" : "border-forest-200"}`}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Required checkpoint type */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-forest-700 mb-2">
+            提交类型
+          </label>
+          <div className="flex gap-2">
+            {[
+              ["none", "无要求", "—"],
+              ["photo", "拍照", "📸"],
+              ["screenshot", "截图", "🖥️"],
+              ["audio", "录音", "🎵"],
+            ].map(([value, label, icon]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFormData((prev) => ({ ...prev, required_checkpoint_type: value === "none" ? "" : value }))}
+                className={`flex-1 py-2 rounded-xl border-2 text-center transition-all
+                  ${
+                    (value === "none" && !formData.required_checkpoint_type) || formData.required_checkpoint_type === value
+                      ? "border-primary bg-primary/10"
+                      : "border-forest-200 hover:border-forest-300"
+                  }`}
+              >
+                <span className="text-lg">{icon}</span>
+                <div className="text-xs">{label}</div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -198,7 +361,7 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
         onChange={(e) =>
           setFormData((prev) => ({ ...prev, title: e.target.value }))
         }
-        placeholder="如：Khan Math Unit 3"
+        placeholder={formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"}
         required
       />
 

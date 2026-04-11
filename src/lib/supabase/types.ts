@@ -126,6 +126,7 @@ export interface Database {
           estimated_minutes: number | null;
           daily_cutoff_time: string | null;
           is_active: boolean | null;
+          required_checkpoint_type: "photo" | "screenshot" | "audio" | null;
           created_by: string | null;
           created_at: string | null;
         };
@@ -146,6 +147,7 @@ export interface Database {
           estimated_minutes?: number | null;
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
+          required_checkpoint_type?: "photo" | "screenshot" | "audio" | null;
           created_by?: string | null;
           created_at?: string | null;
         };
@@ -166,6 +168,7 @@ export interface Database {
           estimated_minutes?: number | null;
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
+          required_checkpoint_type?: "photo" | "screenshot" | "audio" | null;
           created_by?: string | null;
           created_at?: string | null;
         };

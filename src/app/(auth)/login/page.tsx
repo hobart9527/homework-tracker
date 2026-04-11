@@ -16,13 +16,13 @@ export default function ParentLoginPage() {
     setLoading(true);
     setError("");
 
-    // First check if parent exists with this passcode
-    const { data: parent, error: findError } = await supabase
-      .from("parents")
-      .select("*")
-      .eq("passcode", passcode)
-      .single();
+    // Look up parent by passcode via SQL function (bypasses RLS)
+    const { data: parents, error: findError } = await supabase.rpc(
+      "get_parent_by_passcode",
+      { passcode_param: passcode }
+    );
 
+    const parent = parents?.[0];
     if (findError || !parent) {
       setError("密码错误，请重试");
       setLoading(false);
@@ -34,7 +34,7 @@ export default function ParentLoginPage() {
       data: { session },
       error: sessionError,
     } = await supabase.auth.signInWithPassword({
-      email: parent.id, // Using ID as email placeholder
+      email: `${parent.id}@parent.local`,
       password: passcode,
     });
 

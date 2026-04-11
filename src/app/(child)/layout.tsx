@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
@@ -14,6 +14,7 @@ export default function ChildLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [child, setChild] = useState<Child | null>(null);
@@ -25,7 +26,7 @@ export default function ChildLayout({
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.push("/login");
+        router.push("/child-login");
         return;
       }
 
@@ -36,7 +37,7 @@ export default function ChildLayout({
         .single();
 
       if (!childData) {
-        router.push("/login");
+        router.push("/child-login");
         return;
       }
 
@@ -70,7 +71,7 @@ export default function ChildLayout({
           <button
             onClick={async () => {
               await supabase.auth.signOut();
-              router.push("/login");
+              router.push("/child-login");
             }}
             className="text-sm bg-white/20 px-3 py-1 rounded-lg"
           >
@@ -80,20 +81,30 @@ export default function ChildLayout({
       </header>
 
       {/* Bottom navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-forest-100 px-4 py-2">
-        <div className="max-w-2xl mx-auto flex justify-around">
-          <Link href="/today" className="flex flex-col items-center text-primary">
-            <span className="text-2xl">📋</span>
-            <span className="text-xs">今日</span>
-          </Link>
-          <Link href="/progress" className="flex flex-col items-center text-forest-400">
-            <span className="text-2xl">📊</span>
-            <span className="text-xs">进度</span>
-          </Link>
-          <Link href="/rewards" className="flex flex-col items-center text-forest-400">
-            <span className="text-2xl">⭐</span>
-            <span className="text-xs">积分</span>
-          </Link>
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-forest-100 px-4 py-2 z-50">
+        <div className="max-w-5xl mx-auto flex justify-around">
+          {[
+            { href: "/", label: "今日", icon: "📋" },
+            { href: "/progress", label: "进度", icon: "📊" },
+            { href: "/rewards", label: "积分", icon: "⭐" },
+          ].map(({ href, label, icon }) => {
+            const isActive =
+              href === "/"
+                ? pathname === "/"
+                : pathname?.startsWith(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex flex-col items-center py-1 transition-colors ${
+                  isActive ? "text-primary" : "text-forest-400"
+                }`}
+              >
+                <span className="text-2xl">{icon}</span>
+                <span className="text-xs">{label}</span>
+              </Link>
+            );
+          })}
         </div>
       </nav>
 

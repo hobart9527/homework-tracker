@@ -24,38 +24,22 @@ export default function NewChildPage() {
     e.preventDefault();
     setLoading(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) return;
-
-    // Create child user with email/password auth
-    const childEmail = `${Date.now()}@child.homework-tracker`;
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: childEmail,
-      password: formData.password,
-      email_confirm: true,
+    const res = await fetch("/api/children/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.name,
+        age: formData.age,
+        gender: formData.gender,
+        password: formData.password,
+        avatar: formData.avatar,
+      }),
     });
 
-    if (authError || !authData.user) {
-      alert("创建失败，请重试");
-      setLoading(false);
-      return;
-    }
+    const result = await res.json();
 
-    // Create child profile
-    const { error: profileError } = await supabase.from("children").insert({
-      id: authData.user.id,
-      parent_id: session.user.id,
-      name: formData.name,
-      age: parseInt(formData.age),
-      gender: formData.gender,
-      password_hash: formData.password, // In production, hash this!
-      avatar: formData.avatar,
-    });
-
-    if (profileError) {
-      alert("创建失败，请重试");
+    if (!res.ok) {
+      alert(result.error || "创建失败，请重试");
       setLoading(false);
       return;
     }
