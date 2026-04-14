@@ -279,91 +279,6 @@ export function HomeworkForm({
         </div>
 
         <div className="space-y-6 rounded-3xl border border-forest-200 bg-white/90 p-5">
-          <Input
-            label="作业标题"
-            aria-label="作业标题"
-            value={formData.title}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, title: e.target.value }))
-            }
-            placeholder={formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"}
-            required
-          />
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-forest-700">
-              描述（可选）
-            </label>
-            <textarea
-              aria-label="描述（可选）"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, description: e.target.value }))
-              }
-              placeholder="详细说明..."
-              className="w-full rounded-xl border-2 border-forest-200 px-4 py-2 focus:border-primary focus:outline-none"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-forest-700">
-              重复规则
-            </label>
-            <div className="flex gap-2 flex-wrap">
-              {(["daily", "weekly", "interval", "once"] as const).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, repeat_type: type }))
-                  }
-                  className={`px-4 py-2 rounded-xl border-2 transition-all ${
-                    formData.repeat_type === type
-                      ? "border-primary bg-primary/10"
-                      : "border-forest-200"
-                  }`}
-                >
-                  {{
-                    daily: "每日",
-                    weekly: "每周",
-                    interval: "间隔",
-                    once: "单次",
-                  }[type]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {formData.repeat_type === "weekly" && (
-            <div>
-              <label className="mb-2 block text-sm font-medium text-forest-700">
-                选择星期
-              </label>
-              <div className="flex gap-2">
-                {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => {
-                      const days = formData.repeat_days.includes(index)
-                        ? formData.repeat_days.filter((d) => d !== index)
-                        : [...formData.repeat_days, index];
-                      setFormData((prev) => ({ ...prev, repeat_days: days }));
-                    }}
-                    className={`w-10 h-10 rounded-full border-2 transition-all ${
-                      formData.repeat_days.includes(index)
-                        ? "border-primary bg-primary text-white"
-                        : "border-forest-200"
-                    }`}
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
@@ -482,6 +397,91 @@ export function HomeworkForm({
               </div>
             )}
           </div>
+
+          <Input
+            label="作业标题"
+            aria-label="作业标题"
+            value={formData.title}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, title: e.target.value }))
+            }
+            placeholder={formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"}
+            required
+          />
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-forest-700">
+              描述（可选）
+            </label>
+            <textarea
+              aria-label="描述（可选）"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, description: e.target.value }))
+              }
+              placeholder="详细说明..."
+              className="w-full rounded-xl border-2 border-forest-200 px-4 py-2 focus:border-primary focus:outline-none"
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-forest-700">
+              重复规则
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {(["daily", "weekly", "interval", "once"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, repeat_type: type }))
+                  }
+                  className={`px-4 py-2 rounded-xl border-2 transition-all ${
+                    formData.repeat_type === type
+                      ? "border-primary bg-primary/10"
+                      : "border-forest-200"
+                  }`}
+                >
+                  {{
+                    daily: "每日",
+                    weekly: "每周",
+                    interval: "间隔",
+                    once: "单次",
+                  }[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {formData.repeat_type === "weekly" && (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-forest-700">
+                选择星期
+              </label>
+              <div className="flex gap-2">
+                {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => {
+                      const days = formData.repeat_days.includes(index)
+                        ? formData.repeat_days.filter((d) => d !== index)
+                        : [...formData.repeat_days, index];
+                      setFormData((prev) => ({ ...prev, repeat_days: days }));
+                    }}
+                    className={`w-10 h-10 rounded-full border-2 transition-all ${
+                      formData.repeat_days.includes(index)
+                        ? "border-primary bg-primary text-white"
+                        : "border-forest-200"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="mb-2 block text-sm font-medium text-forest-700">
