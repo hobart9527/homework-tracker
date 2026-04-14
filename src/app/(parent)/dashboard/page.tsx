@@ -14,6 +14,7 @@ import {
   buildParentDashboard,
   getDefaultSelectedChildId,
   type ParentMonthlyDashboard,
+  type ParentReminderState,
 } from "@/lib/parent-dashboard";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
@@ -34,6 +35,7 @@ export default function ParentDashboardPage() {
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => formatDateKey(new Date()));
   const [loading, setLoading] = useState(true);
+  const [reminderStates, setReminderStates] = useState<ParentReminderState[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +119,56 @@ export default function ParentDashboardPage() {
     dashboard.selectedDayDetails[0] ??
     null;
 
+  const fetchReminders = async (parentId: string, month: string) => {
+    const res = await fetch(
+      `/api/reminders/send?parentId=${parentId}&month=${month}`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      setReminderStates(data.reminderStates ?? []);
+    }
+  };
+
+  const handleReminderStateChange = async (
+    homeworkId: string,
+    childId: string,
+    targetDate: string
+  ) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch("/api/reminders/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ homework_id: homeworkId, child_id: childId, target_date: targetDate }),
+    });
+    if (res.ok) {
+      const month = targetDate.substring(0, 7); // YYYY-MM
+      await fetchReminders(session.user.id, month);
+    }
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadReminders = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session || !selectedDetail) return;
+      const month = selectedDate.substring(0, 7);
+      await fetchReminders(session.user.id, month);
+    };
+
+    loadReminders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate, selectedDetail, supabase]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -172,7 +224,12 @@ export default function ParentDashboardPage() {
               onSelectDate={setSelectedDate}
             />
             {selectedDetail ? (
-              <TodayOverview detail={selectedDetail} selectedDate={selectedDate} />
+              <TodayOverview
+                detail={selectedDetail}
+                selectedDate={selectedDate}
+                reminderStates={reminderStates}
+                onReminderStateChange={handleReminderStateChange}
+              />
             ) : null}
             <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
           </>

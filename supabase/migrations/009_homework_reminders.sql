@@ -15,3 +15,5 @@ create table public.homework_reminders (
   created_at timestamptz not null default now(),
   unique (homework_id, target_date)
 );
+
+create index idx_homework_reminders_parent_month on homework_reminders(parent_id, target_date);

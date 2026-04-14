@@ -1,8 +1,9 @@
 "use client";
 
 import { HomeworkCard } from "@/components/parent/HomeworkCard";
+import { ReminderActionButton } from "@/components/parent/ReminderActionButton";
 import type { Database } from "@/lib/supabase/types";
-import type { ParentChildDashboardDetail } from "@/lib/parent-dashboard";
+import type { ParentChildDashboardDetail, ParentReminderState } from "@/lib/parent-dashboard";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type Task = ParentChildDashboardDetail["tasks"][number] & {
@@ -11,6 +12,10 @@ type Task = ParentChildDashboardDetail["tasks"][number] & {
 
 interface ParentChildTaskListProps {
   tasks: Task[];
+  childId: string;
+  selectedDate: string;
+  reminderStates?: ParentReminderState[];
+  onReminderStateChange?: (homeworkId: string, childId: string, targetDate: string) => void;
 }
 
 function buildHomework(task: Task, index: number): Homework {
@@ -37,7 +42,13 @@ function buildHomework(task: Task, index: number): Homework {
   };
 }
 
-export function ParentChildTaskList({ tasks }: ParentChildTaskListProps) {
+export function ParentChildTaskList({
+  tasks,
+  childId,
+  selectedDate,
+  reminderStates,
+  onReminderStateChange,
+}: ParentChildTaskListProps) {
   return (
     <section className="space-y-3">
       <div>
@@ -53,15 +64,27 @@ export function ParentChildTaskList({ tasks }: ParentChildTaskListProps) {
       ) : (
         <div className="space-y-3">
           {tasks.map((task, index) => (
-            <HomeworkCard
-              key={task.homeworkId ?? `${task.title}-${index}`}
-              homework={buildHomework(task, index)}
-              checkIn={null}
-              statusText={task.statusText}
-              proofType={task.proofType}
-              awardedPoints={task.awardedPoints}
-              scored={task.scored}
-            />
+            <div key={task.homeworkId ?? `${task.title}-${index}`}>
+              <HomeworkCard
+                homework={buildHomework(task, index)}
+                checkIn={null}
+                statusText={task.statusText}
+                proofType={task.proofType}
+                awardedPoints={task.awardedPoints}
+                scored={task.scored}
+              />
+              <div className="flex items-center justify-end mt-2">
+                <ReminderActionButton
+                  homeworkId={task.homeworkId ?? ""}
+                  childId={childId}
+                  targetDate={selectedDate}
+                  state={reminderStates?.find((s) => s.homeworkId === task.homeworkId) ?? null}
+                  onRemind={(hwId, childId, targetDate) => {
+                  onReminderStateChange?.(hwId, childId, targetDate);
+                }}
+                />
+              </div>
+            </div>
           ))}
         </div>
       )}

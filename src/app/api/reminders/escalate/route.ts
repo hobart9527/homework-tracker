@@ -20,6 +20,23 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString();
 
+  // Only allow escalation from "sent_sms" status
+  const { data: existing, error: fetchError } = await supabase
+    .from("homework_reminders")
+    .select("*")
+    .eq("homework_id", homework_id)
+    .eq("target_date", target_date)
+    .eq("parent_id", session.user.id)
+    .single();
+
+  if (fetchError || !existing) {
+    return NextResponse.json({ error: "Reminder not found" }, { status: 404 });
+  }
+
+  if (existing.status !== "sent_sms") {
+    return NextResponse.json({ error: "Only sent_sms reminders can be escalated" }, { status: 409 });
+  }
+
   const { data: reminder, error } = await supabase
     .from("homework_reminders")
     .update({
@@ -29,6 +46,7 @@ export async function POST(request: Request) {
     .eq("homework_id", homework_id)
     .eq("target_date", target_date)
     .eq("parent_id", session.user.id)
+    .eq("status", "sent_sms")
     .select("*")
     .single();
 

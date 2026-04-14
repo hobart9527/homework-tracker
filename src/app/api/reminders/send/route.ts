@@ -70,6 +70,19 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString();
 
+  // Check if already escalated — preserve that status
+  const { data: existing } = await supabase
+    .from("homework_reminders")
+    .select("*")
+    .eq("homework_id", homework_id)
+    .eq("target_date", target_date)
+    .eq("parent_id", session.user.id)
+    .single();
+
+  if (existing && existing.status === "escalated_call") {
+    return NextResponse.json({ reminder: existing });
+  }
+
   const { data: reminder, error } = await supabase
     .from("homework_reminders")
     .upsert(
