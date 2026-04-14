@@ -1,11 +1,13 @@
 "use client";
 
 import { ParentChildTaskList } from "@/components/parent/ParentChildTaskList";
-import type { ParentChildDashboardDetail } from "@/lib/parent-dashboard";
+import type { ParentChildDashboardDetail, ParentReminderState } from "@/lib/parent-dashboard";
 
 interface ParentDayDetailPanelProps {
   detail: ParentChildDashboardDetail;
   selectedDate: string;
+  reminderStates?: ParentReminderState[];
+  onReminderStateChange?: (homeworkId: string, childId: string, targetDate: string) => void;
 }
 
 function formatSelectedDate(date: string) {
@@ -33,6 +35,8 @@ function MetricCard({
 export function ParentDayDetailPanel({
   detail,
   selectedDate,
+  reminderStates,
+  onReminderStateChange,
 }: ParentDayDetailPanelProps) {
   return (
     <section className="space-y-5 rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
@@ -61,7 +65,13 @@ export function ParentDayDetailPanel({
         <MetricCard label="逾期" value={detail.summary.overdueCount} />
       </div>
 
-      <ParentChildTaskList tasks={detail.tasks} />
+      <ParentChildTaskList
+        tasks={detail.tasks}
+        childId={detail.summary.childId}
+        selectedDate={selectedDate}
+        reminderStates={reminderStates}
+        onReminderStateChange={onReminderStateChange}
+      />
     </section>
   );
 }

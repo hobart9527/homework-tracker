@@ -6,14 +6,17 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ReminderSettings } from "@/components/parent/ReminderSettings";
+import { QuickTypeManager } from "@/components/parent/QuickTypeManager";
 import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
+type CustomType = Database["public"]["Tables"]["custom_homework_types"]["Row"];
 
 export default function SettingsPage() {
   const supabase = createClient();
   const [parent, setParent] = useState<Parent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customTypes, setCustomTypes] = useState<CustomType[]>([]);
 
   useEffect(() => {
     const fetchParent = async () => {
@@ -33,6 +36,21 @@ export default function SettingsPage() {
     };
 
     fetchParent();
+  }, [supabase]);
+
+  useEffect(() => {
+    const fetchTypes = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase
+        .from("custom_homework_types")
+        .select("*")
+        .eq("parent_id", session.user.id);
+      if (data) setCustomTypes(data);
+    };
+    fetchTypes();
   }, [supabase]);
 
   if (loading || !parent) {
@@ -60,6 +78,30 @@ export default function SettingsPage() {
           <ReminderSettings
             settings={parent}
             onUpdate={() => window.location.reload()}
+          />
+        </Card>
+
+        <Card>
+          <QuickTypeManager
+            types={customTypes}
+            onAdd={async (name, icon, points) => {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (!session) return;
+              const { data } = await supabase
+                .from("custom_homework_types")
+                .insert({ parent_id: session.user.id, name, icon, default_points: points })
+                .select()
+                .single();
+              if (data) setCustomTypes((prev) => [...prev, data]);
+            }}
+            onUpdate={async (id, name, icon, points) => {
+              await supabase.from("custom_homework_types").update({ name, icon, default_points: points }).eq("id", id);
+              setCustomTypes((prev) => prev.map((t) => t.id === id ? { ...t, name, icon, default_points: points } : t));
+            }}
+            onDelete={async (id) => {
+              await supabase.from("custom_homework_types").delete().eq("id", id);
+              setCustomTypes((prev) => prev.filter((t) => t.id !== id));
+            }}
           />
         </Card>
 

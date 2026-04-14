@@ -149,3 +149,12 @@ export function buildHomeworkRulePreview(
     scoringLabel: "同一天允许重复提交，但只有第一次完成会计分。",
   };
 }
+
+export function buildNewHomeworkHref(input: {
+  selectedChildId: string | null;
+}): string {
+  if (!input.selectedChildId || input.selectedChildId === "all") {
+    return "/homework/new";
+  }
+  return `/homework/new?childId=${input.selectedChildId}`;
+}
