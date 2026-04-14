@@ -1,0 +1,169 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "retry": "重试",
+    "logout": "退出登录",
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "delete": "删除",
+    "edit": "编辑",
+    "add": "添加",
+    "back": "返回"
+  },
+  "auth": {
+    "login": "登录",
+    "logout": "退出登录"
+  },
+  "child": {
+    "page": {
+      "title": "作业小管家",
+      "loading": "🦊 加载中...",
+      "error": "加载作业失败",
+      "noChildren": "还没有添加孩子",
+      "addChildPrompt": "点击下方按钮添加您的第一个孩子",
+      "addChild": "添加孩子"
+    },
+    "weekCalendar": {
+      "title": "本周日历",
+      "previousWeek": "上一周",
+      "nextWeek": "下一周",
+      "today": "今"
+    },
+    "weekSummary": {
+      "title": "本周概览",
+      "weeklyPoints": "本周积分",
+      "checkInDays": "打卡天数",
+      "completedDays": "完成天数"
+    },
+    "progress": {
+      "title": "进度",
+      "subtitle": "查看你的作业完成情况",
+      "noHomework": "今天没有作业！",
+      "restWell": "好好休息吧～"
+    },
+    "rewards": {
+      "title": "奖励",
+      "subtitle": "你获得的奖励",
+      "noRewards": "还没有奖励",
+      "keepGoing": "继续加油哦！"
+    },
+    "today": {
+      "title": "今日任务",
+      "subtitle": "今天要完成的任务"
+    },
+    "priorityCard": {
+      "greatJob": "太棒了！",
+      "allDone": "今天的任务全部完成啦！",
+      "allDoneHint": "可以休息一下，或者看看本周其他天的任务。",
+      "nextItem": "下一项",
+      "noTasks": "今天没有新的优先任务",
+      "noTasksHint": "可以先看看左侧日历，或直接完成下面的任务。",
+      "priorityBadge": "优先完成",
+      "deadline": "截止",
+      "points": "积分",
+      "estimatedTime": "约",
+      "minutes": "分钟",
+      "goComplete": "去完成"
+    },
+    "dayHomework": {
+      "title": "任务清单",
+      "subtitle": "把今天的任务一项项清掉。",
+      "noHomework": "今天没有作业！",
+      "restWell": "好好休息吧～",
+      "completed": "已完成",
+      "overdue": "已超时",
+      "pending": "待完成",
+      "lateComplete": "已逾期完成",
+      "noPointRepeat": "再次提交不加分",
+      "lateSubmit": "逾期可补交",
+      "complete": "完成",
+      "lateCompleteBtn": "补打卡"
+    }
+  },
+  "parent": {
+    "dashboard": {
+      "title": "作业小管家",
+      "homeworkManage": "作业管理",
+      "children": "孩子",
+      "noChildren": "还没有添加孩子",
+      "noChildrenHint": "点击下方按钮添加您的第一个孩子",
+      "addChild": "添加孩子",
+      "loading": "🦊 加载中..."
+    },
+    "monthCalendar": {
+      "sectionLabel": "月度视图",
+      "title": "本月进度日历",
+      "subtitle": "点日期查看当天任务，用圆环颜色快速判断每天的完成状态",
+      "previousMonth": "上个月",
+      "nextMonth": "下个月",
+      "completionRate": "完成率",
+      "onTimeRate": "准时率",
+      "totalPoints": "累计积分",
+      "incompleteCount": "未完成数",
+      "completed": "已完成",
+      "inProgress": "进行中",
+      "notStarted": "未开始",
+      "notCompleted": "未完成",
+      "lateCompleted": "补做完成",
+      "noTask": "无任务"
+    },
+    "monthlyInsights": {
+      "title": "本月薄弱类型",
+      "subtitle": "按本月完成率从低到高排序，优先关注最需要跟进的作业类型",
+      "noData": "本月还没有作业类型数据",
+      "focusOn": "重点关注",
+      "completed": "完成"
+    },
+    "checkInHeatmap": {
+      "title": "本月打卡热力图",
+      "subtitle": "每天打卡次数越多颜色越深"
+    },
+    "todayOverview": {
+      "title": "今日概览",
+      "subtitle": "查看今天任务完成情况",
+      "noTasks": "今天没有任务",
+      "noTasksHint": "今天不需要完成任何作业",
+      "assignHomework": "布置作业",
+      "noChildSelected": "请先选择一个孩子",
+      "selectChildHint": "在左侧选择要查看的孩子"
+    },
+    "childSelector": {
+      "selectChild": "选择孩子"
+    },
+    "homework": {
+      "title": "作业管理",
+      "createHomework": "创建作业",
+      "noHomework": "还没有作业",
+      "createFirst": "点击下方按钮创建第一个作业",
+      "type": "类型",
+      "title_col": "标题",
+      "assignedTo": "分配给",
+      "cutoffTime": "截止时间",
+      "estimatedMinutes": "预计时间",
+      "pointValue": "积分",
+      "requiredCheckpoint": "需要验证",
+      "actions": "操作",
+      "edit": "编辑",
+      "delete": "删除",
+      "photo": "照片",
+      "audio": "录音"
+    },
+    "children": {
+      "title": "孩子管理",
+      "addChild": "添加孩子",
+      "noChildren": "还没有添加孩子",
+      "addFirst": "点击添加您的第一个孩子",
+      "name": "姓名",
+      "actions": "操作",
+      "edit": "编辑",
+      "delete": "删除"
+    },
+    "settings": {
+      "title": "设置",
+      "profile": "个人资料",
+      "notifications": "通知设置",
+      "language": "语言"
+    }
+  }
+}

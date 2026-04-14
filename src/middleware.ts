@@ -1,8 +1,15 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import createMiddleware from "next-intl/middleware";
+import { routing } from "./i18n/routing";
+
+const intlMiddleware = createMiddleware(routing);
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
+  // Run next-intl middleware first
+  const response = intlMiddleware(request);
+
+  const supabaseResponse = NextResponse.next({
     request,
   });
 
@@ -20,9 +27,6 @@ export async function middleware(request: NextRequest) {
             value,
             ...options,
           });
-          supabaseResponse = NextResponse.next({
-            request,
-          });
           supabaseResponse.cookies.set({
             name,
             value,
@@ -34,9 +38,6 @@ export async function middleware(request: NextRequest) {
             name,
             value: "",
             ...options,
-          });
-          supabaseResponse = NextResponse.next({
-            request,
           });
           supabaseResponse.cookies.set({
             name,

@@ -1,0 +1,169 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "retry": "Retry",
+    "logout": "Logout",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "back": "Back"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout"
+  },
+  "child": {
+    "page": {
+      "title": "Homework Tracker",
+      "loading": "🦊 Loading...",
+      "error": "Failed to load homework",
+      "noChildren": "No children added yet",
+      "addChildPrompt": "Click the button below to add your first child",
+      "addChild": "Add Child"
+    },
+    "weekCalendar": {
+      "title": "This Week",
+      "previousWeek": "Previous Week",
+      "nextWeek": "Next Week",
+      "today": "Today"
+    },
+    "weekSummary": {
+      "title": "Weekly Summary",
+      "weeklyPoints": "Weekly Points",
+      "checkInDays": "Check-in Days",
+      "completedDays": "Completed Days"
+    },
+    "progress": {
+      "title": "Progress",
+      "subtitle": "View your homework completion",
+      "noHomework": "No homework today!",
+      "restWell": "Take a good rest～"
+    },
+    "rewards": {
+      "title": "Rewards",
+      "subtitle": "Rewards you've earned",
+      "noRewards": "No rewards yet",
+      "keepGoing": "Keep going!"
+    },
+    "today": {
+      "title": "Today's Tasks",
+      "subtitle": "Tasks to complete today"
+    },
+    "priorityCard": {
+      "greatJob": "Great job!",
+      "allDone": "All tasks completed today!",
+      "allDoneHint": "Take a rest, or check other days this week.",
+      "nextItem": "Next Item",
+      "noTasks": "No priority tasks today",
+      "noTasksHint": "Check the calendar on the left, or complete tasks below.",
+      "priorityBadge": "Priority",
+      "deadline": "Due",
+      "points": "pts",
+      "estimatedTime": "About",
+      "minutes": "min",
+      "goComplete": "Complete"
+    },
+    "dayHomework": {
+      "title": "Task List",
+      "subtitle": "Complete today's tasks one by one.",
+      "noHomework": "No homework today!",
+      "restWell": "Take a good rest～",
+      "completed": "Completed",
+      "overdue": "Overdue",
+      "pending": "Pending",
+      "lateComplete": "Completed Late",
+      "noPointRepeat": "No points for re-submit",
+      "lateSubmit": "Late submission available",
+      "complete": "Complete",
+      "lateCompleteBtn": "Late Check-in"
+    }
+  },
+  "parent": {
+    "dashboard": {
+      "title": "Homework Tracker",
+      "homeworkManage": "Manage Homework",
+      "children": "Children",
+      "noChildren": "No children added yet",
+      "noChildrenHint": "Click the button below to add your first child",
+      "addChild": "Add Child",
+      "loading": "🦊 Loading..."
+    },
+    "monthCalendar": {
+      "sectionLabel": "Monthly View",
+      "title": "Monthly Progress Calendar",
+      "subtitle": "Click a date to view tasks, colors show completion status",
+      "previousMonth": "Previous Month",
+      "nextMonth": "Next Month",
+      "completionRate": "Completion Rate",
+      "onTimeRate": "On-time Rate",
+      "totalPoints": "Total Points",
+      "incompleteCount": "Incomplete",
+      "completed": "Completed",
+      "inProgress": "In Progress",
+      "notStarted": "Not Started",
+      "notCompleted": "Not Completed",
+      "lateCompleted": "Late Completed",
+      "noTask": "No Task"
+    },
+    "monthlyInsights": {
+      "title": "Weak Areas This Month",
+      "subtitle": "Sorted by completion rate, focus on areas needing attention",
+      "noData": "No homework type data this month",
+      "focusOn": "Focus on",
+      "completed": "Completed"
+    },
+    "checkInHeatmap": {
+      "title": "Check-in Heatmap",
+      "subtitle": "Darker color means more check-ins"
+    },
+    "todayOverview": {
+      "title": "Today's Overview",
+      "subtitle": "View today's task completion",
+      "noTasks": "No tasks today",
+      "noTasksHint": "No homework to complete today",
+      "assignHomework": "Assign Homework",
+      "noChildSelected": "Select a child first",
+      "selectChildHint": "Select a child on the left"
+    },
+    "childSelector": {
+      "selectChild": "Select Child"
+    },
+    "homework": {
+      "title": "Homework Management",
+      "createHomework": "Create Homework",
+      "noHomework": "No homework yet",
+      "createFirst": "Click below to create your first homework",
+      "type": "Type",
+      "title_col": "Title",
+      "assignedTo": "Assigned To",
+      "cutoffTime": "Cutoff Time",
+      "estimatedMinutes": "Est. Time",
+      "pointValue": "Points",
+      "requiredCheckpoint": "Verification",
+      "actions": "Actions",
+      "edit": "Edit",
+      "delete": "Delete",
+      "photo": "Photo",
+      "audio": "Audio"
+    },
+    "children": {
+      "title": "Children Management",
+      "addChild": "Add Child",
+      "noChildren": "No children yet",
+      "addFirst": "Click to add your first child",
+      "name": "Name",
+      "actions": "Actions",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "settings": {
+      "title": "Settings",
+      "profile": "Profile",
+      "notifications": "Notifications",
+      "language": "Language"
+    }
+  }
+}
