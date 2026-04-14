@@ -92,6 +92,7 @@ type ParentDashboardInput = {
   date: string;
   month?: string;
   reminderStates?: ParentReminderState[];
+  selectedChildId?: string | null;
 };
 
 type ChildDashboardBuild = {
@@ -450,13 +451,21 @@ export function buildParentDashboard(
     return left.summary.childName.localeCompare(right.summary.childName);
   });
 
+  // Filter homeworks and check-ins by selected child if specified
+  const filteredHomeworks = input.selectedChildId
+    ? input.homeworks.filter((hw) => hw.child_id === input.selectedChildId)
+    : input.homeworks;
+  const filteredCheckIns = input.selectedChildId
+    ? input.checkIns.filter((ci) => ci.child_id === input.selectedChildId)
+    : input.checkIns;
+
   return {
     summaries: built.map((item) => item.summary),
-    calendarDays: buildCalendarDays(input.homeworks, input.checkIns, month),
+    calendarDays: buildCalendarDays(filteredHomeworks, filteredCheckIns, month),
     selectedDayDetails: built.map((item) => item.detail),
-    weakestTypes: buildWeakestTypes(input.homeworks, input.checkIns, month),
-    monthlyStats: buildMonthlyStats(input.homeworks, input.checkIns, month),
-    checkInHeatmap: buildCheckInHeatmap(input.checkIns, month),
+    weakestTypes: buildWeakestTypes(filteredHomeworks, filteredCheckIns, month),
+    monthlyStats: buildMonthlyStats(filteredHomeworks, filteredCheckIns, month),
+    checkInHeatmap: buildCheckInHeatmap(filteredCheckIns, month),
   };
 }
 

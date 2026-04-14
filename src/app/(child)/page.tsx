@@ -14,6 +14,7 @@ import {
   getWeekDays,
 } from "@/lib/homework-utils";
 import { buildDailyTaskStatuses } from "@/lib/tasks/daily-task";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
@@ -33,6 +34,7 @@ function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
 }
 
 export default function ChildLandingPage() {
+  const { t } = useTranslation();
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -125,7 +127,7 @@ export default function ChildLandingPage() {
     return (
       <main className="min-h-screen bg-gradient-to-br from-[#F6FBF8] via-[#FDFCF8] to-[#F4F8FF] p-4 lg:p-6">
         <div className="flex min-h-[70vh] items-center justify-center rounded-[32px] bg-white/80 text-2xl shadow-lg ring-1 ring-forest-100">
-          🦊 加载中...
+          {t('child.page.loading')}
         </div>
       </main>
     );
@@ -139,7 +141,7 @@ export default function ChildLandingPage() {
           className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center rounded-[32px] bg-white/90 p-6 text-center shadow-lg ring-1 ring-forest-100"
         >
           <div>
-            <div className="text-2xl font-bold text-forest-700">加载作业失败</div>
+            <div className="text-2xl font-bold text-forest-700">{t('child.page.error')}</div>
             <p className="mt-2 text-sm text-forest-500">{error}</p>
             <button
               type="button"
@@ -148,7 +150,7 @@ export default function ChildLandingPage() {
               }}
               className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white"
             >
-              重试
+              {t('common.retry')}
             </button>
           </div>
         </div>
@@ -175,9 +177,9 @@ export default function ChildLandingPage() {
         <section className="space-y-4 rounded-[32px] bg-white/85 p-4 shadow-lg ring-1 ring-forest-100 backdrop-blur lg:p-6">
           {taskStatuses.length > 0 && taskStatuses.every((task) => task.completed) ? (
             <div className="rounded-[28px] border border-dashed border-forest-200 bg-white/80 p-5 shadow-sm">
-              <div className="text-sm font-medium text-forest-600">太棒了！</div>
-              <div className="mt-3 text-lg font-bold text-forest-700">今天的任务全部完成啦！</div>
-              <p className="mt-1 text-sm text-forest-500">可以休息一下，或者看看本周其他天的任务。</p>
+              <div className="text-sm font-medium text-forest-600">{t('child.priorityCard.greatJob')}</div>
+              <div className="mt-3 text-lg font-bold text-forest-700">{t('child.priorityCard.allDone')}</div>
+              <p className="mt-1 text-sm text-forest-500">{t('child.priorityCard.allDoneHint')}</p>
             </div>
           ) : (
             <PriorityHomeworkCard

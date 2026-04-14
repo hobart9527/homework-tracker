@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 
 export default function RewardsPage() {
+  const { t } = useTranslation();
   const supabase = createClient();
   const [totalPoints, setTotalPoints] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -41,7 +43,7 @@ export default function RewardsPage() {
   }, [supabase]);
 
   if (loading)
-    return <div className="min-h-screen flex items-center justify-center">⭐ 加载中...</div>;
+    return <div className="min-h-screen flex items-center justify-center">{t('common.loading')}</div>;
 
   return (
     <main className="max-w-5xl mx-auto p-4 pb-24">
@@ -49,14 +51,14 @@ export default function RewardsPage() {
       <div className="bg-primary text-white rounded-2xl shadow-lg p-8 text-center mb-6">
         <div className="text-3xl mb-2">⭐</div>
         <div className="text-6xl font-bold">{totalPoints}</div>
-        <div className="text-lg opacity-80 mt-2">总积分</div>
+        <div className="text-lg opacity-80 mt-2">{t('child.rewards.title')}</div>
       </div>
 
       {/* History */}
       <div className="bg-white rounded-2xl shadow-md p-4">
-        <h3 className="font-medium text-forest-700 mb-3">积分记录</h3>
+        <h3 className="font-medium text-forest-700 mb-3">{t('child.rewards.title')}</h3>
         {checkIns.length === 0 ? (
-          <p className="text-forest-400 text-center py-8">还没有积分记录</p>
+          <p className="text-forest-400 text-center py-8">{t('child.rewards.noRewards')}</p>
         ) : (
           <div className="space-y-2">
             {checkIns.slice(0, 50).map((ci) => {
@@ -76,9 +78,9 @@ export default function RewardsPage() {
                       <p className="text-xs text-forest-400 mt-1">
                         {ci.is_scored
                           ? ci.is_late
-                            ? "已逾期完成"
-                            : "已完成"
-                          : "本次记录已保存，今天不重复加分"}
+                            ? t('child.dayHomework.lateComplete')
+                            : t('child.dayHomework.completed')
+                          : t('child.dayHomework.noPointRepeat')}
                       </p>
                       {ci.note && (
                         <p className="text-xs text-forest-500">{ci.note}</p>

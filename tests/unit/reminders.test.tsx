@@ -7,7 +7,7 @@ import type { ParentReminderState } from "@/lib/parent-dashboard";
 describe("ReminderActionButton", () => {
   it("renders green reminder button when no state", () => {
     render(<ReminderActionButton homeworkId="hw-1" childId="child-1" targetDate="2026-04-14" />);
-    expect(screen.getByRole("button", { name: "提醒孩子" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "🔔 提醒" })).toBeInTheDocument();
   });
 
   it("renders amber badge when sms sent", () => {
@@ -43,16 +43,16 @@ describe("resolveReminderAction", () => {
     })).toBe("resolve_completed");
   });
 
-  it("returns escalate_call when 2 hours passed after sms and still incomplete", () => {
+  it("returns escalate_call when 45 minutes passed after sms and still incomplete", () => {
     expect(resolveReminderAction({
       status: "sent_sms",
       escalateAfter: "2026-04-14T12:00:00.000Z",
-      now: "2026-04-14T14:00:00.000Z",
+      now: "2026-04-14T12:46:00.000Z",
       completed: false,
     })).toBe("escalate_call");
   });
 
-  it("returns noop when sms sent but not yet 2 hours", () => {
+  it("returns noop when sms sent but not yet 45 minutes", () => {
     expect(resolveReminderAction({
       status: "sent_sms",
       escalateAfter: "2026-04-14T12:00:00.000Z",

@@ -40,7 +40,32 @@
       "title": "进度",
       "subtitle": "查看你的作业完成情况",
       "noHomework": "今天没有作业！",
-      "restWell": "好好休息吧～"
+      "restWell": "好好休息吧～",
+      "monthlyTitle": "月度打卡分析",
+      "monthlyDescription": "这里不只看打了几次卡，而是帮你看清这个月哪些任务最稳、哪些最容易拖延，以及你通常在什么时间进入学习状态。",
+      "monthCompletionRate": "月完成率",
+      "totalPoints": "累计积分",
+      "activeDays": "活跃天数",
+      "onTimeRate": "按时完成率",
+      "currentlyViewing": "当前查看",
+      "noTask": "无任务",
+      "late": "补",
+      "completed": "完成",
+      "pointsEarned": "积分",
+      "checkInPeakTime": "打卡高峰时段",
+      "peakTimeDescription": "统计当月所有打卡记录，颜色越深说明这个小时越常完成作业",
+      "monthlyAnalysisFocus": "本月分析重点",
+      "totalAssigned": "总任务量",
+      "lateCheckInCount": "补打卡次数",
+      "completedTasks": "完成任务",
+      "incompleteTasks": "未完成任务",
+      "homeworkTypePerformance": "作业类型表现",
+      "focusOnWeakest": "优先盯住最弱项",
+      "needsImprovement": "需要补强",
+      "currentStrength": "当前优势项",
+      "learningHabitSuggestions": "学习习惯建议",
+      "loadingMessage": "正在整理这个月的打卡表现...",
+      "loadError": "加载月度数据失败"
     },
     "rewards": {
       "title": "奖励",
@@ -106,7 +131,8 @@
       "notStarted": "未开始",
       "notCompleted": "未完成",
       "lateCompleted": "补做完成",
-      "noTask": "无任务"
+      "noTask": "无任务",
+      "allChildren": "全部孩子"
     },
     "monthlyInsights": {
       "title": "本月薄弱类型",

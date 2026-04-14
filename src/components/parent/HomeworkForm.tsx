@@ -69,8 +69,9 @@ export function HomeworkForm({
     repeat_interval: homework?.repeat_interval || 1,
     repeat_start_date: homework?.repeat_start_date || "",
     point_value: homework?.point_value || 3,
+    point_deduction: homework?.point_deduction ?? 3,
     estimated_minutes: homework?.estimated_minutes || 30,
-    daily_cutoff_time: homework?.daily_cutoff_time || "20:00",
+    daily_cutoff_time: homework?.daily_cutoff_time || "23:30",
     required_checkpoint_type: homework?.required_checkpoint_type || "",
   });
 
@@ -439,19 +440,32 @@ export function HomeworkForm({
               }
             />
             <Input
-              label="预计时长（分钟）"
+              label="积分扣减（当日未完成）"
               type="number"
-              min={5}
-              max={180}
-              value={formData.estimated_minutes}
+              min={0}
+              max={20}
+              value={formData.point_deduction}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
-                  estimated_minutes: parseInt(e.target.value),
+                  point_deduction: parseInt(e.target.value),
                 }))
               }
             />
           </div>
+          <Input
+            label="预计时长（分钟）"
+            type="number"
+            min={5}
+            max={180}
+            value={formData.estimated_minutes}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                estimated_minutes: parseInt(e.target.value),
+              }))
+            }
+          />
 
           <Input
             label="每日截止时间"

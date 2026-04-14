@@ -5,11 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
 
 export default function ChildrenListPage() {
+  const { t } = useTranslation();
   const supabase = createClient();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ export default function ChildrenListPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">🦊 加载中...</div>
+        <div className="text-2xl">{t('common.loading')}</div>
       </div>
     );
   }
@@ -54,10 +56,10 @@ export default function ChildrenListPage() {
           <Link href="/dashboard">
             <span className="text-xl">←</span>
           </Link>
-          <h1 className="text-xl font-bold">孩子管理</h1>
+          <h1 className="text-xl font-bold">{t('parent.children.title')}</h1>
           <Link href="/children/new">
             <Button size="sm" variant="secondary">
-              + 添加
+              + {t('common.add')}
             </Button>
           </Link>
         </div>
@@ -68,9 +70,9 @@ export default function ChildrenListPage() {
           <div className="text-center py-12">
             <span className="text-6xl">👶</span>
             <h2 className="text-xl font-bold text-forest-700 mt-4">
-              还没有添加孩子
+              {t('parent.children.noChildren')}
             </h2>
-            <p className="text-forest-500 mt-2">点击添加按钮创建孩子的账户</p>
+            <p className="text-forest-500 mt-2">{t('parent.children.addFirst')}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -90,7 +92,7 @@ export default function ChildrenListPage() {
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="ghost">
-                      编辑
+                      {t('common.edit')}
                     </Button>
                     <Button
                       size="sm"
@@ -98,7 +100,7 @@ export default function ChildrenListPage() {
                       onClick={() => handleDelete(child.id)}
                       className="text-red-500"
                     >
-                      删除
+                      {t('common.delete')}
                     </Button>
                   </div>
                 </div>

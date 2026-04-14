@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
+type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 const supabase = createClient();
 
 export default function ChildLayout({
@@ -18,6 +19,7 @@ export default function ChildLayout({
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [child, setChild] = useState<Child | null>(null);
+  const [totalPoints, setTotalPoints] = useState(0);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -30,11 +32,18 @@ export default function ChildLayout({
         return;
       }
 
-      const { data: childData } = await supabase
-        .from("children")
-        .select("*")
-        .eq("id", session.user.id)
-        .single();
+      const [{ data: childData }, { data: checkInsData }] = await Promise.all([
+        supabase
+          .from("children")
+          .select("*")
+          .eq("id", session.user.id)
+          .single(),
+        supabase
+          .from("check_ins")
+          .select("points_earned")
+          .eq("child_id", session.user.id)
+          .eq("is_scored", true),
+      ]);
 
       if (!childData) {
         router.push("/child-login");
@@ -42,6 +51,9 @@ export default function ChildLayout({
       }
 
       setChild(childData);
+      // Calculate total points from check_ins (authoritative source)
+      const points = checkInsData?.reduce((sum, ci) => sum + (ci.points_earned || 0), 0) || 0;
+      setTotalPoints(points);
       setLoading(false);
     };
 
@@ -65,7 +77,7 @@ export default function ChildLayout({
             <span className="text-3xl">{child?.avatar || "🦊"}</span>
             <div>
               <h1 className="font-bold">{child?.name}</h1>
-              <p className="text-sm opacity-80">积分: {child?.points}</p>
+              <p className="text-sm opacity-80">积分: {totalPoints}</p>
             </div>
           </div>
           <button

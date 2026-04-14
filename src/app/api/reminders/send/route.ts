@@ -2,7 +2,7 @@ import { buildReminderStateFromRow } from "@/lib/reminders";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-const ESCALATE_AFTER_MS = 2 * 60 * 60 * 1000; // 2 hours
+const ESCALATE_AFTER_MS = 45 * 60 * 1000; // 45 minutes
 
 export async function GET(request: Request) {
   const supabase = await createClient();

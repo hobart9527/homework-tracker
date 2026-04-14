@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { buildHomeworkListView } from "@/lib/homework-list";
 import { buildNewHomeworkHref } from "@/lib/homework-form";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type Child = Database["public"]["Tables"]["children"]["Row"];
 
 export default function HomeworkListPage() {
+  const { t } = useTranslation();
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
@@ -61,7 +63,7 @@ export default function HomeworkListPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">🦊 加载中...</div>
+        <div className="text-2xl">{t('common.loading')}</div>
       </div>
     );
   }
@@ -73,10 +75,10 @@ export default function HomeworkListPage() {
           <Link href="/dashboard">
             <span className="text-xl">←</span>
           </Link>
-          <h1 className="text-xl font-bold">作业管理</h1>
+          <h1 className="text-xl font-bold">{t('parent.homework.title')}</h1>
           <Link href={buildNewHomeworkHref({ selectedChildId })}>
             <Button size="sm" variant="secondary">
-              + 新建
+              + {t('common.add')}
             </Button>
           </Link>
         </div>
@@ -84,20 +86,20 @@ export default function HomeworkListPage() {
 
       <main className="max-w-6xl mx-auto p-4">
         <div className="mb-4 rounded-2xl bg-white/80 px-4 py-3 text-sm text-forest-600">
-          新建时可以一次分配给多个孩子，系统会分别创建独立作业，后续再按孩子单独调整。
+          {t('parent.homework.createFirst')}
         </div>
         {homeworks.length === 0 ? (
           <div className="text-center py-12">
             <span className="text-6xl">📝</span>
             <h2 className="text-xl font-bold text-forest-700 mt-4">
-              还没有作业
+              {t('parent.homework.noHomework')}
             </h2>
-            <p className="text-forest-500 mt-2">点击新建按钮添加第一个作业</p>
+            <p className="text-forest-500 mt-2">{t('parent.homework.createFirst')}</p>
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
             <aside className="rounded-3xl border border-forest-200 bg-white/90 p-4">
-              <h2 className="text-sm font-semibold text-forest-700">查看范围</h2>
+              <h2 className="text-sm font-semibold text-forest-700">{t('parent.childSelector.selectChild')}</h2>
               <div className="mt-3 space-y-2">
                 <button
                   type="button"
@@ -108,7 +110,7 @@ export default function HomeworkListPage() {
                       : "bg-forest-50 text-forest-600 hover:bg-forest-100"
                   }`}
                 >
-                  全部孩子
+                  {t('parent.dashboard.allChildren')}
                 </button>
                 {children.map((child) => (
                   <button
@@ -186,7 +188,7 @@ export default function HomeworkListPage() {
                             </Link>
                             <Link href={`/homework/${hw.id}`}>
                               <Button size="sm" variant="ghost">
-                                编辑
+                                {t('common.edit')}
                               </Button>
                             </Link>
                             <Button
@@ -195,7 +197,7 @@ export default function HomeworkListPage() {
                               onClick={() => handleDelete(hw.id)}
                               className="text-red-500"
                             >
-                              删除
+                              {t('common.delete')}
                             </Button>
                           </div>
                         </div>

@@ -12,6 +12,7 @@ export type HomeworkFormState = {
   repeat_interval: number;
   repeat_start_date: string;
   point_value: number;
+  point_deduction: number;
   estimated_minutes: number;
   daily_cutoff_time: string;
   required_checkpoint_type: HomeworkProofType | "";
@@ -45,6 +46,7 @@ type SourceHomework = {
   repeat_interval: number | null;
   repeat_start_date: string | null;
   point_value: number;
+  point_deduction: number;
   estimated_minutes: number;
   daily_cutoff_time: string | null;
   required_checkpoint_type: HomeworkProofType;
@@ -87,8 +89,9 @@ export function buildHomeworkDraftFromSource(
     repeat_interval: source.repeat_interval || 1,
     repeat_start_date: source.repeat_start_date || "",
     point_value: source.point_value,
+    point_deduction: source.point_deduction ?? 0,
     estimated_minutes: source.estimated_minutes,
-    daily_cutoff_time: source.daily_cutoff_time || "20:00",
+    daily_cutoff_time: source.daily_cutoff_time || "23:30",
     required_checkpoint_type: source.required_checkpoint_type || "",
   };
 }
@@ -110,6 +113,7 @@ export function buildHomeworkInsertRows(
     repeat_interval: form.repeat_type === "interval" ? form.repeat_interval : null,
     repeat_start_date: form.repeat_start_date || null,
     point_value: form.point_value,
+    point_deduction: form.point_deduction,
     estimated_minutes: form.estimated_minutes,
     daily_cutoff_time: form.daily_cutoff_time || null,
     created_by: createdBy,

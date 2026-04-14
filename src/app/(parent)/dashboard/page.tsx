@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateKey } from "@/lib/homework-utils";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/Button";
 import { ChildSelector } from "@/components/parent/ChildSelector";
@@ -49,6 +50,7 @@ const EMPTY_DASHBOARD: ParentMonthlyDashboard = {
 };
 
 export default function ParentDashboardPage() {
+  const { t } = useTranslation();
   const [supabase] = useState(() => createClient());
   const [dashboard, setDashboard] =
     useState<ParentMonthlyDashboard>(EMPTY_DASHBOARD);
@@ -59,6 +61,13 @@ export default function ParentDashboardPage() {
   );
   const [loading, setLoading] = useState(true);
   const [reminderStates, setReminderStates] = useState<ParentReminderState[]>([]);
+
+  // Store raw data in ref to avoid re-fetching when child selection changes
+  const rawDataRef = useRef<{
+    children: Child[];
+    homeworks: Homework[];
+    checkIns: CheckIn[];
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +126,9 @@ export default function ParentDashboardPage() {
           return;
         }
 
+        // Store raw data for child selection changes
+        rawDataRef.current = { children, homeworks: homeworksData, checkIns: checkInsData };
+
         const nextDashboard = buildParentDashboard({
           children,
           homeworks: homeworksData,
@@ -150,6 +162,23 @@ export default function ParentDashboardPage() {
       cancelled = true;
     };
   }, [selectedDate, selectedMonth, supabase]);
+
+  // Update dashboard when selectedChildId changes (without refetching data)
+  useEffect(() => {
+    if (!rawDataRef.current) return;
+
+    const { children, homeworks, checkIns } = rawDataRef.current;
+    const nextDashboard = buildParentDashboard({
+      children,
+      homeworks,
+      checkIns,
+      date: selectedDate,
+      month: selectedMonth,
+      selectedChildId,
+    });
+
+    setDashboard(nextDashboard);
+  }, [selectedChildId, selectedDate, selectedMonth]);
 
   const handleSelectDate = (date: string) => {
     setSelectedDate(date);
@@ -230,7 +259,7 @@ export default function ParentDashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">🦊 加载中...</div>
+        <div className="text-2xl">{t('parent.dashboard.loading')}</div>
       </div>
     );
   }
@@ -239,20 +268,20 @@ export default function ParentDashboardPage() {
     <div className="min-h-screen bg-background">
       <header className="bg-primary text-white p-4 sticky top-0 z-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <h1 className="text-xl font-bold">作业小管家</h1>
+          <h1 className="text-xl font-bold">{t('parent.dashboard.title')}</h1>
           <div className="flex gap-2">
             <Link href="/homework">
               <Button size="sm" variant="secondary">
-                作业管理
+                {t('parent.dashboard.homeworkManage')}
               </Button>
             </Link>
             <Link href="/children">
               <Button size="sm" variant="ghost">
-                孩子
+                {t('parent.dashboard.children')}
               </Button>
             </Link>
             <Button size="sm" variant="ghost" onClick={handleLogout}>
-              退出登录
+              {t('common.logout')}
             </Button>
           </div>
         </div>
@@ -263,13 +292,13 @@ export default function ParentDashboardPage() {
           <div className="py-12 text-center">
             <span className="text-6xl">🦊</span>
             <h2 className="mt-4 text-xl font-bold text-forest-700">
-              还没有添加孩子
+              {t('parent.dashboard.noChildren')}
             </h2>
             <p className="mt-2 text-forest-500">
-              点击下方按钮添加您的第一个孩子
+              {t('parent.dashboard.noChildrenHint')}
             </p>
             <Link href="/children">
-              <Button className="mt-4">添加孩子</Button>
+              <Button className="mt-4">{t('parent.dashboard.addChild')}</Button>
             </Link>
           </div>
         ) : (

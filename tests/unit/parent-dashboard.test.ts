@@ -47,6 +47,7 @@ describe("buildParentDashboard", () => {
     repeat_start_date: null,
     repeat_end_date: null,
     point_value: 3,
+    point_deduction: 0,
     estimated_minutes: 20,
     daily_cutoff_time: "20:00",
     is_active: true,
@@ -647,7 +648,7 @@ describe("TodayOverview mixed detail panels", () => {
 
     expect(screen.getByText("需要照片")).toBeInTheDocument();
     expect(screen.getByText("逾期完成")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "查看附件" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "📎 附件" })).toBeInTheDocument();
   });
 });
 
@@ -1600,7 +1601,7 @@ describe("Parent attachment previews and monthly cluster", () => {
       })
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "查看附件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "📎 附件" }));
 
     expect(await screen.findByText("附件预览")).toBeInTheDocument();
     expect(screen.getByAltText("钢琴练习 附件 1")).toBeInTheDocument();
@@ -1626,7 +1627,7 @@ describe("Parent attachment previews and monthly cluster", () => {
       } as any)
     );
 
-    expect(screen.queryByRole("button", { name: "查看附件" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "📎 附件" })).not.toBeInTheDocument();
   });
 
   it("matches reminder state by homework and target date", () => {
@@ -1657,7 +1658,7 @@ describe("Parent attachment previews and monthly cluster", () => {
       } as any)
     );
 
-    expect(screen.getByRole("button", { name: "提醒孩子" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "🔔 提醒" })).toBeInTheDocument();
     expect(
       screen.queryByText("已短信提醒 · 2小时后未完成将电话提醒")
     ).not.toBeInTheDocument();
@@ -1765,7 +1766,7 @@ describe("Parent attachment previews and monthly cluster", () => {
       } as any)
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "查看附件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "📎 附件" }));
 
     expect(await screen.findByText("附件预览")).toBeInTheDocument();
     expect(screen.getByAltText("钢琴练习 附件 1")).toBeInTheDocument();

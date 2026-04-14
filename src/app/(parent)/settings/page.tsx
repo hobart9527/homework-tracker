@@ -7,12 +7,14 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ReminderSettings } from "@/components/parent/ReminderSettings";
 import { QuickTypeManager } from "@/components/parent/QuickTypeManager";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
 type CustomType = Database["public"]["Tables"]["custom_homework_types"]["Row"];
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const supabase = createClient();
   const [parent, setParent] = useState<Parent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,7 @@ export default function SettingsPage() {
   if (loading || !parent) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">🦊 加载中...</div>
+        <div className="text-2xl">{t('common.loading')}</div>
       </div>
     );
   }
@@ -68,7 +70,7 @@ export default function SettingsPage() {
           <Link href="/dashboard">
             <span className="text-xl">←</span>
           </Link>
-          <h1 className="text-xl font-bold">设置</h1>
+          <h1 className="text-xl font-bold">{t('parent.settings.title')}</h1>
         </div>
       </header>
 
@@ -98,7 +100,7 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <h2 className="font-bold text-forest-700 mb-4">提醒设置</h2>
+          <h2 className="font-bold text-forest-700 mb-4">{t('parent.settings.notifications')}</h2>
           <ReminderSettings
             settings={parent}
             onUpdate={() => window.location.reload()}
@@ -106,7 +108,7 @@ export default function SettingsPage() {
         </Card>
 
         <Card>
-          <h2 className="font-bold text-forest-700 mb-4">账户</h2>
+          <h2 className="font-bold text-forest-700 mb-4">{t('parent.settings.profile')}</h2>
           <Button
             variant="ghost"
             onClick={async () => {
@@ -114,7 +116,7 @@ export default function SettingsPage() {
               window.location.href = "/login";
             }}
           >
-            退出登录
+            {t('common.logout')}
           </Button>
         </Card>
       </main>

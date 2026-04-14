@@ -123,6 +123,7 @@ export interface Database {
           repeat_start_date: string | null;
           repeat_end_date: string | null;
           point_value: number | null;
+          point_deduction: number | null;
           estimated_minutes: number | null;
           daily_cutoff_time: string | null;
           is_active: boolean | null;
@@ -144,6 +145,7 @@ export interface Database {
           repeat_start_date?: string | null;
           repeat_end_date?: string | null;
           point_value?: number | null;
+          point_deduction?: number | null;
           estimated_minutes?: number | null;
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
@@ -165,6 +167,7 @@ export interface Database {
           repeat_start_date?: string | null;
           repeat_end_date?: string | null;
           point_value?: number | null;
+          point_deduction?: number | null;
           estimated_minutes?: number | null;
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
