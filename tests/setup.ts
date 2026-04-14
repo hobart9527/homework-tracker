@@ -104,3 +104,15 @@ vi.mock("@/hooks/useTranslation", () => ({
     t: (key: string) => translations[key] || key,
   }),
 }));
+
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
