@@ -13,9 +13,9 @@ export function PriorityHomeworkCard({
   if (!task) {
     return (
       <div className="rounded-[28px] border border-dashed border-forest-200 bg-white/80 p-5 shadow-sm">
-        <div className="text-sm font-medium text-forest-600">下一项</div>
-        <div className="mt-3 text-lg font-bold text-forest-700">今天没有新的优先任务</div>
-        <p className="mt-1 text-sm text-forest-500">可以先看看左侧日历，或直接完成下面的任务。</p>
+        <div className="text-sm font-medium text-forest-600">太棒了！</div>
+        <div className="mt-3 text-lg font-bold text-forest-700">今天的任务全部完成啦！</div>
+        <p className="mt-1 text-sm text-forest-500">可以休息一下，或者看看本周其他天的任务。</p>
       </div>
     );
   }

@@ -7,9 +7,9 @@ import { formatDateKey } from "@/lib/homework-utils";
 import type { Database } from "@/lib/supabase/types";
 import { Button } from "@/components/ui/Button";
 import { ChildSelector } from "@/components/parent/ChildSelector";
+import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
 import { ParentMonthCalendar } from "@/components/parent/ParentMonthCalendar";
 import { ParentMonthlyInsights } from "@/components/parent/ParentMonthlyInsights";
-import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
 import { TodayOverview } from "@/components/parent/TodayOverview";
 import {
   buildParentDashboard,
@@ -43,7 +43,7 @@ const EMPTY_DASHBOARD: ParentMonthlyDashboard = {
     completionRate: 0,
     onTimeRate: 0,
     totalPoints: 0,
-    makeupDays: 0,
+    incompleteCount: 0,
   },
   checkInHeatmap: [],
 };
@@ -163,7 +163,23 @@ export default function ParentDashboardPage() {
   };
 
   const activeChildId =
-    selectedChildId ?? getDefaultSelectedChildId(dashboard.summaries);
+    dashboard.summaries.some((summary) => summary.childId === selectedChildId)
+      ? selectedChildId
+      : getDefaultSelectedChildId(dashboard.summaries);
+
+  useEffect(() => {
+    if (dashboard.summaries.length === 0) {
+      return;
+    }
+
+    if (
+      !selectedChildId ||
+      !dashboard.summaries.some((summary) => summary.childId === selectedChildId)
+    ) {
+      setSelectedChildId(getDefaultSelectedChildId(dashboard.summaries));
+    }
+  }, [dashboard.summaries, selectedChildId]);
+
   const selectedDetail =
     dashboard.selectedDayDetails.find(
       (detail) => detail.summary.childId === activeChildId
@@ -183,6 +199,11 @@ export default function ParentDashboardPage() {
     } catch {
       // Silently ignore fetch errors (e.g., no server in test environment)
     }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/login";
   };
 
   const handleReminderStateChange = async (
@@ -230,6 +251,9 @@ export default function ParentDashboardPage() {
                 孩子
               </Button>
             </Link>
+            <Button size="sm" variant="ghost" onClick={handleLogout}>
+              退出登录
+            </Button>
           </div>
         </div>
       </header>
@@ -255,25 +279,31 @@ export default function ParentDashboardPage() {
               selectedId={activeChildId}
               onSelect={setSelectedChildId}
             />
-            {selectedDetail ? (
-              <TodayOverview
-                detail={selectedDetail}
+            <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_22rem] xl:items-start">
+              {selectedDetail ? (
+                <TodayOverview
+                  detail={selectedDetail}
+                  selectedDate={selectedDate}
+                  reminderStates={reminderStates}
+                  onReminderStateChange={handleReminderStateChange}
+                />
+              ) : null}
+              <ParentMonthCalendar
+                days={dashboard.calendarDays}
                 selectedDate={selectedDate}
-                reminderStates={reminderStates}
-                onReminderStateChange={handleReminderStateChange}
+                selectedMonth={selectedMonth}
+                monthlyStats={dashboard.monthlyStats}
+                onSelectDate={handleSelectDate}
+                onPreviousMonth={() => handleChangeMonth(-1)}
+                onNextMonth={() => handleChangeMonth(1)}
               />
-            ) : null}
-            <ParentMonthCalendar
-              days={dashboard.calendarDays}
-              selectedDate={selectedDate}
-              selectedMonth={selectedMonth}
-              monthlyStats={dashboard.monthlyStats}
-              onSelectDate={handleSelectDate}
-              onPreviousMonth={() => handleChangeMonth(-1)}
-              onNextMonth={() => handleChangeMonth(1)}
-            />
-            <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
-            <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
+            </section>
+            <section className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
+              <div className="rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
+                <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
+              </div>
+              <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
+            </section>
           </>
         )}
       </main>

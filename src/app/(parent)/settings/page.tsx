@@ -74,14 +74,6 @@ export default function SettingsPage() {
 
       <main className="max-w-2xl mx-auto p-4 space-y-4">
         <Card>
-          <h2 className="font-bold text-forest-700 mb-4">提醒设置</h2>
-          <ReminderSettings
-            settings={parent}
-            onUpdate={() => window.location.reload()}
-          />
-        </Card>
-
-        <Card>
           <QuickTypeManager
             types={customTypes}
             onAdd={async (name, icon, points) => {
@@ -102,6 +94,14 @@ export default function SettingsPage() {
               await supabase.from("custom_homework_types").delete().eq("id", id);
               setCustomTypes((prev) => prev.filter((t) => t.id !== id));
             }}
+          />
+        </Card>
+
+        <Card>
+          <h2 className="font-bold text-forest-700 mb-4">提醒设置</h2>
+          <ReminderSettings
+            settings={parent}
+            onUpdate={() => window.location.reload()}
           />
         </Card>
 

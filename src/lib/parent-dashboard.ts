@@ -68,7 +68,7 @@ export type ParentMonthlyStats = {
   completionRate: number;
   onTimeRate: number;
   totalPoints: number;
-  makeupDays: number;
+  incompleteCount: number;
 };
 
 export type ParentCheckInHeatmapBucket = {
@@ -104,7 +104,7 @@ type MonthlyAggregation = {
   completedCount: number;
   onTimeCount: number;
   totalPoints: number;
-  makeupDays: number;
+  incompleteCount: number;
 };
 
 function isHomeworkOverdue(homework: Homework, date: string): boolean {
@@ -302,17 +302,11 @@ function buildMonthlyStats(
       const completedCount = statuses.filter((status) => status.completed).length;
       const onTimeCount = statuses.filter((status) => status.completed && !status.late).length;
       const totalPoints = statuses.reduce((sum, status) => sum + status.awardedPoints, 0);
-      const lateCompletedCount = statuses.filter(
-        (status) => status.completed && status.late
-      ).length;
-
       accumulator.assignedCount += statuses.length;
       accumulator.completedCount += completedCount;
       accumulator.onTimeCount += onTimeCount;
       accumulator.totalPoints += totalPoints;
-      if (lateCompletedCount > 0) {
-        accumulator.makeupDays += 1;
-      }
+      accumulator.incompleteCount += statuses.filter((status) => !status.completed).length;
 
       return accumulator;
     },
@@ -321,7 +315,7 @@ function buildMonthlyStats(
       completedCount: 0,
       onTimeCount: 0,
       totalPoints: 0,
-      makeupDays: 0,
+      incompleteCount: 0,
     }
   );
 
@@ -335,7 +329,7 @@ function buildMonthlyStats(
         ? 0
         : aggregation.onTimeCount / aggregation.assignedCount,
     totalPoints: aggregation.totalPoints,
-    makeupDays: aggregation.makeupDays,
+    incompleteCount: aggregation.incompleteCount,
   };
 }
 
@@ -471,4 +465,3 @@ export function getDefaultSelectedChildId(
 ): string | null {
   return summaries[0]?.childId ?? null;
 }
-

@@ -160,4 +160,24 @@ describe("Child check-in UI strings", () => {
     expect(onSuccess).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("blocks submission until the required attachment is added", () => {
+    render(
+      createElement(CheckInModal, {
+        homework: {
+          id: "hw-photo-1",
+          title: "阅读练习",
+          type_icon: "📖",
+          point_value: 4,
+          required_checkpoint_type: "photo",
+        } as any,
+        isOpen: true,
+        onClose: vi.fn(),
+        onSuccess: vi.fn(),
+      })
+    );
+
+    expect(screen.getByText("请先添加照片，再提交本次作业")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认完成 ✨" })).toBeDisabled();
+  });
 });

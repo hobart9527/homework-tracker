@@ -52,10 +52,10 @@ export function ParentDayDetailPanel({
         <div className="space-y-3">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary/80">
-              今日总览
+              当天任务
             </p>
             <h2 className="mt-2 text-3xl font-bold text-forest-800">
-              {detail.summary.childName} 今天的任务优先级
+              {detail.summary.childName} 在这一天的安排
             </h2>
           </div>
 
@@ -86,7 +86,7 @@ export function ParentDayDetailPanel({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="今日任务" value={detail.summary.totalCount} />
+        <MetricCard label="当天任务" value={detail.summary.totalCount} />
         <MetricCard label="当天积分" value={detail.summary.todayPoints} />
         <MetricCard label="待完成" value={detail.summary.outstandingCount} />
         <MetricCard label="逾期" value={detail.summary.overdueCount} />

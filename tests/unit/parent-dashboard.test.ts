@@ -2,6 +2,10 @@ import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ChildSelector } from "@/components/parent/ChildSelector";
+import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
+import { ParentChildTaskList } from "@/components/parent/ParentChildTaskList";
+import { ParentDayDetailPanel } from "@/components/parent/ParentDayDetailPanel";
+import { ParentMonthCalendar } from "@/components/parent/ParentMonthCalendar";
 import { TodayOverview } from "@/components/parent/TodayOverview";
 import ParentDashboardPage from "@/app/(parent)/dashboard/page";
 import { createClient } from "@/lib/supabase/client";
@@ -192,7 +196,7 @@ describe("buildParentDashboard", () => {
       completionRate: 1,
       onTimeRate: 1,
       totalPoints: 5,
-      makeupDays: 0,
+      incompleteCount: 0,
     });
     expect(result.calendarDays).toHaveLength(31);
     expect(result.calendarDays[2]).toMatchObject({
@@ -630,8 +634,7 @@ describe("TodayOverview mixed detail panels", () => {
     );
 
     expect(screen.getByText("2026年4月8日")).toBeInTheDocument();
-    expect(screen.getByText("今日总览")).toBeInTheDocument();
-    expect(screen.getAllByText("今日任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("当天任务").length).toBeGreaterThan(0);
   });
 
   it("shows proof requirement and task status per row", () => {
@@ -644,6 +647,7 @@ describe("TodayOverview mixed detail panels", () => {
 
     expect(screen.getByText("需要照片")).toBeInTheDocument();
     expect(screen.getByText("逾期完成")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看附件" })).toBeInTheDocument();
   });
 });
 
@@ -652,7 +656,7 @@ describe("ParentDashboardPage wiring", () => {
     vi.useRealTimers();
   });
 
-  it("renders the today-first layout with calendar and weakest types afterward", async () => {
+  it("renders the linked task overview, compact calendar, and side-by-side analysis blocks", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
 
@@ -827,22 +831,27 @@ describe("ParentDashboardPage wiring", () => {
 
     expect(screen.getByText("Ivy")).toBeInTheDocument();
     expect(screen.getByText("Albert")).toBeInTheDocument();
-    const todayHeading = screen.getByText("今日总览");
+    const todayHeading = screen.getAllByText("当天任务")[0];
     const calendarHeading = screen.getByText("本月进度日历");
+    const heatmapHeading = screen.getByText("本月时段热力图");
     const weakestTypesHeading = screen.getByText("本月薄弱类型");
 
     expect(todayHeading).toBeInTheDocument();
     expect(screen.getByText("2026年4月8日")).toBeInTheDocument();
     expect(calendarHeading).toBeInTheDocument();
-    expect(screen.getByText("本月关键指标")).toBeInTheDocument();
-    expect(screen.getByText("打卡高峰时段")).toBeInTheDocument();
+    expect(screen.getByText("完成率")).toBeInTheDocument();
+    expect(heatmapHeading).toBeInTheDocument();
     expect(weakestTypesHeading).toBeInTheDocument();
     expect(
       todayHeading.compareDocumentPosition(calendarHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      calendarHeading.compareDocumentPosition(weakestTypesHeading) &
+      calendarHeading.compareDocumentPosition(heatmapHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      heatmapHeading.compareDocumentPosition(weakestTypesHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
@@ -994,7 +1003,6 @@ describe("ParentDashboardPage wiring", () => {
     });
 
     expect(screen.getByText("2026年5月")).toBeInTheDocument();
-    expect(screen.getByText("已选 2026-05-01")).toBeInTheDocument();
     expect(screen.getByText("2026年5月1日")).toBeInTheDocument();
   });
 
@@ -1244,6 +1252,601 @@ describe("ParentDashboardPage wiring", () => {
     expect(screen.getByText("Ivy")).toBeInTheDocument();
     expect(screen.getByText("Albert")).toBeInTheDocument();
     expect(screen.getByText("本月进度日历")).toBeInTheDocument();
-    expect(screen.getByText("今日总览")).toBeInTheDocument();
+    expect(screen.getAllByText("当天任务").length).toBeGreaterThan(0);
+  });
+
+  it("recovers the selected child when the current id disappears from the summaries", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
+
+    let childrenFetchCount = 0;
+    const mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { id: "parent-1" } } },
+        }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "children") {
+          return {
+            select: () => ({
+              eq: () => {
+                childrenFetchCount += 1;
+                return Promise.resolve({
+                  data:
+                    childrenFetchCount === 1
+                      ? [
+                          {
+                            id: "child-1",
+                            parent_id: "parent-1",
+                            name: "Ivy",
+                            avatar: "🦊",
+                            age: null,
+                            gender: null,
+                            password_hash: "hash",
+                            points: 0,
+                            streak_days: 0,
+                            last_check_in: null,
+                            created_at: "2026-04-01T00:00:00.000Z",
+                          },
+                          {
+                            id: "child-2",
+                            parent_id: "parent-1",
+                            name: "Albert",
+                            avatar: "🐯",
+                            age: null,
+                            gender: null,
+                            password_hash: "hash",
+                            points: 0,
+                            streak_days: 0,
+                            last_check_in: null,
+                            created_at: "2026-04-01T00:00:00.000Z",
+                          },
+                        ]
+                      : [
+                          {
+                            id: "child-2",
+                            parent_id: "parent-1",
+                            name: "Albert",
+                            avatar: "🐯",
+                            age: null,
+                            gender: null,
+                            password_hash: "hash",
+                            points: 0,
+                            streak_days: 0,
+                            last_check_in: null,
+                            created_at: "2026-04-01T00:00:00.000Z",
+                          },
+                        ],
+                });
+              },
+            }),
+          };
+        }
+
+        if (table === "homeworks") {
+          return {
+            select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "hw-1",
+                      child_id: "child-1",
+                      type_id: null,
+                      type_name: "默认",
+                      type_icon: "📝",
+                      title: "钢琴练习",
+                      description: null,
+                      repeat_type: "daily",
+                      repeat_days: null,
+                      repeat_interval: null,
+                      repeat_start_date: null,
+                      repeat_end_date: null,
+                      point_value: 3,
+                      estimated_minutes: 20,
+                      daily_cutoff_time: "20:00",
+                      is_active: true,
+                      required_checkpoint_type: null,
+                      created_by: "parent-1",
+                      created_at: "2026-04-01T00:00:00.000Z",
+                    },
+                    {
+                      id: "hw-2",
+                      child_id: "child-1",
+                      type_id: null,
+                      type_name: "默认",
+                      type_icon: "📚",
+                      title: "阅读练习",
+                      description: null,
+                      repeat_type: "daily",
+                      repeat_days: null,
+                      repeat_interval: null,
+                      repeat_start_date: null,
+                      repeat_end_date: null,
+                      point_value: 4,
+                      estimated_minutes: 20,
+                      daily_cutoff_time: "20:00",
+                      is_active: true,
+                      required_checkpoint_type: null,
+                      created_by: "parent-1",
+                      created_at: "2026-04-01T00:00:00.000Z",
+                    },
+                    {
+                      id: "hw-3",
+                      child_id: "child-2",
+                      type_id: null,
+                      type_name: "阅读",
+                      type_icon: "📚",
+                      title: "阅读练习",
+                      description: null,
+                      repeat_type: "daily",
+                      repeat_days: null,
+                      repeat_interval: null,
+                      repeat_start_date: null,
+                      repeat_end_date: null,
+                      point_value: 4,
+                      estimated_minutes: 20,
+                      daily_cutoff_time: "20:00",
+                      is_active: true,
+                      required_checkpoint_type: null,
+                      created_by: "parent-1",
+                      created_at: "2026-04-01T00:00:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        if (table === "check_ins") {
+          return {
+            select: () => ({
+              in: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "check-1",
+                      homework_id: "hw-1",
+                      child_id: "child-1",
+                      completed_at: "2026-04-08T10:00:00.000Z",
+                      submitted_at: "2026-04-08T10:00:00.000Z",
+                      points_earned: 3,
+                      awarded_points: 3,
+                      is_scored: true,
+                      is_late: false,
+                      proof_type: null,
+                      note: null,
+                      created_at: "2026-04-08T10:00:00.000Z",
+                    },
+                    {
+                      id: "check-2",
+                      homework_id: "hw-3",
+                      child_id: "child-2",
+                      completed_at: "2026-04-08T11:00:00.000Z",
+                      submitted_at: "2026-04-08T11:00:00.000Z",
+                      points_earned: 4,
+                      awarded_points: 4,
+                      is_scored: true,
+                      is_late: false,
+                      proof_type: null,
+                      note: null,
+                      created_at: "2026-04-08T11:00:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockReturnValue(mockSupabase as any);
+
+    render(createElement(ParentDashboardPage));
+    await vi.runAllTimersAsync();
+
+    expect(screen.getByRole("button", { name: /Ivy/ })).toHaveAttribute("aria-pressed", "true");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "下个月" }));
+      await vi.runAllTimersAsync();
+    });
+
+    expect(screen.getByRole("button", { name: /Albert/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Albert")).toBeInTheDocument();
+  });
+
+  it("renders a logout action in the header", async () => {
+    const mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { id: "parent-1" } } },
+        }),
+        signOut: vi.fn().mockResolvedValue({ error: null }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "children") {
+          return {
+            select: () => ({
+              eq: () => Promise.resolve({ data: [] }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockReturnValue(mockSupabase as any);
+
+    render(createElement(ParentDashboardPage));
+
+    fireEvent.click(await screen.findByRole("button", { name: "退出登录" }));
+
+    expect(mockSupabase.auth.signOut).toHaveBeenCalled();
+  });
+});
+
+describe("Parent attachment previews and monthly cluster", () => {
+  it("opens a modal preview for completed child attachments", async () => {
+    const mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { id: "parent-1" } } },
+        }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "check_ins") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  gte: () => ({
+                    lt: () => ({
+                      order: () => ({
+                        limit: () =>
+                          Promise.resolve({
+                            data: [
+                              {
+                                id: "check-1",
+                                homework_id: "hw-1",
+                                child_id: "child-1",
+                                completed_at: "2026-04-08T10:00:00.000Z",
+                                submitted_at: "2026-04-08T10:00:00.000Z",
+                                points_earned: 3,
+                                awarded_points: 3,
+                                is_scored: true,
+                                is_late: false,
+                                proof_type: "photo",
+                                note: null,
+                                created_at: "2026-04-08T10:00:00.000Z",
+                              },
+                            ],
+                          }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+
+        if (table === "attachments") {
+          return {
+            select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "att-1",
+                      check_in_id: "check-1",
+                      type: "photo",
+                      storage_path: "parent-1/check-1/photo.png",
+                      created_at: "2026-04-08T10:00:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+      storage: {
+        from: () => ({
+          createSignedUrl: vi.fn().mockResolvedValue({
+            data: { signedUrl: "https://example.com/photo.png" },
+            error: null,
+          }),
+        }),
+      },
+    };
+
+    vi.mocked(createClient).mockReturnValue(mockSupabase as any);
+
+    render(
+      createElement(ParentDayDetailPanel, {
+        detail: {
+          summary: {
+            childId: "child-1",
+            childName: "Ivy",
+            avatar: "🦊",
+            completedCount: 1,
+            totalCount: 1,
+            todayPoints: 3,
+            overdueCount: 0,
+            makeupCount: 0,
+            outstandingCount: 0,
+            topNotice: "今天全部完成",
+          },
+          tasks: [
+            {
+              homeworkId: "hw-1",
+              title: "钢琴练习",
+              typeIcon: "📝",
+              cutoffTime: "20:00",
+              proofType: "photo" as const,
+              statusText: "已完成",
+              scored: true,
+              awardedPoints: 3,
+            },
+          ],
+        } as any,
+        selectedDate: "2026-04-08",
+      })
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "查看附件" }));
+
+    expect(await screen.findByText("附件预览")).toBeInTheDocument();
+    expect(screen.getByAltText("钢琴练习 附件 1")).toBeInTheDocument();
+  });
+
+  it("hides attachment preview for unfinished tasks", () => {
+    render(
+      createElement(ParentChildTaskList, {
+        tasks: [
+          {
+            homeworkId: "hw-1",
+            title: "钢琴练习",
+            typeIcon: "📝",
+            cutoffTime: "20:00",
+            proofType: "photo" as const,
+            statusText: "待完成",
+            scored: false,
+            awardedPoints: 0,
+          },
+        ],
+        childId: "child-1",
+        selectedDate: "2026-04-08",
+      } as any)
+    );
+
+    expect(screen.queryByRole("button", { name: "查看附件" })).not.toBeInTheDocument();
+  });
+
+  it("matches reminder state by homework and target date", () => {
+    render(
+      createElement(ParentChildTaskList, {
+        tasks: [
+          {
+            homeworkId: "hw-1",
+            title: "钢琴练习",
+            typeIcon: "📝",
+            cutoffTime: "20:00",
+            proofType: null,
+            statusText: "已完成",
+            scored: true,
+            awardedPoints: 3,
+          },
+        ],
+        childId: "child-1",
+        selectedDate: "2026-04-08",
+        reminderStates: [
+          {
+            homeworkId: "hw-1",
+            targetDate: "2026-04-07",
+            status: "sent_sms",
+            escalateAfter: null,
+          },
+        ],
+      } as any)
+    );
+
+    expect(screen.getByRole("button", { name: "提醒孩子" })).toBeInTheDocument();
+    expect(
+      screen.queryByText("已短信提醒 · 2小时后未完成将电话提醒")
+    ).not.toBeInTheDocument();
+  });
+
+  it("loads attachment previews using the local day window", async () => {
+    const expectedStart = new Date("2026-04-08T00:00:00").toISOString();
+    const expectedEnd = new Date("2026-04-08T23:59:59.999").toISOString();
+
+    const mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { id: "parent-1" } } },
+        }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "check_ins") {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  gte: (_field: string, start: string) => ({
+                    lt: (_field: string, end: string) => ({
+                      order: () => ({
+                        limit: () =>
+                          Promise.resolve({
+                            data:
+                              start === expectedStart && end === expectedEnd
+                                ? [
+                                    {
+                                      id: "check-1",
+                                      homework_id: "hw-1",
+                                      child_id: "child-1",
+                                      completed_at: "2026-04-07T18:30:00.000Z",
+                                      submitted_at: "2026-04-07T18:30:00.000Z",
+                                      points_earned: 3,
+                                      awarded_points: 3,
+                                      is_scored: true,
+                                      is_late: false,
+                                      proof_type: "photo",
+                                      note: null,
+                                      created_at: "2026-04-07T18:30:00.000Z",
+                                    },
+                                  ]
+                                : [],
+                          }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+
+        if (table === "attachments") {
+          return {
+            select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "att-1",
+                      check_in_id: "check-1",
+                      type: "photo",
+                      storage_path: "parent-1/check-1/photo.png",
+                      created_at: "2026-04-07T18:30:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+      storage: {
+        from: () => ({
+          createSignedUrl: vi.fn().mockResolvedValue({
+            data: { signedUrl: "https://example.com/photo.png" },
+            error: null,
+          }),
+        }),
+      },
+    };
+
+    vi.mocked(createClient).mockReturnValue(mockSupabase as any);
+
+    render(
+      createElement(ParentChildTaskList, {
+        tasks: [
+          {
+            homeworkId: "hw-1",
+            title: "钢琴练习",
+            typeIcon: "📝",
+            cutoffTime: "20:00",
+            proofType: "photo" as const,
+            statusText: "已完成",
+            scored: true,
+            awardedPoints: 3,
+          },
+        ],
+        childId: "child-1",
+        selectedDate: "2026-04-08",
+      } as any)
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "查看附件" }));
+
+    expect(await screen.findByText("附件预览")).toBeInTheDocument();
+    expect(screen.getByAltText("钢琴练习 附件 1")).toBeInTheDocument();
+  });
+
+  it("shows the compact calendar legend and monthly stats without task-title clutter", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-01T09:00:00.000Z"));
+
+    render(
+      createElement(ParentMonthCalendar, {
+        days: [
+          {
+            date: "2026-04-01",
+            totalCount: 2,
+            completedCount: 1,
+            lateCompletedCount: 0,
+            outstandingCount: 1,
+            tooltip: {
+              assignedCount: 2,
+              completedCount: 1,
+              lateCompletedCount: 0,
+              pendingTitles: ["阅读练习"],
+            },
+          },
+          {
+            date: "2026-04-02",
+            totalCount: 0,
+            completedCount: 0,
+            lateCompletedCount: 0,
+            outstandingCount: 0,
+            tooltip: {
+              assignedCount: 0,
+              completedCount: 0,
+              lateCompletedCount: 0,
+              pendingTitles: [],
+            },
+          },
+        ],
+        selectedDate: "2026-04-01",
+        selectedMonth: "2026-04",
+        monthlyStats: {
+          completionRate: 0.5,
+          onTimeRate: 0.5,
+          totalPoints: 9,
+          incompleteCount: 1,
+        },
+        onSelectDate: () => {},
+        onPreviousMonth: () => {},
+        onNextMonth: () => {},
+      } as any)
+    );
+
+    expect(screen.getByText("完成率")).toBeInTheDocument();
+    expect(screen.getByText("未完成数")).toBeInTheDocument();
+    expect(screen.getByText("已完成")).toBeInTheDocument();
+    expect(screen.getByText("未开始")).toBeInTheDocument();
+    expect(screen.getByText("今")).toBeInTheDocument();
+    expect(screen.queryByText("当前查看：2026年4月1日")).not.toBeInTheDocument();
+    expect(screen.queryByText("阅读练习")).not.toBeInTheDocument();
+    const selectedDayButton = screen.getByRole("button", {
+      name: "2026-04-01 进行中，完成 1/2",
+    });
+    expect(selectedDayButton).toBeInTheDocument();
+    expect(selectedDayButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("renders the monthly heatmap with separate time labels below each block", () => {
+    render(
+      createElement(ParentCheckInHeatmap, {
+        buckets: [
+          { hour: 8, count: 1 },
+          { hour: 19, count: 3 },
+          { hour: 20, count: 2 },
+        ],
+      })
+    );
+
+    expect(screen.getByText("本月时段热力图")).toBeInTheDocument();
+    expect(screen.getByText("08:00")).toBeInTheDocument();
+    expect(screen.getByText("19:00")).toBeInTheDocument();
+    expect(screen.getByText("高峰")).toBeInTheDocument();
   });
 });

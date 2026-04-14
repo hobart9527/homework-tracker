@@ -52,8 +52,6 @@ export function HomeworkForm({
   const [children, setChildren] = useState<Child[]>([]);
   const [customTypes, setCustomTypes] = useState<CustomType[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showCustomTypeForm, setShowCustomTypeForm] = useState(false);
-  const [customTypeForm, setCustomTypeForm] = useState({ name: "", icon: "📝", points: 3 });
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
 
@@ -176,45 +174,6 @@ export function HomeworkForm({
     }));
   };
 
-  const handleAddCustomType = async () => {
-    if (showCustomTypeForm) {
-      // Submit the custom type
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data: newType, error } = await supabase
-        .from("custom_homework_types")
-        .insert({
-          parent_id: session.user.id,
-          name: customTypeForm.name.trim(),
-          icon: customTypeForm.icon,
-          default_points: customTypeForm.points,
-        })
-        .select()
-        .single();
-
-      if (error || !newType) {
-        alert("创建自定义类型失败，请重试");
-        return;
-      }
-
-      setCustomTypes((prev) => [...prev, newType]);
-      handleTypeSelect({
-        id: newType.id,
-        name: newType.name,
-        icon: newType.icon || "📝",
-        default_points: newType.default_points ?? 3,
-        is_custom: true,
-      });
-      setShowCustomTypeForm(false);
-      setCustomTypeForm({ name: "", icon: "📝", points: 3 });
-    } else {
-      setShowCustomTypeForm(true);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -287,25 +246,16 @@ export function HomeworkForm({
 
         <div className="space-y-6 rounded-3xl border border-forest-200 bg-white/90 p-5">
           <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1">
-                <label
-                  htmlFor="homework-quick-type"
-                  className="block text-sm font-medium text-forest-700"
-                >
-                  快捷类型（可选）
-                </label>
-                <p className="mt-1 text-sm text-forest-500">
-                  选一个常用类型，自动带入标题建议、图标和默认积分。
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleAddCustomType}
-                className="rounded-xl border border-forest-200 px-3 py-2 text-sm text-forest-600 transition-all hover:border-primary hover:text-primary"
+            <div className="flex-1">
+              <label
+                htmlFor="homework-quick-type"
+                className="block text-sm font-medium text-forest-700"
               >
-                {showCustomTypeForm ? "保存类型" : "新建类型"}
-              </button>
+                快捷类型（可选）
+              </label>
+              <p className="mt-1 text-sm text-forest-500">
+                选一个常用类型，自动带入标题建议、图标和默认积分。自定义类型请到设置页维护。
+              </p>
             </div>
 
             <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
@@ -332,55 +282,6 @@ export function HomeworkForm({
                 图标 {formData.type_icon}
               </button>
             </div>
-
-            {showCustomTypeForm && (
-              <div className="mt-3 space-y-3 rounded-xl border border-primary/30 bg-white p-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={customTypeForm.name}
-                    onChange={(e) =>
-                      setCustomTypeForm((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    placeholder="类型名称，如：数学练习"
-                    className="flex-1 rounded-xl border-2 border-forest-200 px-3 py-2 focus:border-primary focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={customTypeForm.points}
-                    onChange={(e) =>
-                      setCustomTypeForm((prev) => ({
-                        ...prev,
-                        points: parseInt(e.target.value),
-                      }))
-                    }
-                    placeholder="积分"
-                    className="w-20 rounded-xl border-2 border-forest-200 px-3 py-2 focus:border-primary focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-forest-600">图标</label>
-                  <div className="flex flex-wrap gap-1">
-                    {ALL_ICONS.map((icon) => (
-                      <button
-                        key={icon}
-                        type="button"
-                        onClick={() => setCustomTypeForm((prev) => ({ ...prev, icon }))}
-                        className={`w-9 h-9 rounded-lg border-2 text-xl transition-all ${
-                          customTypeForm.icon === icon
-                            ? "border-primary bg-primary/10"
-                            : "border-forest-200"
-                        }`}
-                      >
-                        {icon}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
             {showIconPicker && (
               <div className="mt-3 flex flex-wrap gap-1">

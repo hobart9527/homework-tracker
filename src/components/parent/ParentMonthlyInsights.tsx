@@ -14,7 +14,7 @@ export function ParentMonthlyInsights({
   weakestTypes,
 }: ParentMonthlyInsightsProps) {
   return (
-    <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
+    <section className="h-full rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
       <div>
         <h2 className="text-xl font-bold text-forest-800">本月薄弱类型</h2>
         <p className="text-sm text-forest-500">

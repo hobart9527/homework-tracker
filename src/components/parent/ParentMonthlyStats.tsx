@@ -35,7 +35,7 @@ export function ParentMonthlyStats({ stats }: ParentMonthlyStatsProps) {
     completionRate: 0,
     onTimeRate: 0,
     totalPoints: 0,
-    makeupDays: 0,
+    incompleteCount: 0,
   };
 
   return (
@@ -62,9 +62,9 @@ export function ParentMonthlyStats({ stats }: ParentMonthlyStatsProps) {
           helper="本月已获得总积分"
         />
         <StatCard
-          label="补做天数"
-          value={safeStats.makeupDays}
-          helper="出现逾期补做的日期数"
+          label="未完成数"
+          value={safeStats.incompleteCount}
+          helper="本月仍未完成的任务条目"
         />
       </div>
     </section>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CheckInModal } from "@/components/child/CheckInModal";
 import { ChildWeekSummaryCard } from "@/components/child/ChildWeekSummaryCard";
@@ -10,7 +10,6 @@ import { WeekCalendar } from "@/components/child/WeekCalendar";
 import {
   formatDateKey,
   getDailyCompletion,
-  getLocalDayBounds,
   getWeekCheckIns,
   getWeekDays,
 } from "@/lib/homework-utils";
@@ -20,64 +19,105 @@ import type { Database } from "@/lib/supabase/types";
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 
+function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
+  const today = formatDateKey(new Date());
+
+  if (date < today) {
+    return homeworks.map((homework) => ({
+      ...homework,
+      is_active: true,
+    })) as Homework[];
+  }
+
+  return homeworks;
+}
+
 export default function ChildLandingPage() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(
     formatDateKey(new Date())
   );
   const [selectedHomework, setSelectedHomework] = useState<Homework | null>(null);
+  const requestIdRef = useRef(0);
 
-  const fetchData = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  const fetchData = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+    setLoading(true);
+    setError(null);
 
-    if (!session) {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      if (!session) {
+        setHomeworks([]);
+        setCheckIns([]);
+        setLoading(false);
+        return;
+      }
+
+      const [homeworkResponse, checkInResponse] = await Promise.all([
+        supabase.from("homeworks").select("*").eq("child_id", session.user.id),
+        supabase
+          .from("check_ins")
+          .select("*")
+          .eq("child_id", session.user.id)
+          .order("completed_at", { ascending: true }),
+      ]);
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      setHomeworks(homeworkResponse.data || []);
+      setCheckIns(checkInResponse.data || []);
+    } catch (fetchError) {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
       setHomeworks([]);
       setCheckIns([]);
-      setLoading(false);
-      return;
+      setError(fetchError instanceof Error ? fetchError.message : "加载失败");
+    } finally {
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-
-    const today = new Date();
-    const weekDays = getWeekDays(today);
-    const { start: weekStart } = getLocalDayBounds(weekDays[0]);
-    const { end: weekEnd } = getLocalDayBounds(weekDays[6]);
-
-    const [homeworkResponse, checkInResponse] = await Promise.all([
-      supabase
-        .from("homeworks")
-        .select("*")
-        .eq("child_id", session.user.id)
-        .eq("is_active", true),
-      supabase
-        .from("check_ins")
-        .select("*")
-        .eq("child_id", session.user.id)
-        .gte("completed_at", weekStart)
-        .lte("completed_at", weekEnd),
-    ]);
-
-    setHomeworks(homeworkResponse.data || []);
-    setCheckIns(checkInResponse.data || []);
-    setLoading(false);
-  };
+  }, [supabase]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    void fetchData();
+  }, [fetchData]);
 
   const selectedDateObject = new Date(`${selectedDate}T00:00:00`);
   const weekDays = getWeekDays(selectedDateObject);
-  const dailyCompletion = getDailyCompletion(homeworks, checkIns, weekDays);
+  const dailyCompletion = weekDays.reduce<Record<string, { completed: number; total: number }>>(
+    (result, day) => {
+      const dateKey = formatDateKey(day);
+      const visibleHomeworks = getHistoricalHomeworksForDate(homeworks, dateKey);
+      const completion = getDailyCompletion(visibleHomeworks, checkIns, [day])[dateKey];
+
+      result[dateKey] = completion;
+      return result;
+    },
+    {}
+  );
   const weeklyCheckIns = getWeekCheckIns(checkIns, weekDays[0]);
   const completedDays = Object.values(dailyCompletion).filter(
     (value) => value.total > 0 && value.completed > 0
   ).length;
-  const taskStatuses = buildDailyTaskStatuses(homeworks, checkIns, selectedDate);
+  const visibleHomeworks = getHistoricalHomeworksForDate(homeworks, selectedDate);
+  const taskStatuses = buildDailyTaskStatuses(visibleHomeworks, checkIns, selectedDate);
   const priorityTask =
     taskStatuses.find((task) => !task.completed) || taskStatuses[0] || null;
 
@@ -86,6 +126,31 @@ export default function ChildLandingPage() {
       <main className="min-h-screen bg-gradient-to-br from-[#F6FBF8] via-[#FDFCF8] to-[#F4F8FF] p-4 lg:p-6">
         <div className="flex min-h-[70vh] items-center justify-center rounded-[32px] bg-white/80 text-2xl shadow-lg ring-1 ring-forest-100">
           🦊 加载中...
+        </div>
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-[#F6FBF8] via-[#FDFCF8] to-[#F4F8FF] p-4 lg:p-6">
+        <div
+          role="alert"
+          className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center rounded-[32px] bg-white/90 p-6 text-center shadow-lg ring-1 ring-forest-100"
+        >
+          <div>
+            <div className="text-2xl font-bold text-forest-700">加载作业失败</div>
+            <p className="mt-2 text-sm text-forest-500">{error}</p>
+            <button
+              type="button"
+              onClick={() => {
+                void fetchData();
+              }}
+              className="mt-4 rounded-full bg-primary px-4 py-2 text-sm font-medium text-white"
+            >
+              重试
+            </button>
+          </div>
         </div>
       </main>
     );
@@ -108,32 +173,27 @@ export default function ChildLandingPage() {
         </aside>
 
         <section className="space-y-4 rounded-[32px] bg-white/85 p-4 shadow-lg ring-1 ring-forest-100 backdrop-blur lg:p-6">
-          <div className="flex flex-col gap-4 rounded-[28px] bg-gradient-to-r from-forest-50 via-white to-amber-50 p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="text-sm font-medium text-forest-500">今日进度</div>
-              <div className="mt-2 text-3xl font-bold text-forest-700">
-                {taskStatuses.filter((task) => task.completed).length}/{taskStatuses.length || 0}
-              </div>
-              <p className="mt-1 text-sm text-forest-500">右侧是今天要完成的任务，先抓最重要的。</p>
+          {taskStatuses.length > 0 && taskStatuses.every((task) => task.completed) ? (
+            <div className="rounded-[28px] border border-dashed border-forest-200 bg-white/80 p-5 shadow-sm">
+              <div className="text-sm font-medium text-forest-600">太棒了！</div>
+              <div className="mt-3 text-lg font-bold text-forest-700">今天的任务全部完成啦！</div>
+              <p className="mt-1 text-sm text-forest-500">可以休息一下，或者看看本周其他天的任务。</p>
             </div>
-            <div className="rounded-full bg-white/90 px-4 py-2 text-sm font-medium text-forest-600 shadow-sm ring-1 ring-forest-100">
-              {selectedDate}
-            </div>
-          </div>
+          ) : (
+            <PriorityHomeworkCard
+              task={priorityTask}
+              onOpen={() => {
+                if (!priorityTask) {
+                  return;
+                }
 
-          <PriorityHomeworkCard
-            task={priorityTask}
-            onOpen={() => {
-              if (!priorityTask) {
-                return;
-              }
-
-              const homework = homeworks.find((item) => item.id === priorityTask.homeworkId);
-              if (homework) {
-                setSelectedHomework(homework);
-              }
-            }}
-          />
+                const homework = homeworks.find((item) => item.id === priorityTask.homeworkId);
+                if (homework) {
+                  setSelectedHomework(homework);
+                }
+              }}
+            />
+          )}
 
           <DayHomeworkView
             date={selectedDate}

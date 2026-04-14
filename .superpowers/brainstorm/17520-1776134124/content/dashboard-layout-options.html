@@ -1,0 +1,137 @@
+<h2>家长首页改版方向</h2>
+<p class="subtitle">重点比较：当天进度区、月历密度、统计信息和热点时间分析的主次关系</p>
+
+<div class="cards">
+  <div class="card" data-choice="layout-a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 任务优先型</div>
+        <div class="mockup-body" style="padding:16px;background:linear-gradient(180deg,#f7fbf8,#ffffff);">
+          <div style="display:grid;gap:12px;">
+            <div style="display:grid;grid-template-columns:1.2fr 0.8fr;gap:12px;">
+              <div style="background:#ffffff;border:1px solid #dbe9de;border-radius:20px;padding:14px;">
+                <div class="label">TODAY</div>
+                <div style="font-size:22px;font-weight:700;margin-top:4px;">当天进度 + 作业清单</div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;">
+                  <div style="background:#f3f8f4;border-radius:14px;padding:10px;">完成率</div>
+                  <div style="background:#f3f8f4;border-radius:14px;padding:10px;">积分</div>
+                  <div style="background:#f3f8f4;border-radius:14px;padding:10px;">待完成</div>
+                  <div style="background:#f3f8f4;border-radius:14px;padding:10px;">逾期</div>
+                </div>
+                <div style="margin-top:12px;display:grid;gap:8px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;background:#f9fcfa;border:1px solid #e3efe6;border-radius:16px;padding:10px 12px;">
+                    <span>数学作业</span>
+                    <span style="background:#eef7ff;border-radius:999px;padding:6px 10px;">提醒孩子</span>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;background:#f9fcfa;border:1px solid #e3efe6;border-radius:16px;padding:10px 12px;">
+                    <span>钢琴练习</span>
+                    <span style="background:#eef7ff;border-radius:999px;padding:6px 10px;">提醒孩子</span>
+                  </div>
+                </div>
+              </div>
+              <div style="display:grid;gap:12px;">
+                <div style="background:#fffaf1;border:1px solid #f0e1b2;border-radius:20px;padding:14px;">
+                  <div class="label">HOT HOURS</div>
+                  <div style="margin-top:8px;height:96px;border-radius:14px;background:linear-gradient(90deg,#f5deb3 15%,#efb35d 35%,#d9782d 58%,#f4e4c8 75%,#fbf4e8 100%);"></div>
+                </div>
+                <div style="background:#f7f4ff;border:1px solid #e5daf8;border-radius:20px;padding:14px;">
+                  <div class="label">WEAK TYPES</div>
+                  <div style="margin-top:8px;display:grid;gap:8px;">
+                    <div style="height:18px;border-radius:999px;background:#dcccf8;"></div>
+                    <div style="height:18px;border-radius:999px;background:#e8ddfb;"></div>
+                    <div style="height:18px;border-radius:999px;background:#f0eafd;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#ffffff;border:1px solid #dbe9de;border-radius:20px;padding:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div class="label">CALENDAR</div>
+                  <div style="font-size:18px;font-weight:700;margin-top:2px;">本月打卡日历</div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <div style="background:#f3f8f4;border-radius:999px;padding:6px 12px;">← 3月</div>
+                  <div style="background:#f3f8f4;border-radius:999px;padding:6px 12px;">4月 →</div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px;">
+                <div style="height:56px;border-radius:16px;background:radial-gradient(circle at center,#d8f1e1 0 38%,#eef7f1 39% 100%);"></div>
+                <div style="height:56px;border-radius:16px;background:radial-gradient(circle at center,#cce6ff 0 45%,#edf6ff 46% 100%);"></div>
+                <div style="height:56px;border-radius:16px;background:radial-gradient(circle at center,#ffe3b5 0 30%,#fff6e5 31% 100%);"></div>
+                <div style="height:56px;border-radius:16px;background:radial-gradient(circle at center,#d8f1e1 0 50%,#eef7f1 51% 100%);"></div>
+                <div style="height:56px;border-radius:16px;background:radial-gradient(circle at center,#f0d8ff 0 22%,#faf1ff 23% 100%);"></div>
+                <div style="height:56px;border-radius:16px;background:radial-gradient(circle at center,#d8f1e1 0 60%,#eef7f1 61% 100%);"></div>
+                <div style="height:56px;border-radius:16px;background:radial-gradient(circle at center,#d8f1e1 0 44%,#eef7f1 45% 100%);"></div>
+              </div>
+              <p style="margin-top:10px;color:#6b7c72;font-size:13px;">每天改成比例环形，hover 浮窗看具体完成项</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 任务优先型</h3>
+      <p>先把当天进度和提醒操作放到第一屏，日历后置但保留较大视觉面积，适合高频“盯今天”的使用场景。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="layout-b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 日历优先型</div>
+        <div class="mockup-body" style="padding:16px;background:linear-gradient(180deg,#f8fafc,#ffffff);">
+          <div style="display:grid;grid-template-columns:1.1fr 0.9fr;gap:12px;">
+            <div style="background:#ffffff;border:1px solid #d8e4ee;border-radius:20px;padding:14px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div class="label">MONTH</div>
+                  <div style="font-size:18px;font-weight:700;margin-top:2px;">本月打卡日历 + 统计</div>
+                </div>
+                <div style="background:#eef4f8;border-radius:999px;padding:6px 12px;">月切换</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;">
+                <div style="background:#f6f9fb;border-radius:14px;padding:8px;">完成率</div>
+                <div style="background:#f6f9fb;border-radius:14px;padding:8px;">按时率</div>
+                <div style="background:#f6f9fb;border-radius:14px;padding:8px;">总积分</div>
+                <div style="background:#f6f9fb;border-radius:14px;padding:8px;">补做天数</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:12px;">
+                <div style="height:64px;border-radius:18px;background:radial-gradient(circle at center,#9ed0ff 0 36%,#edf6ff 37% 100%);"></div>
+                <div style="height:64px;border-radius:18px;background:radial-gradient(circle at center,#cfecc8 0 55%,#eff9ec 56% 100%);"></div>
+                <div style="height:64px;border-radius:18px;background:radial-gradient(circle at center,#ffd89f 0 30%,#fff6e6 31% 100%);"></div>
+                <div style="height:64px;border-radius:18px;background:radial-gradient(circle at center,#cfecc8 0 48%,#eff9ec 49% 100%);"></div>
+                <div style="height:64px;border-radius:18px;background:radial-gradient(circle at center,#ffcbd6 0 15%,#fff2f5 16% 100%);"></div>
+                <div style="height:64px;border-radius:18px;background:radial-gradient(circle at center,#cfecc8 0 62%,#eff9ec 63% 100%);"></div>
+                <div style="height:64px;border-radius:18px;background:radial-gradient(circle at center,#cfecc8 0 42%,#eff9ec 43% 100%);"></div>
+              </div>
+            </div>
+            <div style="display:grid;gap:12px;">
+              <div style="background:#ffffff;border:1px solid #d8e4ee;border-radius:20px;padding:14px;">
+                <div class="label">TODAY</div>
+                <div style="font-size:20px;font-weight:700;margin-top:4px;">当天进度</div>
+                <div style="margin-top:10px;display:grid;gap:8px;">
+                  <div style="height:42px;border-radius:14px;background:#f6f9fb;"></div>
+                  <div style="height:42px;border-radius:14px;background:#f6f9fb;"></div>
+                  <div style="height:42px;border-radius:14px;background:#f6f9fb;"></div>
+                </div>
+              </div>
+              <div style="background:#fffaf1;border:1px solid #f0e1b2;border-radius:20px;padding:14px;">
+                <div class="label">HOT HOURS</div>
+                <div style="margin-top:8px;height:96px;border-radius:14px;background:linear-gradient(90deg,#fbf4e8 10%,#efc17b 28%,#d98036 50%,#efc17b 72%,#fbf4e8 100%);"></div>
+              </div>
+              <div style="background:#f7f4ff;border:1px solid #e5daf8;border-radius:20px;padding:14px;">
+                <div class="label">WEAK TYPES</div>
+                <div style="margin-top:8px;height:82px;border-radius:14px;background:linear-gradient(180deg,#eadffd,#f7f3ff);"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 日历优先型</h3>
+      <p>先看整月趋势，再补看当天详情。更适合经常做月度回看，但当天任务和提醒动作会稍后一步。</p>
+    </div>
+  </div>
+</div>

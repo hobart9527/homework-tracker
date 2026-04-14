@@ -275,6 +275,10 @@ describe("HomeworkForm workbench", () => {
       expect(screen.getByRole("combobox", { name: "快捷类型（可选）" })).toBeInTheDocument();
     });
 
+    expect(
+      screen.queryByRole("button", { name: "新建类型" })
+    ).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByRole("combobox", { name: "快捷类型（可选）" }), {
       target: { value: "钢琴" },
     });

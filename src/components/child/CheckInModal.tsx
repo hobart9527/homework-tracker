@@ -43,11 +43,30 @@ export function CheckInModal({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const newAttachments = files.map((file) => ({
+    const expectedType = homework.required_checkpoint_type;
+    const newAttachments = files
+      .map((file) => ({
       type: file.type.startsWith("image/") ? "photo" : "audio",
       file,
-    }));
+      }))
+      .filter((attachment) =>
+        expectedType ? attachment.type === expectedType : true
+      );
+
+    if (files.length > 0 && newAttachments.length !== files.length) {
+      setFeedback(
+        expectedType === "photo"
+          ? "这项作业需要上传照片，当前文件类型不匹配"
+          : "这项作业需要上传录音，当前文件类型不匹配"
+      );
+      setSubmissionState("error");
+    } else {
+      setFeedback("");
+      setSubmissionState("idle");
+    }
+
     setAttachments((prev) => [...prev, ...newAttachments]);
+    e.target.value = "";
   };
 
   const handleAudioRecord = () => {
@@ -74,6 +93,16 @@ export function CheckInModal({
 
   const handleSubmit = async () => {
     if (loading || submissionState === "success") {
+      return;
+    }
+
+    if (homework.required_checkpoint_type && attachments.length === 0) {
+      setFeedback(
+        homework.required_checkpoint_type === "photo"
+          ? "请先添加照片后再提交"
+          : "请先添加录音后再提交"
+      );
+      setSubmissionState("error");
       return;
     }
 
@@ -112,6 +141,8 @@ export function CheckInModal({
 
     const checkIn = result.checkIn;
 
+    let attachmentUploadFailed = false;
+
     // Upload attachments
     for (const attachment of attachments) {
       const storagePath = `${session.user.id}/${checkIn.id}/${Date.now()}_${attachment.file.name}`;
@@ -120,13 +151,29 @@ export function CheckInModal({
         .from("attachments")
         .upload(storagePath, attachment.file);
 
-      if (!uploadError) {
-        await supabase.from("attachments").insert({
-          check_in_id: checkIn.id,
-          type: attachment.type,
-          storage_path: storagePath,
-        });
+      if (uploadError) {
+        attachmentUploadFailed = true;
+        break;
       }
+
+      const { error: insertAttachmentError } = await supabase.from("attachments").insert({
+        check_in_id: checkIn.id,
+        type: attachment.type,
+        storage_path: storagePath,
+      });
+
+      if (insertAttachmentError) {
+        attachmentUploadFailed = true;
+        break;
+      }
+    }
+
+    if (attachmentUploadFailed) {
+      setFeedback("作业已记录，但附件上传失败，请稍后重新提交");
+      setSubmissionState("error");
+      setLoading(false);
+      onSuccess();
+      return;
     }
 
     setFeedback(result.message || "完成成功");
@@ -136,6 +183,18 @@ export function CheckInModal({
   };
 
   const isSuccess = submissionState === "success";
+  const requiredProofLabel =
+    homework.required_checkpoint_type === "photo"
+      ? "照片"
+      : homework.required_checkpoint_type === "audio"
+        ? "录音"
+        : null;
+  const uploadButtonLabel =
+    homework.required_checkpoint_type === "audio" ? "上传录音" : "添加照片";
+  const canSubmit =
+    !loading &&
+    !isSuccess &&
+    (!homework.required_checkpoint_type || attachments.length > 0);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="完成作业">
@@ -148,10 +207,7 @@ export function CheckInModal({
           <p className="text-primary font-semibold">+{homework.point_value} 积分</p>
           {homework.required_checkpoint_type && (
             <p className="mt-2 text-sm text-forest-500">
-              需要
-              {homework.required_checkpoint_type === "photo"
-                ? "照片"
-                : "录音"}
+              需要{requiredProofLabel}
             </p>
           )}
           {homework.required_checkpoint_type === "photo" && (
@@ -166,8 +222,8 @@ export function CheckInModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
-            multiple
+            accept={homework.required_checkpoint_type === "audio" ? "audio/*" : "image/*"}
+            multiple={homework.required_checkpoint_type !== "audio"}
             className="hidden"
             onChange={handleFileSelect}
             disabled={loading || isSuccess}
@@ -177,12 +233,25 @@ export function CheckInModal({
             onClick={() => fileInputRef.current?.click()}
             disabled={loading || isSuccess}
           >
-            📷 添加照片
+            {homework.required_checkpoint_type === "audio" ? "🎵 上传录音" : "📷 添加照片"}
           </Button>
-          <Button variant="secondary" onClick={handleAudioRecord} disabled={loading || isSuccess}>
-            🎤 录音
-          </Button>
+          {(homework.required_checkpoint_type === "audio" ||
+            !homework.required_checkpoint_type) && (
+            <Button
+              variant="secondary"
+              onClick={handleAudioRecord}
+              disabled={loading || isSuccess}
+            >
+              🎤 录音
+            </Button>
+          )}
         </div>
+
+        {homework.required_checkpoint_type && attachments.length === 0 ? (
+          <p className="text-center text-xs text-rose-500">
+            请先添加{requiredProofLabel}，再提交本次作业
+          </p>
+        ) : null}
 
         {/* Attachment preview */}
         {attachments.length > 0 && (
@@ -231,7 +300,7 @@ export function CheckInModal({
             知道了
           </Button>
         ) : (
-          <Button className="w-full" onClick={handleSubmit} disabled={loading}>
+          <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit}>
             {loading ? "提交中..." : "确认完成 ✨"}
           </Button>
         )}
