@@ -161,7 +161,7 @@ export function ParentMonthCalendar({
   const todayKey = new Date().toISOString().slice(0, 10);
 
   return (
-    <section className="space-y-4 rounded-2xl border border-forest-100 bg-white/95 p-4 shadow-sm">
+    <section className="space-y-4 rounded-2xl border border-forest-200 bg-white/95 p-4 shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>

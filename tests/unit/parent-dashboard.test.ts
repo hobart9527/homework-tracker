@@ -843,16 +843,18 @@ describe("ParentDashboardPage wiring", () => {
     expect(screen.getByText("完成率")).toBeInTheDocument();
     expect(heatmapHeading).toBeInTheDocument();
     expect(weakestTypesHeading).toBeInTheDocument();
+    // 新布局：左侧为当天任务+热力图，右侧为日历+薄弱类型
+    // DOM顺序：当天任务 -> 热力图 -> 日历 -> 薄弱类型
     expect(
-      todayHeading.compareDocumentPosition(calendarHeading) &
+      todayHeading.compareDocumentPosition(heatmapHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      calendarHeading.compareDocumentPosition(heatmapHeading) &
+      heatmapHeading.compareDocumentPosition(calendarHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
     expect(
-      heatmapHeading.compareDocumentPosition(weakestTypesHeading) &
+      calendarHeading.compareDocumentPosition(weakestTypesHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });

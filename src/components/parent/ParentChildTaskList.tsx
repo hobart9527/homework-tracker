@@ -168,16 +168,15 @@ export function ParentChildTaskList({
             const canPreviewAttachment = isAttachmentVisible(task);
 
             return (
-              <div key={taskHomeworkId} className="flex flex-col gap-1">
-                <HomeworkCard
-                  homework={buildHomework(task, index)}
-                  checkIn={null}
-                  statusText={task.statusText}
-                  proofType={task.proofType}
-                  awardedPoints={task.awardedPoints}
-                  scored={task.scored}
-                />
-                <div className="flex items-center justify-between gap-2 pl-1 pr-1">
+              <HomeworkCard
+                key={taskHomeworkId}
+                homework={buildHomework(task, index)}
+                checkIn={null}
+                statusText={task.statusText}
+                proofType={task.proofType}
+                awardedPoints={task.awardedPoints}
+                scored={task.scored}
+                actionButtons={
                   <div className="flex items-center gap-2">
                     {canPreviewAttachment ? (
                       <Button
@@ -192,24 +191,24 @@ export function ParentChildTaskList({
                     ) : (
                       <span className="text-[10px] text-forest-400">完成后查看附件</span>
                     )}
+                    <ReminderActionButton
+                      homeworkId={taskHomeworkId}
+                      childId={childId}
+                      targetDate={selectedDate}
+                      state={
+                        reminderStates?.find(
+                          (s) =>
+                            s.homeworkId === taskHomeworkId &&
+                            s.targetDate === selectedDate
+                        ) ?? null
+                      }
+                      onRemind={(hwId, nextChildId, targetDate) => {
+                        onReminderStateChange?.(hwId, nextChildId, targetDate);
+                      }}
+                    />
                   </div>
-                  <ReminderActionButton
-                    homeworkId={taskHomeworkId}
-                    childId={childId}
-                    targetDate={selectedDate}
-                    state={
-                      reminderStates?.find(
-                        (s) =>
-                          s.homeworkId === taskHomeworkId &&
-                          s.targetDate === selectedDate
-                      ) ?? null
-                    }
-                    onRemind={(hwId, nextChildId, targetDate) => {
-                      onReminderStateChange?.(hwId, nextChildId, targetDate);
-                    }}
-                  />
-                </div>
-              </div>
+                }
+              />
             );
           })}
         </div>

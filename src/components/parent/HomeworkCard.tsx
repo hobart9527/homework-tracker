@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import type { Database } from "@/lib/supabase/types";
@@ -17,6 +18,7 @@ interface HomeworkCardProps {
   proofType?: "photo" | "audio" | null;
   awardedPoints?: number;
   scored?: boolean;
+  actionButtons?: React.ReactNode;
 }
 
 export function HomeworkCard({
@@ -29,6 +31,7 @@ export function HomeworkCard({
   proofType,
   awardedPoints,
   scored,
+  actionButtons,
 }: HomeworkCardProps) {
   const isCompleted = !!checkIn;
   const hasDetailMeta =
@@ -100,8 +103,8 @@ export function HomeworkCard({
             </div>
           )}
         </div>
-        <div className="flex flex-col gap-2">
-          {hasDetailMeta ? null : isCompleted ? (
+        <div className="flex flex-col gap-2 items-end">
+          {hasDetailMeta ? actionButtons : isCompleted ? (
             <div className="flex items-center gap-1 text-primary">
               <span>✓</span>
               <span className="text-sm">已完成</span>

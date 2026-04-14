@@ -308,30 +308,35 @@ export default function ParentDashboardPage() {
               selectedId={activeChildId}
               onSelect={setSelectedChildId}
             />
-            <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_22rem] xl:items-start">
-              {selectedDetail ? (
-                <TodayOverview
-                  detail={selectedDetail}
-                  selectedDate={selectedDate}
-                  reminderStates={reminderStates}
-                  onReminderStateChange={handleReminderStateChange}
-                />
-              ) : null}
-              <ParentMonthCalendar
-                days={dashboard.calendarDays}
-                selectedDate={selectedDate}
-                selectedMonth={selectedMonth}
-                monthlyStats={dashboard.monthlyStats}
-                onSelectDate={handleSelectDate}
-                onPreviousMonth={() => handleChangeMonth(-1)}
-                onNextMonth={() => handleChangeMonth(1)}
-              />
-            </section>
-            <section className="grid gap-6 xl:grid-cols-2 xl:items-stretch">
-              <div className="rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
-                <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
+            {/* 左右两栏布局：左边任务+热力图，右边日历+薄弱类型 */}
+            <section className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start">
+              {/* 左侧：当天任务 + 时段热力图 */}
+              <div className="space-y-6">
+                {selectedDetail ? (
+                  <TodayOverview
+                    detail={selectedDetail}
+                    selectedDate={selectedDate}
+                    reminderStates={reminderStates}
+                    onReminderStateChange={handleReminderStateChange}
+                  />
+                ) : null}
+                <div className="rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
+                  <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
+                </div>
               </div>
-              <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
+              {/* 右侧：月度日历 + 薄弱类型 */}
+              <div className="space-y-6">
+                <ParentMonthCalendar
+                  days={dashboard.calendarDays}
+                  selectedDate={selectedDate}
+                  selectedMonth={selectedMonth}
+                  monthlyStats={dashboard.monthlyStats}
+                  onSelectDate={handleSelectDate}
+                  onPreviousMonth={() => handleChangeMonth(-1)}
+                  onNextMonth={() => handleChangeMonth(1)}
+                />
+                <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
+              </div>
             </section>
           </>
         )}
