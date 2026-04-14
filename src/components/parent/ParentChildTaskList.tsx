@@ -63,29 +63,32 @@ export function ParentChildTaskList({
         </div>
       ) : (
         <div className="space-y-3">
-          {tasks.map((task, index) => (
-            <div key={task.homeworkId ?? `${task.title}-${index}`}>
-              <HomeworkCard
-                homework={buildHomework(task, index)}
-                checkIn={null}
-                statusText={task.statusText}
-                proofType={task.proofType}
-                awardedPoints={task.awardedPoints}
-                scored={task.scored}
-              />
-              <div className="flex items-center justify-end mt-2">
-                <ReminderActionButton
-                  homeworkId={task.homeworkId ?? ""}
-                  childId={childId}
-                  targetDate={selectedDate}
-                  state={reminderStates?.find((s) => s.homeworkId === task.homeworkId) ?? null}
-                  onRemind={(hwId, childId, targetDate) => {
-                  onReminderStateChange?.(hwId, childId, targetDate);
-                }}
+          {tasks.map((task, index) => {
+            const taskHomeworkId = task.homeworkId ?? `detail-task-${index}`;
+            return (
+              <div key={taskHomeworkId}>
+                <HomeworkCard
+                  homework={buildHomework(task, index)}
+                  checkIn={null}
+                  statusText={task.statusText}
+                  proofType={task.proofType}
+                  awardedPoints={task.awardedPoints}
+                  scored={task.scored}
                 />
+                <div className="flex items-center justify-end mt-2">
+                  <ReminderActionButton
+                    homeworkId={taskHomeworkId}
+                    childId={childId}
+                    targetDate={selectedDate}
+                    state={reminderStates?.find((s) => s.homeworkId === taskHomeworkId) ?? null}
+                    onRemind={(hwId, childId, targetDate) => {
+                    onReminderStateChange?.(hwId, childId, targetDate);
+                  }}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
