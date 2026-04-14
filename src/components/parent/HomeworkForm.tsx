@@ -37,12 +37,14 @@ const ALL_ICONS = ["📝", "✏️", "📋", "🎨", "⚽", "🏀", "🎸", "�
 interface HomeworkFormProps {
   homework?: Database["public"]["Tables"]["homeworks"]["Row"];
   copyFromHomeworkId?: string;
+  prefilledChildId?: string;
   onSuccess?: () => void;
 }
 
 export function HomeworkForm({
   homework,
   copyFromHomeworkId,
+  prefilledChildId,
   onSuccess,
 }: HomeworkFormProps) {
   const router = useRouter();
@@ -93,18 +95,15 @@ export function HomeworkForm({
       if (childrenData) setChildren(childrenData);
       if (customTypesData) setCustomTypes(customTypesData);
 
-      if (
-        !homework &&
-        !copyFromHomeworkId &&
-        !formData.child_ids.length &&
-        childrenData?.length
-      ) {
+      // Only auto-select first child on initial load when editing a new homework
+      if (!homework && !copyFromHomeworkId && childrenData?.length && !prefilledChildId) {
         setFormData((prev) => ({ ...prev, child_ids: [childrenData[0].id] }));
       }
     };
 
     fetchData();
-  }, [supabase, copyFromHomeworkId, formData.child_ids.length, homework]);
+    // Intentionally omits formData.child_ids to avoid re-fetching when selection changes.
+  }, [supabase, copyFromHomeworkId, homework]);
 
   useEffect(() => {
     if (isEditing || !copyFromHomeworkId || hasLoadedCopySource) {
@@ -128,6 +127,14 @@ export function HomeworkForm({
     fetchCopySource();
   }, [copyFromHomeworkId, hasLoadedCopySource, isEditing, supabase]);
 
+  useEffect(() => {
+    if (prefilledChildId && !formData.child_ids.length && children.length > 0) {
+      setFormData((prev) => ({ ...prev, child_ids: [prefilledChildId] }));
+    }
+    // Only runs when prefilledChildId changes or children first load.
+    // Intentionally omits formData.child_ids from deps to avoid re-triggering.
+  }, [prefilledChildId, children.length]);
+
   const allTypes = [
     ...DEFAULT_TYPES.map((t) => ({ ...t, is_custom: false })),
     ...customTypes.map((t) => ({
@@ -144,7 +151,7 @@ export function HomeworkForm({
   );
   const assignmentSummary = buildAssignmentSummary(selectedChildren);
   const preview = buildHomeworkRulePreview(formData, assignmentSummary.childNames);
-  const canBatchAssign = !isEditing;
+  const canBatchAssign = !isEditing && !prefilledChildId;
 
   const handleTypeSelect = (type: (typeof allTypes)[0]) => {
     // Auto-fill title unless user has manually customized it

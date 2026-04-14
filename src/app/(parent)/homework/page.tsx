@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { buildHomeworkListView } from "@/lib/homework-list";
+import { buildNewHomeworkHref } from "@/lib/homework-form";
 import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
@@ -73,7 +74,7 @@ export default function HomeworkListPage() {
             <span className="text-xl">←</span>
           </Link>
           <h1 className="text-xl font-bold">作业管理</h1>
-          <Link href="/homework/new">
+          <Link href={buildNewHomeworkHref({ selectedChildId })}>
             <Button size="sm" variant="secondary">
               + 新建
             </Button>

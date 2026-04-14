@@ -2,6 +2,7 @@ import { HomeworkForm } from "@/components/parent/HomeworkForm";
 
 type NewHomeworkPageProps = {
   searchParams?: {
+    childId?: string | string[];
     copyFrom?: string | string[];
   };
 };
@@ -12,6 +13,9 @@ export default function NewHomeworkPage({
   const copyFromParam = searchParams?.copyFrom;
   const copyFromHomeworkId =
     typeof copyFromParam === "string" ? copyFromParam : copyFromParam?.[0];
+
+  const childIdParam = searchParams?.childId;
+  const childId = typeof childIdParam === "string" ? childIdParam : childIdParam?.[0];
 
   return (
     <div className="min-h-screen bg-background">
@@ -24,7 +28,7 @@ export default function NewHomeworkPage({
         </div>
       </header>
       <main className="max-w-6xl mx-auto p-4">
-        <HomeworkForm copyFromHomeworkId={copyFromHomeworkId} />
+        <HomeworkForm copyFromHomeworkId={copyFromHomeworkId} prefilledChildId={childId} />
       </main>
     </div>
   );
