@@ -1,4 +1,9 @@
+import { createElement } from "react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { ChildLandingContent } from "@/components/child/ChildLandingContent";
 
 interface Homework {
   id: string;
@@ -105,5 +110,90 @@ describe("Today homework filtering", () => {
     const hw = makeHw({ id: "6", repeat_type: "interval", repeat_interval: 2, repeat_start_date: "2026-04-01" });
     // 4/5 - 4/1 = 4 days, 4 % 2 === 0, should match
     expect(diffDays % (hw.repeat_interval || 1)).toBe(0);
+  });
+});
+
+describe("Child landing page layout", () => {
+  const makeHomework = (overrides: Record<string, unknown> = {}) => ({
+    id: "hw-1",
+    child_id: "child-1",
+    type_id: null,
+    type_name: "阅读",
+    type_icon: "📖",
+    title: "阅读练习",
+    description: null,
+    repeat_type: "daily" as const,
+    repeat_days: null,
+    repeat_interval: null,
+    repeat_start_date: null,
+    repeat_end_date: null,
+    point_value: 3,
+    estimated_minutes: 20,
+    daily_cutoff_time: "20:00",
+    is_active: true,
+    required_checkpoint_type: null,
+    created_by: "parent-1",
+    created_at: "2026-04-08T08:00:00.000Z",
+    ...overrides,
+  });
+
+  const makeCheckIn = (overrides: Record<string, unknown> = {}) => ({
+    id: "check-1",
+    homework_id: "hw-2",
+    child_id: "child-1",
+    completed_at: "2026-04-08T10:00:00.000Z",
+    submitted_at: "2026-04-08T10:00:00.000Z",
+    points_earned: 3,
+    awarded_points: 3,
+    is_scored: true,
+    is_late: false,
+    proof_type: null,
+    note: null,
+    created_at: "2026-04-08T10:00:00.000Z",
+    ...overrides,
+  });
+
+  it("renders weekly summary on the left and daily tasks on the right", () => {
+    render(
+      createElement(ChildLandingContent, {
+        initialDate: "2026-04-08",
+        homeworks: [
+          makeHomework({ id: "hw-1", title: "钢琴练习", type_icon: "🎹" }),
+          makeHomework({ id: "hw-2", title: "阅读练习", type_icon: "📖" }),
+        ] as any,
+        checkIns: [makeCheckIn()] as any,
+      })
+    );
+
+    expect(screen.getByText("本周积分")).toBeInTheDocument();
+    expect(screen.getByText("今日进度")).toBeInTheDocument();
+    expect(screen.getByText("任务清单")).toBeInTheDocument();
+  });
+
+  it("shows the priority task card before the task list", () => {
+    render(
+      createElement(ChildLandingContent, {
+        initialDate: "2026-04-08",
+        homeworks: [
+          makeHomework({ id: "hw-1", title: "钢琴练习", type_icon: "🎹" }),
+          makeHomework({ id: "hw-2", title: "阅读练习", type_icon: "📖" }),
+        ] as any,
+        checkIns: [makeCheckIn()] as any,
+      })
+    );
+
+    const priorityCard = screen.getByText("下一项");
+    const taskList = screen.getByText("任务清单");
+    expect(priorityCard.compareDocumentPosition(taskList)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("redirects the standalone today route to the canonical child home", () => {
+    const todayPage = readFileSync(
+      resolve(process.cwd(), "src/app/(child)/today/page.tsx"),
+      "utf8"
+    );
+
+    expect(todayPage).toMatch(/redirect\("\/"\)/);
+    expect(todayPage).not.toMatch(/ChildTodayPage|useState|ChildHomeworkCard/);
   });
 });

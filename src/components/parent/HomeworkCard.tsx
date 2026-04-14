@@ -13,6 +13,10 @@ interface HomeworkCardProps {
   onComplete?: () => void;
   onEdit?: () => void;
   isChildView?: boolean;
+  statusText?: string;
+  proofType?: "photo" | "audio" | null;
+  awardedPoints?: number;
+  scored?: boolean;
 }
 
 export function HomeworkCard({
@@ -21,12 +25,32 @@ export function HomeworkCard({
   onComplete,
   onEdit,
   isChildView = false,
+  statusText,
+  proofType,
+  awardedPoints,
+  scored,
 }: HomeworkCardProps) {
   const isCompleted = !!checkIn;
+  const hasDetailMeta =
+    statusText !== undefined ||
+    proofType !== undefined ||
+    awardedPoints !== undefined ||
+    scored !== undefined;
   const isOverdue = !isCompleted && homework.daily_cutoff_time && new Date() > new Date(`1970-01-01T${homework.daily_cutoff_time}`);
+  const detailProofLabel =
+    proofType === "photo"
+      ? "需要照片"
+      : proofType === "audio"
+        ? "需要录音"
+        : null;
+  const displayCompleted = hasDetailMeta
+    ? (statusText ?? "").includes("完成")
+    : isCompleted;
 
   return (
-    <Card className={`${isCompleted ? "opacity-75" : ""} ${isOverdue ? "border-2 border-accent" : ""}`}>
+    <Card
+      className={`${displayCompleted ? "opacity-75" : ""} ${isOverdue && !hasDetailMeta ? "border-2 border-accent" : ""}`}
+    >
       <div className="flex items-start gap-3">
         <span className="text-3xl">{homework.type_icon}</span>
         <div className="flex-1 min-w-0">
@@ -34,7 +58,7 @@ export function HomeworkCard({
             <h3 className="font-semibold text-forest-700 truncate">
               {homework.title}
             </h3>
-            {isOverdue && (
+            {isOverdue && !hasDetailMeta && (
               <span className="px-2 py-0.5 text-xs bg-accent text-white rounded-full">
                 逾期
               </span>
@@ -52,9 +76,32 @@ export function HomeworkCard({
               <span>📍 截止 {homework.daily_cutoff_time}</span>
             )}
           </div>
+          {hasDetailMeta && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+              {detailProofLabel && (
+                <span className="rounded-full bg-forest-100 px-2 py-1 text-forest-600">
+                  {detailProofLabel}
+                </span>
+              )}
+              {statusText && (
+                <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">
+                  {statusText}
+                </span>
+              )}
+              {scored ? (
+                <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
+                  +{awardedPoints ?? 0} 分
+                </span>
+              ) : awardedPoints != null ? (
+                <span className="rounded-full bg-forest-100 px-2 py-1 text-forest-500">
+                  {awardedPoints} 分
+                </span>
+              ) : null}
+            </div>
+          )}
         </div>
         <div className="flex flex-col gap-2">
-          {isCompleted ? (
+          {hasDetailMeta ? null : isCompleted ? (
             <div className="flex items-center gap-1 text-primary">
               <span>✓</span>
               <span className="text-sm">已完成</span>

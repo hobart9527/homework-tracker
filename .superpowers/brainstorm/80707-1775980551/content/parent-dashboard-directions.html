@@ -1,0 +1,149 @@
+<h2>家长首页方向对比</h2>
+<p class="subtitle">你刚才选的是“孩子概览优先” + “点开后用混合视图看详情”。下面 3 个方向都基于当前项目已有内容重组，不是重新造新产品。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 顶部孩子卡片 + 下方单人详情</div>
+        <div class="mockup-body" style="padding:14px;background:linear-gradient(180deg,#f8fbf8,#fff);">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+            <div style="background:#fff;border:2px solid #56AB91;border-radius:18px;padding:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;"><strong>🦊 Ivy</strong><span>3/5</span></div>
+              <div class="subtitle" style="margin-top:6px;">今日 +8 分</div>
+              <div style="margin-top:8px;color:#b85b2c;font-weight:700;">1 项未完成</div>
+            </div>
+            <div style="background:#fff;border-radius:18px;padding:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;"><strong>🐼 Albert</strong><span>5/5</span></div>
+              <div class="subtitle" style="margin-top:6px;">今日 +14 分</div>
+              <div style="margin-top:8px;color:#56AB91;font-weight:700;">已全部完成</div>
+            </div>
+            <div style="background:#fff;border-radius:18px;padding:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;"><strong>🐰 Emma</strong><span>2/4</span></div>
+              <div class="subtitle" style="margin-top:6px;">今日 +6 分</div>
+              <div style="margin-top:8px;color:#b85b2c;font-weight:700;">1 项逾期</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:12px;">
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div class="label">Ivy 今日表现</div>
+              <div style="margin-top:10px;display:grid;gap:10px;">
+                <div style="display:flex;justify-content:space-between;"><span>完成率</span><strong>60%</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>已得积分</span><strong>8</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>待完成</span><strong>2 项</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>异常</span><strong>无</strong></div>
+              </div>
+            </div>
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div class="label">Ivy 今日任务</div>
+              <div style="margin-top:10px;display:grid;gap:8px;">
+                <div style="display:flex;justify-content:space-between;"><span>📖 阅读 20 分钟</span><strong style="color:#56AB91;">已完成</strong></div>
+                <div style="display:flex;justify-content:space-between;"><span>🎹 钢琴练习</span><span style="color:#b85b2c;">未完成</span></div>
+                <div style="display:flex;justify-content:space-between;"><span>🧮 IXL</span><span style="color:#b85b2c;">未完成</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 上摘要，下单人工作区</h3>
+      <p>最直接满足你的选择。先扫所有孩子，再进入某个孩子的今日表现和任务详情。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 左侧孩子列表 + 右侧运营面板</div>
+        <div class="mockup-body" style="padding:14px;background:linear-gradient(180deg,#f7faff,#fff);">
+          <div style="display:grid;grid-template-columns:280px 1fr;gap:12px;">
+            <div style="background:#fff;border-radius:18px;padding:12px;">
+              <div class="label">所有孩子</div>
+              <div style="margin-top:10px;display:grid;gap:8px;">
+                <div style="background:#eef7ef;border-radius:14px;padding:10px;"><strong>🦊 Ivy</strong><div class="subtitle">3/5 完成 · +8 分</div></div>
+                <div style="background:#fff;border-radius:14px;padding:10px;"><strong>🐼 Albert</strong><div class="subtitle">5/5 完成 · +14 分</div></div>
+                <div style="background:#fff;border-radius:14px;padding:10px;"><strong>🐰 Emma</strong><div class="subtitle">2/4 完成 · 有逾期</div></div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-rows:auto 1fr;gap:12px;">
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+                <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">今日完成率</div><strong style="font-size:24px;">60%</strong></div>
+                <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">今日积分</div><strong style="font-size:24px;">8</strong></div>
+                <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">待完成</div><strong style="font-size:24px;">2</strong></div>
+                <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">异常</div><strong style="font-size:24px;">0</strong></div>
+              </div>
+              <div style="background:#fff;border-radius:18px;padding:14px;">
+                <div class="label">Ivy 今日任务</div>
+                <div style="margin-top:10px;display:grid;gap:8px;">
+                  <div style="display:flex;justify-content:space-between;"><span>📖 阅读</span><strong style="color:#56AB91;">已完成</strong></div>
+                  <div style="display:flex;justify-content:space-between;"><span>🎹 钢琴</span><span style="color:#b85b2c;">未完成</span></div>
+                  <div style="display:flex;justify-content:space-between;"><span>🧮 IXL</span><span style="color:#b85b2c;">未完成</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 左列表右详情</h3>
+      <p>更像管理后台，适合孩子较多的家庭，信息密度高，但会弱一点“首页概览感”。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 先总览统计，再分孩子展开</div>
+        <div class="mockup-body" style="padding:14px;background:linear-gradient(180deg,#faf8ff,#fff);">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
+            <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">孩子数</div><strong style="font-size:24px;">3</strong></div>
+            <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">今日完成</div><strong style="font-size:24px;">10</strong></div>
+            <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">待完成</div><strong style="font-size:24px;">4</strong></div>
+            <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div class="label">逾期</div><strong style="font-size:24px;">1</strong></div>
+          </div>
+          <div style="display:grid;gap:10px;">
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div style="display:flex;justify-content:space-between;"><strong>🦊 Ivy</strong><span>3/5 · +8 分</span></div>
+              <div style="margin-top:8px;height:8px;background:#eef5ef;border-radius:999px;overflow:hidden;"><div style="width:60%;height:100%;background:#56AB91;"></div></div>
+              <div class="subtitle" style="margin-top:8px;">展开后看今日表现和任务</div>
+            </div>
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div style="display:flex;justify-content:space-between;"><strong>🐼 Albert</strong><span>5/5 · +14 分</span></div>
+            </div>
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div style="display:flex;justify-content:space-between;"><strong>🐰 Emma</strong><span>2/4 · 有逾期</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 总览感更强</h3>
+      <p>更像“家庭运营看板”，但你选的是孩子概览优先，这个方向会弱化单个孩子的直接可操作性。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>我当前的推荐</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>推荐 A</h4>
+      <ul>
+        <li>最贴合你刚才的选择：先看所有孩子摘要，再看单个孩子的混合详情</li>
+        <li>可以最大化复用现有 `ChildSelector`、`TodayOverview`、`children` 页的信息资产</li>
+        <li>对家长来说最像“首页”而不是“后台列表”</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>需要控制</h4>
+      <ul>
+        <li>顶部孩子卡片数量多时要注意换行和滚动</li>
+        <li>详情区必须让“今日表现摘要”和“今日任务”层级清楚</li>
+      </ul>
+    </div>
+  </div>
+</div>

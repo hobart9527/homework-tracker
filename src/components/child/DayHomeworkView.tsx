@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { getHomeworksForDate } from "@/lib/homework-utils";
+import { isAfterCutoff } from "@/lib/homework-utils";
 import { ChildHomeworkCard } from "@/components/child/ChildHomeworkCard";
-import { CheckInModal } from "@/components/child/CheckInModal";
+import { buildDailyTaskStatuses } from "@/lib/tasks/daily-task";
 import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
@@ -11,44 +10,30 @@ interface DayHomeworkViewProps {
   date: string;
   homeworks: Homework[];
   checkIns: CheckIn[];
-  onRefresh?: () => void;
+  onSelectHomework: (homework: Homework) => void;
 }
 
 export function DayHomeworkView({
   date,
   homeworks,
   checkIns,
-  onRefresh,
+  onSelectHomework,
 }: DayHomeworkViewProps) {
-  const [selectedHomework, setSelectedHomework] = useState<Homework | null>(null);
-
-  const dateObj = new Date(`${date}T00:00:00`);
-  const dayHomeworks = getHomeworksForDate(homeworks, dateObj);
-
-  const dayStart = new Date(`${date}T00:00:00`);
-  const dayEnd = new Date(`${date}T23:59:59`);
-
-  const isCompleted = (hwId: string) =>
-    checkIns.some(
-      (ci) =>
-        ci.homework_id === hwId &&
-        new Date(ci.completed_at) >= dayStart &&
-        new Date(ci.completed_at) <= dayEnd
-    );
-
-  const isOverdue = (hw: Homework) => {
-    if (!hw.daily_cutoff_time) return false;
-    const now = new Date();
-    const [hours, minutes] = hw.daily_cutoff_time.split(":").map(Number);
-    const cutoff = new Date();
-    cutoff.setHours(hours, minutes, 0, 0);
-    return now > cutoff;
-  };
+  const taskStatuses = buildDailyTaskStatuses(homeworks, checkIns, date);
 
   return (
-    <div>
+    <div className="rounded-[28px] bg-white p-5 shadow-md ring-1 ring-forest-100">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-forest-700">任务清单</h2>
+          <p className="mt-1 text-sm text-forest-500">把今天的任务一项项清掉。</p>
+        </div>
+        <span className="text-sm text-forest-500">
+          {taskStatuses.filter((task) => task.completed).length}/{taskStatuses.length}
+        </span>
+      </div>
       <div className="space-y-3">
-        {dayHomeworks.length === 0 ? (
+        {taskStatuses.length === 0 ? (
           <div className="text-center py-12">
             <span className="text-6xl">🎉</span>
             <h2 className="text-xl font-bold text-forest-700 mt-4">
@@ -57,29 +42,36 @@ export function DayHomeworkView({
             <p className="text-forest-500 mt-2">好好休息吧～</p>
           </div>
         ) : (
-          dayHomeworks.map((hw) => (
-            <ChildHomeworkCard
-              key={hw.id}
-              homework={hw}
-              isCompleted={isCompleted(hw.id)}
-              isOverdue={!isCompleted(hw.id) && isOverdue(hw)}
-              onComplete={() => setSelectedHomework(hw)}
-            />
-          ))
+          taskStatuses.map((task) => {
+            const homework = homeworks.find((item) => item.id === task.homeworkId);
+            if (!homework) {
+              return null;
+            }
+
+            return (
+              <ChildHomeworkCard
+                key={task.homeworkId}
+                homework={homework}
+                isCompleted={task.completed}
+                isOverdue={!task.completed && isAfterCutoff(homework.daily_cutoff_time, new Date())}
+                isRepeatSubmission={task.submissionCount > 1}
+                statusText={
+                  task.completed
+                    ? task.late
+                      ? "已逾期完成"
+                      : task.submissionCount > 1
+                        ? "再次提交不加分"
+                        : "已完成"
+                    : isAfterCutoff(homework.daily_cutoff_time, new Date())
+                      ? "逾期可补交"
+                      : "待完成"
+                }
+                onComplete={() => onSelectHomework(homework)}
+              />
+            );
+          })
         )}
       </div>
-
-      {selectedHomework && (
-        <CheckInModal
-          homework={selectedHomework}
-          isOpen={!!selectedHomework}
-          onClose={() => setSelectedHomework(null)}
-          onSuccess={() => {
-            setSelectedHomework(null);
-            onRefresh?.();
-          }}
-        />
-      )}
     </div>
   );
 }

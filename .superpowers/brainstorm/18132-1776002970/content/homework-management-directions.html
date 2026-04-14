@@ -1,0 +1,127 @@
+<h2>作业管理下一阶段方向</h2>
+<p class="subtitle">目标聚焦两件事：批量分配给多个孩子，以及让家长在创建/编辑时更清楚规则会怎样生效。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 单页增强型表单</div>
+        <div class="mockup-body" style="padding:14px;background:linear-gradient(180deg,#f8fbf8,#fff);">
+          <div style="display:grid;grid-template-columns:1fr 300px;gap:12px;">
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div class="label">创建作业</div>
+              <div style="margin-top:10px;display:grid;gap:10px;">
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">孩子：☑ Ivy ☑ Albert ☐ Emma</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">作业类型：📖 阅读 / 🎹 钢琴 / 自定义</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">标题：阅读练习</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">重复规则：每周一三五</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">证明要求：截图</div>
+              </div>
+            </div>
+            <div style="background:#fff8dc;border-radius:18px;padding:14px;">
+              <div class="label">规则说明</div>
+              <div style="margin-top:10px;display:grid;gap:8px;">
+                <div>会为 2 个孩子分别创建独立作业</div>
+                <div>每周一三五在孩子首页出现</div>
+                <div>需要截图才能完成</div>
+                <div>逾期也可补交并给分</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 单页增强型表单</h3>
+      <p>保留现有表单结构，只在右侧加“规则说明”和多选孩子，改动最小，上手最快。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 两栏工作台</div>
+        <div class="mockup-body" style="padding:14px;background:linear-gradient(180deg,#f7faff,#fff);">
+          <div style="display:grid;grid-template-columns:340px 1fr;gap:12px;">
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div class="label">批量分配</div>
+              <div style="margin-top:10px;display:grid;gap:8px;">
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">☑ Ivy</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">☑ Albert</div>
+                <div style="background:#fff;border-radius:12px;padding:10px;">☐ Emma</div>
+              </div>
+              <div style="margin-top:14px;" class="label">创建结果</div>
+              <div class="subtitle" style="margin-top:6px;">将生成 2 份互相独立的作业</div>
+            </div>
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <div class="label">作业规则</div>
+              <div style="margin-top:10px;display:grid;gap:10px;">
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">类型 / 标题 / 描述</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">重复规则</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">截止时间</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">证明要求</div>
+              </div>
+              <div style="margin-top:14px;background:#fff8dc;border-radius:14px;padding:12px;">
+                每个规则下面都直接显示“孩子端会如何表现”
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 两栏工作台</h3>
+      <p>左边选孩子，右边配规则。更适合批量分配，是我当前最推荐的方向。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 分步向导</div>
+        <div class="mockup-body" style="padding:14px;background:linear-gradient(180deg,#faf8ff,#fff);">
+          <div style="display:grid;gap:12px;">
+            <div style="display:flex;gap:8px;">
+              <div style="background:#143b2f;color:#fff;border-radius:999px;padding:8px 12px;">1 选孩子</div>
+              <div style="background:#eef2f5;border-radius:999px;padding:8px 12px;">2 设规则</div>
+              <div style="background:#eef2f5;border-radius:999px;padding:8px 12px;">3 确认结果</div>
+            </div>
+            <div style="background:#fff;border-radius:18px;padding:14px;">
+              <strong>Step 1</strong>
+              <div style="margin-top:10px;display:grid;gap:8px;">
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">☑ Ivy</div>
+                <div style="background:#eef7ef;border-radius:12px;padding:10px;">☑ Albert</div>
+                <div style="background:#fff;border-radius:12px;padding:10px;">☐ Emma</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 分步向导</h3>
+      <p>最清晰，但对你当前项目来说改动更重，也会把“快速创建”做得更像流程系统。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>我当前的推荐</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>推荐 B</h4>
+      <ul>
+        <li>最适合多孩子批量分配这个优先级</li>
+        <li>规则说明可以直接贴着表单出现，不需要额外解释页</li>
+        <li>比向导轻，比单页堆叠更清楚</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>需要注意</h4>
+      <ul>
+        <li>移动端要自动折叠为上下结构</li>
+        <li>孩子选择区不能太像列表页，要保持创建体验</li>
+      </ul>
+    </div>
+  </div>
+</div>

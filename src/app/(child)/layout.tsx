@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
+const supabase = createClient();
 
 export default function ChildLayout({
   children,
@@ -15,7 +16,6 @@ export default function ChildLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [child, setChild] = useState<Child | null>(null);
 

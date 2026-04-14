@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -23,11 +23,23 @@ export function CheckInModal({
 }: CheckInModalProps) {
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [submissionState, setSubmissionState] = useState<"idle" | "success" | "error">("idle");
   const [attachments, setAttachments] = useState<{ type: string; file: File }[]>(
     []
   );
   const [note, setNote] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setLoading(false);
+      setFeedback("");
+      setSubmissionState("idle");
+      setAttachments([]);
+      setNote("");
+    }
+  }, [isOpen]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -61,30 +73,44 @@ export function CheckInModal({
   };
 
   const handleSubmit = async () => {
+    if (loading || submissionState === "success") {
+      return;
+    }
+
     setLoading(true);
+    setFeedback("");
+    setSubmissionState("idle");
 
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!session) return;
-
-    // Create check-in record
-    const { data: checkIn, error: checkInError } = await supabase
-      .from("check_ins")
-      .insert({
-        homework_id: homework.id,
-        child_id: session.user.id,
-        points_earned: homework.point_value,
-        note: note || null,
-      })
-      .select()
-      .single();
-
-    if (checkInError || !checkIn) {
-      alert("打卡失败，请重试");
+    if (!session) {
+      setFeedback("请先重新登录后再试");
+      setSubmissionState("error");
       setLoading(false);
       return;
     }
+
+    const response = await fetch("/api/check-ins/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        homeworkId: homework.id,
+        note,
+        proofType: attachments[0]?.type ?? null,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.checkIn) {
+      setFeedback(result.error || "打卡失败，请重试");
+      setSubmissionState("error");
+      setLoading(false);
+      return;
+    }
+
+    const checkIn = result.checkIn;
 
     // Upload attachments
     for (const attachment of attachments) {
@@ -103,10 +129,13 @@ export function CheckInModal({
       }
     }
 
+    setFeedback(result.message || "完成成功");
+    setSubmissionState("success");
     setLoading(false);
     onSuccess();
-    onClose();
   };
+
+  const isSuccess = submissionState === "success";
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="完成作业">
@@ -117,6 +146,19 @@ export function CheckInModal({
             {homework.title}
           </h3>
           <p className="text-primary font-semibold">+{homework.point_value} 积分</p>
+          {homework.required_checkpoint_type && (
+            <p className="mt-2 text-sm text-forest-500">
+              需要
+              {homework.required_checkpoint_type === "photo"
+                ? "照片"
+                : "录音"}
+            </p>
+          )}
+          {homework.required_checkpoint_type === "photo" && (
+            <p className="mt-1 text-xs text-forest-400">
+              可以拍照，或上传已有图片
+            </p>
+          )}
         </div>
 
         {/* Attachment buttons */}
@@ -128,14 +170,16 @@ export function CheckInModal({
             multiple
             className="hidden"
             onChange={handleFileSelect}
+            disabled={loading || isSuccess}
           />
           <Button
             variant="secondary"
             onClick={() => fileInputRef.current?.click()}
+            disabled={loading || isSuccess}
           >
-            📷 拍照/截图
+            📷 添加照片
           </Button>
-          <Button variant="secondary" onClick={handleAudioRecord}>
+          <Button variant="secondary" onClick={handleAudioRecord} disabled={loading || isSuccess}>
             🎤 录音
           </Button>
         </div>
@@ -165,17 +209,32 @@ export function CheckInModal({
             placeholder="可以写点备注..."
             className="w-full px-4 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
             rows={2}
+            disabled={loading || isSuccess}
           />
         </div>
 
+        {feedback && (
+          <p
+            className={`rounded-xl px-4 py-3 text-sm ${
+              isSuccess
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-rose-50 text-rose-700"
+            }`}
+          >
+            {feedback}
+          </p>
+        )}
+
         {/* Submit */}
-        <Button
-          className="w-full"
-          onClick={handleSubmit}
-          disabled={loading}
-        >
-          {loading ? "提交中..." : "确认完成 ✨"}
-        </Button>
+        {isSuccess ? (
+          <Button className="w-full" onClick={onClose}>
+            知道了
+          </Button>
+        ) : (
+          <Button className="w-full" onClick={handleSubmit} disabled={loading}>
+            {loading ? "提交中..." : "确认完成 ✨"}
+          </Button>
+        )}
       </div>
     </Modal>
   );

@@ -126,7 +126,7 @@ export interface Database {
           estimated_minutes: number | null;
           daily_cutoff_time: string | null;
           is_active: boolean | null;
-          required_checkpoint_type: "photo" | "screenshot" | "audio" | null;
+          required_checkpoint_type: "photo" | "audio" | null;
           created_by: string | null;
           created_at: string | null;
         };
@@ -147,7 +147,7 @@ export interface Database {
           estimated_minutes?: number | null;
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
-          required_checkpoint_type?: "photo" | "screenshot" | "audio" | null;
+          required_checkpoint_type?: "photo" | "audio" | null;
           created_by?: string | null;
           created_at?: string | null;
         };
@@ -168,7 +168,7 @@ export interface Database {
           estimated_minutes?: number | null;
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
-          required_checkpoint_type?: "photo" | "screenshot" | "audio" | null;
+          required_checkpoint_type?: "photo" | "audio" | null;
           created_by?: string | null;
           created_at?: string | null;
         };
@@ -179,7 +179,12 @@ export interface Database {
           homework_id: string;
           child_id: string;
           completed_at: string | null;
+          submitted_at: string | null;
           points_earned: number;
+          awarded_points: number;
+          is_scored: boolean;
+          is_late: boolean;
+          proof_type: "photo" | "audio" | null;
           note: string | null;
           created_at: string | null;
         };
@@ -188,7 +193,12 @@ export interface Database {
           homework_id: string;
           child_id: string;
           completed_at?: string | null;
+          submitted_at?: string | null;
           points_earned: number;
+          awarded_points?: number;
+          is_scored?: boolean;
+          is_late?: boolean;
+          proof_type?: "photo" | "audio" | null;
           note?: string | null;
           created_at?: string | null;
         };
@@ -197,7 +207,12 @@ export interface Database {
           homework_id?: string;
           child_id?: string;
           completed_at?: string | null;
+          submitted_at?: string | null;
           points_earned?: number;
+          awarded_points?: number;
+          is_scored?: boolean;
+          is_late?: boolean;
+          proof_type?: "photo" | "audio" | null;
           note?: string | null;
           created_at?: string | null;
         };
@@ -206,21 +221,21 @@ export interface Database {
         Row: {
           id: string;
           check_in_id: string;
-          type: "photo" | "screenshot" | "audio";
+          type: "photo" | "audio";
           storage_path: string;
           created_at: string | null;
         };
         Insert: {
           id?: string;
           check_in_id: string;
-          type: "photo" | "screenshot" | "audio";
+          type: "photo" | "audio";
           storage_path: string;
           created_at?: string | null;
         };
         Update: {
           id?: string;
           check_in_id?: string;
-          type?: "photo" | "screenshot" | "audio";
+          type?: "photo" | "audio";
           storage_path?: string;
           created_at?: string | null;
         };

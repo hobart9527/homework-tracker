@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -25,9 +26,9 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const childEmail = `child-${Date.now()}@parent.local`;
+  const signupEmail = `child-${Date.now()}@child.local`;
   const { data: authData, error: authError } = await serviceSupabase.auth.admin.createUser({
-    email: childEmail,
+    email: signupEmail,
     password: rawPassword,
     email_confirm: true,
   });
@@ -37,16 +38,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Failed to create auth user" }, { status: 500 });
   }
 
+  const childEmail = `${authData.user.id}@child.local`;
+  const { error: emailUpdateError } = await serviceSupabase.auth.admin.updateUserById(
+    authData.user.id,
+    {
+      email: childEmail,
+      email_confirm: true,
+    }
+  );
+
+  if (emailUpdateError) {
+    console.error("Auth email update error:", emailUpdateError);
+    return NextResponse.json({ error: "Failed to finalize child login" }, { status: 500 });
+  }
+
   // Create child profile
+  const passwordHash = createHash("sha256").update(rawPassword).digest("hex");
   const { data: child, error: profileError } = await supabase.from("children").insert({
     id: authData.user.id,
     parent_id: session.user.id,
     name,
     age: parseInt(age),
     gender,
-    password_hash: rawPassword,
+    password_hash: passwordHash,
     avatar: avatar || "🦊",
-  }).select().single();
+  }).select("id, parent_id, name, avatar, age, gender, points, streak_days, last_check_in, created_at").single();
 
   if (profileError) {
     console.error("Profile insert error:", profileError);

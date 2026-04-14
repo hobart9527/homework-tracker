@@ -30,7 +30,7 @@ export default function ChildLoginPage() {
       return;
     }
 
-    // Verify password - check both password_hash field and actual auth
+    // Verify the child account through Supabase auth using the derived child email.
     const {
       data: { session },
       error: sessionError,
@@ -45,7 +45,7 @@ export default function ChildLoginPage() {
       return;
     }
 
-    router.push("/today");
+    router.replace("/");
   };
 
   const handleNameSubmit = (e: React.FormEvent) => {
