@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ChildSelector } from "@/components/parent/ChildSelector";
 import { TodayOverview } from "@/components/parent/TodayOverview";
 import ParentDashboardPage from "@/app/(parent)/dashboard/page";
@@ -141,28 +141,120 @@ describe("buildParentDashboard", () => {
     date,
   });
 
-  it("builds a top-level summary for each child", () => {
-    const result = buildParentDashboard(buildFixture());
+  it("builds month-aware stats, tooltips, heatmap data, and reminder state", () => {
+    const result = buildParentDashboard({
+      children: [makeChild()],
+      homeworks: [
+        makeHomework({
+          id: "hw-may",
+          title: "五月练习",
+          repeat_type: "once",
+          repeat_start_date: "2026-05-03",
+          repeat_end_date: "2026-05-31",
+        }),
+        makeHomework({
+          id: "hw-april",
+          title: "四月练习",
+          repeat_type: "once",
+          repeat_start_date: "2026-04-03",
+          repeat_end_date: "2026-04-30",
+        }),
+      ],
+      checkIns: [
+        makeCheckIn({
+          homework_id: "hw-may",
+          completed_at: "2026-05-03T11:15:00",
+          submitted_at: "2026-05-03T11:15:00",
+          points_earned: 5,
+          awarded_points: 5,
+        }),
+        makeCheckIn({
+          homework_id: "hw-april",
+          completed_at: "2026-04-08T11:15:00.000Z",
+          submitted_at: "2026-04-08T11:15:00.000Z",
+          points_earned: 5,
+          awarded_points: 5,
+        }),
+      ],
+      date: "2026-05-03",
+      month: "2026-05",
+      reminderStates: [
+        {
+          homeworkId: "hw-may",
+          targetDate: "2026-05-03",
+          status: "sent_sms" as const,
+          escalateAfter: "2026-05-03T12:00:00.000Z",
+        },
+      ],
+    });
 
-    expect(result.summaries).toHaveLength(2);
-    expect(result.summaries[0].childId).toBe("child-1");
-    expect(result.summaries[0].completedCount).toBe(3);
-    expect(result.summaries[0].totalCount).toBe(4);
-    expect(result.summaries[0].todayPoints).toBe(9);
-    expect(result.selectedDayDetails[0].tasks).toHaveLength(4);
+    expect(result.monthlyStats).toMatchObject({
+      completionRate: 1,
+      onTimeRate: 1,
+      totalPoints: 5,
+      makeupDays: 0,
+    });
+    expect(result.calendarDays).toHaveLength(31);
+    expect(result.calendarDays[2]).toMatchObject({
+      date: "2026-05-03",
+      totalCount: 1,
+      completedCount: 1,
+      outstandingCount: 0,
+      tooltip: {
+        assignedCount: 1,
+        completedCount: 1,
+        lateCompletedCount: 0,
+        pendingTitles: [],
+      },
+    });
+    expect(result.checkInHeatmap.some((bucket) => bucket.hour === 11 && bucket.count === 1)).toBe(true);
+    expect(result.selectedDayDetails[0].tasks[0]).toMatchObject({
+      title: "五月练习",
+      reminderState: {
+        homeworkId: "hw-may",
+        targetDate: "2026-05-03",
+        status: "sent_sms",
+        escalateAfter: "2026-05-03T12:00:00.000Z",
+      },
+    });
   });
 
-  it("marks overdue children ahead of fully completed children", () => {
+  it("builds a top-level summary for each child", () => {
     const result = buildParentDashboard(buildFixture());
+    const childOneSummary = result.summaries.find((summary) => summary.childId === "child-1");
+    const childOneDetail = result.selectedDayDetails.find(
+      (detail) => detail.summary.childId === "child-1"
+    );
 
-    expect(result.summaries[0].childId).toBe("child-1");
-    expect(result.summaries[0].overdueCount).toBeGreaterThan(0);
+    expect(result.summaries).toHaveLength(2);
+    expect(childOneSummary).toMatchObject({
+      childId: "child-1",
+      completedCount: 3,
+      totalCount: 3,
+      todayPoints: 9,
+    });
+    expect(childOneDetail?.tasks).toHaveLength(3);
+  });
+
+  it("excludes expired recurring tasks after repeat_end_date", () => {
+    const result = buildParentDashboard(buildFixture());
+    const childOneDetail = result.selectedDayDetails.find(
+      (detail) => detail.summary.childId === "child-1"
+    );
+
+    expect(childOneDetail?.tasks.map((task) => task.title)).not.toContain("过期作业");
+    expect(
+      result.summaries.find((summary) => summary.childId === "child-1")
+    ).toMatchObject({
+      overdueCount: 0,
+      outstandingCount: 0,
+    });
   });
 
   it("returns the first summary as the default selected child", () => {
     const result = buildParentDashboard(buildFixture());
 
-    expect(getDefaultSelectedChildId(result.summaries)).toBe("child-1");
+    expect(getDefaultSelectedChildId(result.summaries)).toBe(result.summaries[0].childId);
   });
 
   it("builds one calendar entry per day in the selected month", () => {
@@ -177,10 +269,10 @@ describe("buildParentDashboard", () => {
     });
     expect(result.calendarDays[7]).toMatchObject({
       date: "2026-04-08",
-      totalCount: 6,
+      totalCount: 5,
       completedCount: 5,
       lateCompletedCount: 1,
-      outstandingCount: 1,
+      outstandingCount: 0,
     });
   });
 
@@ -469,7 +561,7 @@ describe("ChildSelector summary cards", () => {
       })
     );
 
-    expect(screen.getByText("有 1 项逾期")).toBeInTheDocument();
+    expect(screen.getByText("还有 1 项待完成")).toBeInTheDocument();
     expect(screen.getByText("今天全部完成")).toBeInTheDocument();
   });
 
@@ -538,7 +630,8 @@ describe("TodayOverview mixed detail panels", () => {
     );
 
     expect(screen.getByText("2026年4月8日")).toBeInTheDocument();
-    expect(screen.getByText("今日任务")).toBeInTheDocument();
+    expect(screen.getByText("今日总览")).toBeInTheDocument();
+    expect(screen.getAllByText("今日任务").length).toBeGreaterThan(0);
   });
 
   it("shows proof requirement and task status per row", () => {
@@ -559,7 +652,7 @@ describe("ParentDashboardPage wiring", () => {
     vi.useRealTimers();
   });
 
-  it("defaults to the current month and today, showing calendar, detail, and insights", async () => {
+  it("renders the today-first layout with calendar and weakest types afterward", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
 
@@ -734,9 +827,175 @@ describe("ParentDashboardPage wiring", () => {
 
     expect(screen.getByText("Ivy")).toBeInTheDocument();
     expect(screen.getByText("Albert")).toBeInTheDocument();
-    expect(screen.getByText("本月打卡日历")).toBeInTheDocument();
+    const todayHeading = screen.getByText("今日总览");
+    const calendarHeading = screen.getByText("本月进度日历");
+    const weakestTypesHeading = screen.getByText("本月薄弱类型");
+
+    expect(todayHeading).toBeInTheDocument();
     expect(screen.getByText("2026年4月8日")).toBeInTheDocument();
-    expect(screen.getByText("本月薄弱类型")).toBeInTheDocument();
+    expect(calendarHeading).toBeInTheDocument();
+    expect(screen.getByText("本月关键指标")).toBeInTheDocument();
+    expect(screen.getByText("打卡高峰时段")).toBeInTheDocument();
+    expect(weakestTypesHeading).toBeInTheDocument();
+    expect(
+      todayHeading.compareDocumentPosition(calendarHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      calendarHeading.compareDocumentPosition(weakestTypesHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("switches months from the calendar controls and refreshes monthly labels", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
+
+    const mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { id: "parent-1" } } },
+        }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "children") {
+          return {
+            select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "child-1",
+                      parent_id: "parent-1",
+                      name: "Ivy",
+                      avatar: "🦊",
+                      age: null,
+                      gender: null,
+                      password_hash: "hash",
+                      points: 0,
+                      streak_days: 0,
+                      last_check_in: null,
+                      created_at: "2026-04-01T00:00:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        if (table === "homeworks") {
+          return {
+            select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "hw-april",
+                      child_id: "child-1",
+                      type_id: null,
+                      type_name: "默认",
+                      type_icon: "📝",
+                      title: "四月练习",
+                      description: null,
+                      repeat_type: "once",
+                      repeat_days: null,
+                      repeat_interval: null,
+                      repeat_start_date: "2026-04-08",
+                      repeat_end_date: null,
+                      point_value: 3,
+                      estimated_minutes: 20,
+                      daily_cutoff_time: "20:00",
+                      is_active: true,
+                      required_checkpoint_type: null,
+                      created_by: "parent-1",
+                      created_at: "2026-04-01T00:00:00.000Z",
+                    },
+                    {
+                      id: "hw-may",
+                      child_id: "child-1",
+                      type_id: null,
+                      type_name: "阅读",
+                      type_icon: "📚",
+                      title: "五月阅读",
+                      description: null,
+                      repeat_type: "once",
+                      repeat_days: null,
+                      repeat_interval: null,
+                      repeat_start_date: "2026-05-03",
+                      repeat_end_date: null,
+                      point_value: 4,
+                      estimated_minutes: 15,
+                      daily_cutoff_time: "20:00",
+                      is_active: true,
+                      required_checkpoint_type: null,
+                      created_by: "parent-1",
+                      created_at: "2026-04-01T00:00:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        if (table === "check_ins") {
+          return {
+            select: () => ({
+              in: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "check-april",
+                      homework_id: "hw-april",
+                      child_id: "child-1",
+                      completed_at: "2026-04-08T10:00:00.000Z",
+                      submitted_at: "2026-04-08T10:00:00.000Z",
+                      points_earned: 3,
+                      awarded_points: 3,
+                      is_scored: true,
+                      is_late: false,
+                      proof_type: null,
+                      note: null,
+                      created_at: "2026-04-08T10:00:00.000Z",
+                    },
+                    {
+                      id: "check-may",
+                      homework_id: "hw-may",
+                      child_id: "child-1",
+                      completed_at: "2026-05-03T11:00:00.000Z",
+                      submitted_at: "2026-05-03T11:00:00.000Z",
+                      points_earned: 4,
+                      awarded_points: 4,
+                      is_scored: true,
+                      is_late: false,
+                      proof_type: null,
+                      note: null,
+                      created_at: "2026-05-03T11:00:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockReturnValue(mockSupabase as any);
+
+    render(createElement(ParentDashboardPage));
+    await vi.runAllTimersAsync();
+
+    expect(screen.getByText("2026年4月")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "下个月" }));
+      await vi.runAllTimersAsync();
+    });
+
+    expect(screen.getByText("2026年5月")).toBeInTheDocument();
+    expect(screen.getByText("已选 2026-05-01")).toBeInTheDocument();
+    expect(screen.getByText("2026年5月1日")).toBeInTheDocument();
   });
 
   it("shows all child summaries above the selected child detail", async () => {
@@ -984,7 +1243,7 @@ describe("ParentDashboardPage wiring", () => {
 
     expect(screen.getByText("Ivy")).toBeInTheDocument();
     expect(screen.getByText("Albert")).toBeInTheDocument();
-    expect(screen.getByText("本月打卡日历")).toBeInTheDocument();
-    expect(screen.getByText("今日任务")).toBeInTheDocument();
+    expect(screen.getByText("本月进度日历")).toBeInTheDocument();
+    expect(screen.getByText("今日总览")).toBeInTheDocument();
   });
 });

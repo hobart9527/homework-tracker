@@ -19,6 +19,13 @@ export type ParentChildDashboardSummary = {
   topNotice: string;
 };
 
+export type ParentReminderState = {
+  homeworkId: string;
+  targetDate: string;
+  status: "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
+  escalateAfter: string | null;
+};
+
 export type ParentChildDashboardDetail = {
   summary: ParentChildDashboardSummary;
   tasks: Array<{
@@ -30,7 +37,15 @@ export type ParentChildDashboardDetail = {
     statusText: string;
     scored: boolean;
     awardedPoints: number;
+    reminderState?: ParentReminderState | null;
   }>;
+};
+
+export type ParentCalendarDayTooltip = {
+  assignedCount: number;
+  completedCount: number;
+  lateCompletedCount: number;
+  pendingTitles: string[];
 };
 
 export type ParentCalendarDay = {
@@ -39,6 +54,7 @@ export type ParentCalendarDay = {
   completedCount: number;
   lateCompletedCount: number;
   outstandingCount: number;
+  tooltip?: ParentCalendarDayTooltip;
 };
 
 export type ParentMonthlyInsight = {
@@ -48,11 +64,25 @@ export type ParentMonthlyInsight = {
   completionRate: number;
 };
 
+export type ParentMonthlyStats = {
+  completionRate: number;
+  onTimeRate: number;
+  totalPoints: number;
+  makeupDays: number;
+};
+
+export type ParentCheckInHeatmapBucket = {
+  hour: number;
+  count: number;
+};
+
 export type ParentMonthlyDashboard = {
   summaries: ParentChildDashboardSummary[];
   calendarDays: ParentCalendarDay[];
   selectedDayDetails: ParentChildDashboardDetail[];
   weakestTypes: ParentMonthlyInsight[];
+  monthlyStats?: ParentMonthlyStats;
+  checkInHeatmap?: ParentCheckInHeatmapBucket[];
 };
 
 type ParentDashboardInput = {
@@ -60,11 +90,21 @@ type ParentDashboardInput = {
   homeworks: Homework[];
   checkIns: CheckIn[];
   date: string;
+  month?: string;
+  reminderStates?: ParentReminderState[];
 };
 
 type ChildDashboardBuild = {
   summary: ParentChildDashboardSummary;
   detail: ParentChildDashboardDetail;
+};
+
+type MonthlyAggregation = {
+  assignedCount: number;
+  completedCount: number;
+  onTimeCount: number;
+  totalPoints: number;
+  makeupDays: number;
 };
 
 function isHomeworkOverdue(homework: Homework, date: string): boolean {
@@ -107,15 +147,41 @@ function createMonthDays(date: string): Date[] {
   });
 }
 
+function normalizeMonth(inputDate: string, month?: string): string {
+  return month ?? inputDate.slice(0, 7);
+}
+
+function filterVisibleHomeworksForDate(homeworks: Homework[], date: string): Homework[] {
+  return getHomeworksForDate(homeworks, new Date(`${date}T00:00:00`)).filter((homework) => {
+    if (!homework.repeat_end_date) {
+      return true;
+    }
+
+    return formatDateKey(parseDateValue(homework.repeat_end_date)) >= date;
+  });
+}
+
+function getReminderState(
+  reminderStates: ParentReminderState[] | undefined,
+  homeworkId: string,
+  targetDate: string
+): ParentReminderState | null {
+  return (
+    reminderStates?.find(
+      (state) => state.homeworkId === homeworkId && state.targetDate === targetDate
+    ) ?? null
+  );
+}
+
 function buildChildDashboard(
   child: Child,
   homeworks: Homework[],
   checkIns: CheckIn[],
-  date: string
+  date: string,
+  reminderStates?: ParentReminderState[]
 ): ChildDashboardBuild {
-  const dayDate = new Date(`${date}T00:00:00`);
-  const visibleHomeworks = getHomeworksForDate(homeworks, dayDate);
-  const dailyStatuses = buildDailyTaskStatuses(homeworks, checkIns, date);
+  const visibleHomeworks = filterVisibleHomeworksForDate(homeworks, date);
+  const dailyStatuses = buildDailyTaskStatuses(visibleHomeworks, checkIns, date);
   const statusByHomeworkId = new Map(
     dailyStatuses.map((status) => [status.homeworkId, status])
   );
@@ -154,6 +220,7 @@ function buildChildDashboard(
       statusText: getStatusText({ completed, late, overdue }),
       scored: status?.scored ?? false,
       awardedPoints: status?.awardedPoints ?? 0,
+      reminderState: getReminderState(reminderStates, homework.id, date),
     };
   });
 
@@ -190,7 +257,11 @@ function buildChildDashboard(
 function buildCalendarDays(homeworks: Homework[], checkIns: CheckIn[], date: string) {
   return createMonthDays(date).map((day) => {
     const dayKey = formatDateKey(day);
-    const statuses = buildDailyTaskStatuses(homeworks, checkIns, dayKey);
+    const statuses = buildDailyTaskStatuses(
+      filterVisibleHomeworksForDate(homeworks, dayKey),
+      checkIns,
+      dayKey
+    );
     const completedCount = statuses.filter((status) => status.completed).length;
     const lateCompletedCount = statuses.filter(
       (status) => status.completed && status.late
@@ -203,8 +274,91 @@ function buildCalendarDays(homeworks: Homework[], checkIns: CheckIn[], date: str
       completedCount,
       lateCompletedCount,
       outstandingCount: totalCount - completedCount,
+      tooltip: {
+        assignedCount: totalCount,
+        completedCount,
+        lateCompletedCount,
+        pendingTitles: statuses
+          .filter((status) => !status.completed)
+          .map((status) => status.title),
+      },
     };
   });
+}
+
+function buildMonthlyStats(
+  homeworks: Homework[],
+  checkIns: CheckIn[],
+  month: string
+): ParentMonthlyStats {
+  const aggregation = createMonthDays(month).reduce<MonthlyAggregation>(
+    (accumulator, day) => {
+      const dayKey = formatDateKey(day);
+      const statuses = buildDailyTaskStatuses(
+        filterVisibleHomeworksForDate(homeworks, dayKey),
+        checkIns,
+        dayKey
+      );
+      const completedCount = statuses.filter((status) => status.completed).length;
+      const onTimeCount = statuses.filter((status) => status.completed && !status.late).length;
+      const totalPoints = statuses.reduce((sum, status) => sum + status.awardedPoints, 0);
+      const lateCompletedCount = statuses.filter(
+        (status) => status.completed && status.late
+      ).length;
+
+      accumulator.assignedCount += statuses.length;
+      accumulator.completedCount += completedCount;
+      accumulator.onTimeCount += onTimeCount;
+      accumulator.totalPoints += totalPoints;
+      if (lateCompletedCount > 0) {
+        accumulator.makeupDays += 1;
+      }
+
+      return accumulator;
+    },
+    {
+      assignedCount: 0,
+      completedCount: 0,
+      onTimeCount: 0,
+      totalPoints: 0,
+      makeupDays: 0,
+    }
+  );
+
+  return {
+    completionRate:
+      aggregation.assignedCount === 0
+        ? 0
+        : aggregation.completedCount / aggregation.assignedCount,
+    onTimeRate:
+      aggregation.assignedCount === 0
+        ? 0
+        : aggregation.onTimeCount / aggregation.assignedCount,
+    totalPoints: aggregation.totalPoints,
+    makeupDays: aggregation.makeupDays,
+  };
+}
+
+function buildCheckInHeatmap(
+  checkIns: CheckIn[],
+  month: string
+): ParentCheckInHeatmapBucket[] {
+  const counts = new Array<number>(24).fill(0);
+
+  for (const checkIn of checkIns) {
+    if (!checkIn.completed_at) {
+      continue;
+    }
+
+    const completedMonth = formatDateKey(parseDateValue(checkIn.completed_at)).slice(0, 7);
+    if (completedMonth !== month) {
+      continue;
+    }
+
+    counts[new Date(checkIn.completed_at).getHours()] += 1;
+  }
+
+  return counts.map((count, hour) => ({ hour, count }));
 }
 
 function buildWeakestTypes(
@@ -216,7 +370,11 @@ function buildWeakestTypes(
 
   for (const day of createMonthDays(date)) {
     const dayKey = formatDateKey(day);
-    const statuses = buildDailyTaskStatuses(homeworks, checkIns, dayKey);
+    const statuses = buildDailyTaskStatuses(
+      filterVisibleHomeworksForDate(homeworks, dayKey),
+      checkIns,
+      dayKey
+    );
 
     for (const status of statuses) {
       const homework = homeworks.find((item) => item.id === status.homeworkId);
@@ -254,6 +412,7 @@ function buildWeakestTypes(
 export function buildParentDashboard(
   input: ParentDashboardInput
 ): ParentMonthlyDashboard {
+  const month = normalizeMonth(input.date, input.month);
   const byChild = new Map<string, { homeworks: Homework[]; checkIns: CheckIn[] }>();
 
   for (const child of input.children) {
@@ -276,7 +435,13 @@ export function buildParentDashboard(
 
   const built = input.children.map((child) => {
     const bucket = byChild.get(child.id) ?? { homeworks: [], checkIns: [] };
-    return buildChildDashboard(child, bucket.homeworks, bucket.checkIns, input.date);
+    return buildChildDashboard(
+      child,
+      bucket.homeworks,
+      bucket.checkIns,
+      input.date,
+      input.reminderStates
+    );
   });
 
   built.sort((left, right) => {
@@ -293,9 +458,11 @@ export function buildParentDashboard(
 
   return {
     summaries: built.map((item) => item.summary),
-    calendarDays: buildCalendarDays(input.homeworks, input.checkIns, input.date),
+    calendarDays: buildCalendarDays(input.homeworks, input.checkIns, month),
     selectedDayDetails: built.map((item) => item.detail),
-    weakestTypes: buildWeakestTypes(input.homeworks, input.checkIns, input.date),
+    weakestTypes: buildWeakestTypes(input.homeworks, input.checkIns, month),
+    monthlyStats: buildMonthlyStats(input.homeworks, input.checkIns, month),
+    checkInHeatmap: buildCheckInHeatmap(input.checkIns, month),
   };
 }
 
@@ -305,9 +472,3 @@ export function getDefaultSelectedChildId(
   return summaries[0]?.childId ?? null;
 }
 
-export type ParentReminderState = {
-  homeworkId: string;
-  targetDate: string;
-  status: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
-  escalateAfter: string | null;
-};

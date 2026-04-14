@@ -16,6 +16,7 @@ export type CheckInSubmissionResult = {
 
 const PROOF_TYPES: Exclude<ProofType, null>[] = ["photo", "audio"];
 const CHECK_IN_SCORING_COLUMNS = [
+  "submitted_at",
   "awarded_points",
   "is_scored",
   "is_late",
@@ -49,6 +50,66 @@ export function getProofLabel(proofType: Exclude<ProofType, null>) {
   }
 
   return "录音";
+}
+
+export function buildCheckInInsertPayload(input: {
+  homeworkId: string;
+  childId: string;
+  completedAt: string;
+  note?: string | null;
+  proofType: ProofType;
+  result: CheckInSubmissionResult;
+}) {
+  return {
+    homework_id: input.homeworkId,
+    child_id: input.childId,
+    completed_at: input.completedAt,
+    submitted_at: input.completedAt,
+    points_earned: input.result.awardedPoints,
+    awarded_points: input.result.awardedPoints,
+    is_scored: input.result.scored,
+    is_late: input.result.late,
+    proof_type: input.proofType,
+    note: input.note || null,
+  };
+}
+
+export function buildLegacyCheckInInsertPayload(input: {
+  homeworkId: string;
+  childId: string;
+  completedAt: string;
+  note?: string | null;
+  result: CheckInSubmissionResult;
+}) {
+  return {
+    homework_id: input.homeworkId,
+    child_id: input.childId,
+    completed_at: input.completedAt,
+    points_earned: input.result.awardedPoints,
+    note: input.note || null,
+  };
+}
+
+export function normalizeLegacyCheckInRecord(input: {
+  checkIn: Record<string, unknown>;
+  result: CheckInSubmissionResult;
+}) {
+  return {
+    ...input.checkIn,
+    submitted_at:
+      (input.checkIn.submitted_at as string | null | undefined) ??
+      (input.checkIn.completed_at as string | null | undefined) ??
+      null,
+    awarded_points:
+      (input.checkIn.awarded_points as number | null | undefined) ??
+      input.result.awardedPoints,
+    is_scored:
+      (input.checkIn.is_scored as boolean | null | undefined) ?? input.result.scored,
+    is_late:
+      (input.checkIn.is_late as boolean | null | undefined) ?? input.result.late,
+    proof_type:
+      (input.checkIn.proof_type as ProofType | undefined) ?? null,
+  };
 }
 
 export function buildSubmissionDecision(input: {

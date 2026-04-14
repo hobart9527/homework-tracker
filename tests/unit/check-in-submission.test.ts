@@ -51,6 +51,7 @@ function makeCheckIn(
 
 function makeSupabaseClient(overrides: {
   insertError?: SchemaMismatchError | null;
+  legacyInsertError?: SchemaMismatchError | null;
 }) {
   const homework = {
     id: "hw-1",
@@ -66,6 +67,25 @@ function makeSupabaseClient(overrides: {
         single: vi.fn().mockResolvedValue({
           data: null,
           error: overrides.insertError,
+        }),
+      }),
+    } as any)
+  );
+
+  const legacyInsert = vi.fn(() =>
+    ({
+      select: () => ({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: "legacy-check-1",
+            homework_id: "hw-1",
+            child_id: "child-1",
+            completed_at: "2026-04-11T19:00:00.000Z",
+            points_earned: 3,
+            note: null,
+            created_at: "2026-04-11T19:00:00.000Z",
+          },
+          error: overrides.legacyInsertError ?? null,
         }),
       }),
     } as any)
@@ -111,7 +131,13 @@ function makeSupabaseClient(overrides: {
               }),
             }),
           }),
-          insert,
+          insert: vi.fn((payload: Record<string, unknown>) => {
+            if ("awarded_points" in payload || "is_scored" in payload || "is_late" in payload) {
+              return insert();
+            }
+
+            return legacyInsert();
+          }),
         };
       }
 
@@ -210,7 +236,7 @@ describe("check-in create route", () => {
     createClientMock.mockReset();
   });
 
-  it("returns a friendly upgrade message when scoring columns are missing", async () => {
+  it("falls back to the legacy schema when scoring columns are missing", async () => {
     createClientMock.mockResolvedValue(
       makeSupabaseClient({
         insertError: {
@@ -231,8 +257,19 @@ describe("check-in create route", () => {
     );
     const body = await response.json();
 
-    expect(response.status).toBe(503);
-    expect(body.error).toContain("数据库结构还没有完成升级");
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      success: true,
+      scored: true,
+      awardedPoints: 3,
+      checkIn: {
+        id: "legacy-check-1",
+        awarded_points: 3,
+        is_scored: true,
+        is_late: false,
+        proof_type: null,
+      },
+    });
   });
 
   it("keeps generic insert errors as 500 responses", async () => {

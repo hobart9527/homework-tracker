@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import {
+  buildCheckInInsertPayload,
+  buildLegacyCheckInInsertPayload,
   buildSubmissionDecision,
   isMissingCheckInScoringColumnError,
   isProofType,
+  normalizeLegacyCheckInRecord,
 } from "@/lib/tasks/check-in-submission";
 import type { ProofType } from "@/lib/tasks/daily-task";
 import { getLocalDayBounds } from "@/lib/homework-utils";
@@ -71,38 +74,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
+  const completedAt = now.toISOString();
+  const primaryPayload = buildCheckInInsertPayload({
+    homeworkId: homework.id,
+    childId: session.user.id,
+    completedAt,
+    note,
+    proofType: (proofType ?? null) as ProofType,
+    result: decision,
+  });
+
   const { data: checkIn, error: insertError } = await supabase
     .from("check_ins")
-    .insert({
-      homework_id: homework.id,
-      child_id: session.user.id,
-      completed_at: now.toISOString(),
-      submitted_at: now.toISOString(),
-      points_earned: decision.awardedPoints,
-      awarded_points: decision.awardedPoints,
-      is_scored: decision.scored,
-      is_late: decision.late,
-      proof_type: (proofType ?? null) as ProofType,
-      note: note || null,
-    })
+    .insert(primaryPayload)
     .select("*")
     .single();
 
-  if (insertError || !checkIn) {
-    const message = insertError?.message || "Failed to create check-in";
+  if (insertError && isMissingCheckInScoringColumnError(insertError.message)) {
+    const { data: legacyCheckIn, error: legacyInsertError } = await supabase
+      .from("check_ins")
+      .insert(
+        buildLegacyCheckInInsertPayload({
+          homeworkId: homework.id,
+          childId: session.user.id,
+          completedAt,
+          note,
+          result: decision,
+        })
+      )
+      .select("*")
+      .single();
 
-    if (insertError && isMissingCheckInScoringColumnError(message)) {
+    if (legacyInsertError || !legacyCheckIn) {
       return NextResponse.json(
         {
-          error:
-            "数据库结构还没有完成升级，请先应用最新的 check-in migration，然后再重试补打卡。",
+          error: legacyInsertError?.message || "Failed to create check-in",
         },
-        { status: 503 }
+        { status: 500 }
       );
     }
 
+    return NextResponse.json({
+      ...decision,
+      checkIn: normalizeLegacyCheckInRecord({
+        checkIn: legacyCheckIn,
+        result: decision,
+      }),
+      usedLegacySchemaFallback: true,
+    });
+  }
+
+  if (insertError || !checkIn) {
     return NextResponse.json(
-      { error: message },
+      { error: insertError?.message || "Failed to create check-in" },
       { status: 500 }
     );
   }

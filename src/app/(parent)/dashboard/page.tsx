@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { ChildSelector } from "@/components/parent/ChildSelector";
 import { ParentMonthCalendar } from "@/components/parent/ParentMonthCalendar";
 import { ParentMonthlyInsights } from "@/components/parent/ParentMonthlyInsights";
+import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
 import { TodayOverview } from "@/components/parent/TodayOverview";
 import {
   buildParentDashboard,
@@ -21,11 +22,30 @@ type Child = Database["public"]["Tables"]["children"]["Row"];
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 
+function shiftMonth(month: string, offset: number) {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const next = new Date(year, monthIndex - 1 + offset, 1);
+  const nextYear = next.getFullYear();
+  const nextMonth = `${next.getMonth() + 1}`.padStart(2, "0");
+  return `${nextYear}-${nextMonth}`;
+}
+
+function getFirstDayOfMonth(month: string) {
+  return `${month}-01`;
+}
+
 const EMPTY_DASHBOARD: ParentMonthlyDashboard = {
   summaries: [],
   calendarDays: [],
   selectedDayDetails: [],
   weakestTypes: [],
+  monthlyStats: {
+    completionRate: 0,
+    onTimeRate: 0,
+    totalPoints: 0,
+    makeupDays: 0,
+  },
+  checkInHeatmap: [],
 };
 
 export default function ParentDashboardPage() {
@@ -34,6 +54,9 @@ export default function ParentDashboardPage() {
     useState<ParentMonthlyDashboard>(EMPTY_DASHBOARD);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => formatDateKey(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    formatDateKey(new Date()).slice(0, 7)
+  );
   const [loading, setLoading] = useState(true);
   const [reminderStates, setReminderStates] = useState<ParentReminderState[]>([]);
 
@@ -99,6 +122,7 @@ export default function ParentDashboardPage() {
           homeworks: homeworksData,
           checkIns: checkInsData,
           date: selectedDate,
+          month: selectedMonth,
         });
 
         if (cancelled) {
@@ -125,7 +149,18 @@ export default function ParentDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, supabase]);
+  }, [selectedDate, selectedMonth, supabase]);
+
+  const handleSelectDate = (date: string) => {
+    setSelectedDate(date);
+    setSelectedMonth(date.slice(0, 7));
+  };
+
+  const handleChangeMonth = (offset: number) => {
+    const nextMonth = shiftMonth(selectedMonth, offset);
+    setSelectedMonth(nextMonth);
+    setSelectedDate(getFirstDayOfMonth(nextMonth));
+  };
 
   const activeChildId =
     selectedChildId ?? getDefaultSelectedChildId(dashboard.summaries);
@@ -220,11 +255,6 @@ export default function ParentDashboardPage() {
               selectedId={activeChildId}
               onSelect={setSelectedChildId}
             />
-            <ParentMonthCalendar
-              days={dashboard.calendarDays}
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
-            />
             {selectedDetail ? (
               <TodayOverview
                 detail={selectedDetail}
@@ -233,6 +263,16 @@ export default function ParentDashboardPage() {
                 onReminderStateChange={handleReminderStateChange}
               />
             ) : null}
+            <ParentMonthCalendar
+              days={dashboard.calendarDays}
+              selectedDate={selectedDate}
+              selectedMonth={selectedMonth}
+              monthlyStats={dashboard.monthlyStats}
+              onSelectDate={handleSelectDate}
+              onPreviousMonth={() => handleChangeMonth(-1)}
+              onNextMonth={() => handleChangeMonth(1)}
+            />
+            <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
             <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
           </>
         )}
