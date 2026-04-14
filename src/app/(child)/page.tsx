@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CheckInModal } from "@/components/child/CheckInModal";
 import { ChildWeekSummaryCard } from "@/components/child/ChildWeekSummaryCard";
@@ -35,6 +36,7 @@ function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
 
 export default function ChildLandingPage() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -64,6 +66,7 @@ export default function ChildLandingPage() {
         setHomeworks([]);
         setCheckIns([]);
         setLoading(false);
+        router.push("/child-login");
         return;
       }
 

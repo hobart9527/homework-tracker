@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
 import {
@@ -120,6 +121,7 @@ const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 
 export default function ProgressPage() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -147,6 +149,7 @@ export default function ProgressPage() {
         setHomeworks([]);
         setCheckIns([]);
         setLoading(false);
+        router.push("/child-login");
         return;
       }
 

@@ -1,8 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+
+const CRON_SECRET = process.env.CRON_SECRET || "";
 
 /**
  * Nightly reminder cron job - runs before cutoff time to remind about incomplete homework
+ *
+ * Headers:
+ * - x-cron-secret: Secret token for authentication (required for non-browser calls)
  *
  * Query params:
  * - cutoffHour: Hour of cutoff time (default 23)
@@ -11,14 +17,21 @@ import { NextResponse } from "next/server";
  * This endpoint should be called by a cron job ~30 minutes before cutoff time
  */
 export async function GET(request: Request) {
-  const supabase = await createClient();
+  // Allow cron jobs with secret token OR authenticated sessions
+  const cronSecret = request.headers.get("x-cron-secret");
+  const isCronCall = cronSecret && cronSecret === CRON_SECRET;
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const supabase = isCronCall
+    ? await createServiceRoleClient()
+    : await createClient();
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!isCronCall) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   const { searchParams } = new URL(request.url);

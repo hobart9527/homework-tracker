@@ -55,13 +55,24 @@ export async function middleware(request: NextRequest) {
 
   // Protected routes
   const protectedPaths = ["/dashboard", "/homework", "/children", "/settings"];
+  const childProtectedPaths = ["/progress", "/rewards", "/"];
   const isProtectedPath = protectedPaths.some((path) =>
+    request.nextUrl.pathname.startsWith(path)
+  );
+  const isChildProtectedPath = childProtectedPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
 
   if (isProtectedPath && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Child routes need auth too (redirect to child-login)
+  if (isChildProtectedPath && !user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/child-login";
     return NextResponse.redirect(url);
   }
 
