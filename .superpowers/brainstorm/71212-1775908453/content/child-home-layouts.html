@@ -1,0 +1,128 @@
+<h2>孩子打卡主页方向对比</h2>
+<p class="subtitle">面向 8-12 岁：既要清楚知道今天做什么，也要有完成后的成就感。请选择最接近你想法的方向。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 任务清单优先</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#fff7d9,#fff);padding:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div>
+              <div class="label">今天要完成</div>
+              <div style="font-size:28px;font-weight:800;">2 / 5</div>
+            </div>
+            <div style="background:#ffdf6b;border-radius:18px;padding:8px 12px;font-weight:700;">+8 分</div>
+          </div>
+          <div style="background:#fff;border:2px solid #f2c84b;border-radius:16px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div><strong>📖 阅读 20 分钟</strong><div class="subtitle" style="margin:4px 0 0;">截止 20:00 · 需要截图</div></div>
+              <button class="mock-button">去完成</button>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #eadfb5;border-radius:16px;padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div><strong>🎹 钢琴练习</strong><div class="subtitle" style="margin:4px 0 0;">截止 19:30</div></div>
+              <span style="font-weight:700;color:#56AB91;">已完成</span>
+            </div>
+          </div>
+          <div style="background:#fff4ef;border-radius:14px;padding:10px;color:#b85b2c;font-weight:700;">还有 1 项快到截止时间</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 任务清单优先</h3>
+      <p>默认先看到今天该做什么，最适合强调执行效率和减少分心。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 成就激励优先</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#eaf8ff,#fff);padding:16px;">
+          <div style="background:#0f7a8a;color:#fff;border-radius:20px;padding:16px;margin-bottom:12px;">
+            <div class="label" style="color:#d2f4f8;">今日小目标</div>
+            <div style="font-size:30px;font-weight:800;">再完成 1 项就点亮今日勋章</div>
+            <div style="margin-top:10px;height:10px;background:#68cdd7;border-radius:999px;overflow:hidden;">
+              <div style="width:66%;height:100%;background:#ffe082;"></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div style="font-size:24px;">🔥</div><strong>连续 4 天</strong></div>
+            <div style="background:#fff;border-radius:16px;padding:12px;text-align:center;"><div style="font-size:24px;">⭐</div><strong>今日 +8 分</strong></div>
+          </div>
+          <div style="background:#fff;border:2px solid #89d5df;border-radius:16px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div><strong>🧮 IXL 练习</strong><div class="subtitle" style="margin:4px 0 0;">先完成这项最容易拿到勋章</div></div>
+              <button class="mock-button">开始</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 成就激励优先</h3>
+      <p>首页先强调奖励和连续完成，更容易鼓励孩子主动去做下一项。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 混合驾驶舱</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#eff8ef,#fff);padding:16px;">
+          <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:10px;margin-bottom:12px;">
+            <div style="background:#fff;border-radius:16px;padding:12px;">
+              <div class="label">今日进度</div>
+              <div style="font-size:30px;font-weight:800;">3 / 5</div>
+              <div style="margin-top:8px;height:10px;background:#e7f2e7;border-radius:999px;overflow:hidden;">
+                <div style="width:60%;height:100%;background:#56AB91;"></div>
+              </div>
+            </div>
+            <div style="background:#143b2f;color:#fff;border-radius:16px;padding:12px;text-align:center;">
+              <div class="label" style="color:#cfe7db;">本日积分</div>
+              <div style="font-size:28px;font-weight:800;">12</div>
+            </div>
+          </div>
+          <div style="background:#fff;border-radius:16px;padding:12px;margin-bottom:10px;">
+            <strong>下一项</strong>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+              <div><strong>📸 中文朗读</strong><div class="subtitle" style="margin:4px 0 0;">需要录音 · 截止 20:30</div></div>
+              <button class="mock-button">去打卡</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <div style="flex:1;background:#fff;border-radius:14px;padding:10px;text-align:center;">已完成 3 项</div>
+            <div style="flex:1;background:#fff3e2;border-radius:14px;padding:10px;text-align:center;">1 项逾期</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 混合驾驶舱</h3>
+      <p>同时保留任务、进度、积分和提醒，适合想兼顾管理感和反馈感的方向。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>我当前的推荐</h3>
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>推荐 C 做主方向</h4>
+      <ul>
+        <li>兼顾孩子最需要的“下一项做什么”和“我今天表现怎么样”</li>
+        <li>后续容易接入逾期完成、重复提交不重复计分等业务信息</li>
+        <li>不会像纯清单那样偏工具，也不会像纯激励那样弱化任务清晰度</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>需要注意</h4>
+      <ul>
+        <li>信息稍多，必须控制卡片数量和视觉层级</li>
+        <li>“下一项”必须明显，否则会退化成普通 dashboard</li>
+      </ul>
+    </div>
+  </div>
+</div>

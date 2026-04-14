@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS check_ins (
 CREATE TABLE IF NOT EXISTS attachments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   check_in_id UUID NOT NULL REFERENCES check_ins(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('photo', 'screenshot', 'audio')),
+  type TEXT NOT NULL CHECK (type IN ('photo', 'audio')),
   storage_path TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

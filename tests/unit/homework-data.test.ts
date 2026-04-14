@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { getHomeworksForDate, getLocalDayBounds, isAfterCutoff } from "@/lib/homework-utils";
 
 // Test data shape builders (matching HomeworkForm state)
 interface HomeworkFormData {
@@ -15,7 +16,7 @@ interface HomeworkFormData {
   point_value: number;
   estimated_minutes: number | null;
   daily_cutoff_time: string | null;
-  required_checkpoint_type: "photo" | "screenshot" | "audio" | null;
+  required_checkpoint_type: "photo" | "audio" | null;
   created_by: string;
 }
 
@@ -174,5 +175,88 @@ describe("Icon constants", () => {
     const ALL_ICONS = ["📝", "✏️", "📋", "🎨", "⚽", "🏀", "🎸", "🧮", "🔬", "📐", "✍️", "🗣️", "🎹", "📖", "💻", "📚", "🔢", "🇨🇳", "🏐", "👯", "🎭", "🧹", "📸", "🎵", "🌟", "🧩", "🖊️", "📏", "🎯", "🏃"];
     expect(ALL_ICONS).toContain("📸");
     expect(ALL_ICONS).toContain("🎵");
+  });
+});
+
+describe("isAfterCutoff", () => {
+  it("returns false when there is no cutoff", () => {
+    expect(isAfterCutoff(null, new Date("2026-04-11T21:00:00"))).toBe(false);
+  });
+
+  it("returns false before the cutoff time", () => {
+    expect(isAfterCutoff("20:00", new Date("2026-04-11T19:59:00"))).toBe(false);
+  });
+
+  it("returns true after the cutoff time", () => {
+    expect(isAfterCutoff("20:00", new Date("2026-04-11T20:01:00"))).toBe(true);
+  });
+});
+
+describe("getLocalDayBounds", () => {
+  it("returns a start and end timestamp for the local calendar day", () => {
+    const bounds = getLocalDayBounds(new Date("2026-04-11T23:30:00+08:00"));
+    const start = new Date(bounds.start);
+    const end = new Date(bounds.end);
+
+    expect(start.getHours()).toBe(0);
+    expect(start.getMinutes()).toBe(0);
+    expect(start.getSeconds()).toBe(0);
+    expect(end.getHours()).toBe(23);
+    expect(end.getMinutes()).toBe(59);
+    expect(end.getSeconds()).toBe(59);
+  });
+});
+
+describe("getHomeworksForDate", () => {
+  const baseHomework = {
+    id: "hw-1",
+    child_id: "child-1",
+    type_id: null,
+    type_name: "Reading",
+    type_icon: "📖",
+    title: "Read",
+    description: null,
+    repeat_days: null,
+    repeat_interval: null,
+    repeat_start_date: null,
+    repeat_end_date: null,
+    point_value: 3,
+    estimated_minutes: 20,
+    daily_cutoff_time: "20:00",
+    is_active: true,
+    required_checkpoint_type: null,
+    created_by: null,
+    created_at: null,
+  };
+
+  it("includes once homework on its start date", () => {
+    const result = getHomeworksForDate(
+      [
+        {
+          ...baseHomework,
+          repeat_type: "once",
+          repeat_start_date: "2026-04-11",
+        },
+      ],
+      new Date("2026-04-11T12:00:00")
+    );
+
+    expect(result).toHaveLength(1);
+  });
+
+  it("includes interval homework on matching days", () => {
+    const result = getHomeworksForDate(
+      [
+        {
+          ...baseHomework,
+          repeat_type: "interval",
+          repeat_start_date: "2026-04-01",
+          repeat_interval: 3,
+        },
+      ],
+      new Date("2026-04-10T12:00:00")
+    );
+
+    expect(result).toHaveLength(1);
   });
 });

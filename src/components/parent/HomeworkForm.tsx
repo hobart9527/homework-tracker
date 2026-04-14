@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { HomeworkAssignmentPanel } from "@/components/parent/HomeworkAssignmentPanel";
+import { HomeworkRulePreview } from "@/components/parent/HomeworkRulePreview";
+import {
+  buildAssignmentSummary,
+  buildHomeworkDraftFromSource,
+  buildHomeworkInsertRows,
+  buildHomeworkRulePreview,
+  type HomeworkFormState,
+} from "@/lib/homework-form";
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
@@ -27,23 +36,29 @@ const ALL_ICONS = ["📝", "✏️", "📋", "🎨", "⚽", "🏀", "🎸", "�
 
 interface HomeworkFormProps {
   homework?: Database["public"]["Tables"]["homeworks"]["Row"];
+  copyFromHomeworkId?: string;
   onSuccess?: () => void;
 }
 
-export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
+export function HomeworkForm({
+  homework,
+  copyFromHomeworkId,
+  onSuccess,
+}: HomeworkFormProps) {
   const router = useRouter();
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const [children, setChildren] = useState<Child[]>([]);
   const [customTypes, setCustomTypes] = useState<CustomType[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCustomTypeForm, setShowCustomTypeForm] = useState(false);
   const [customTypeForm, setCustomTypeForm] = useState({ name: "", icon: "📝", points: 3 });
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
 
   const isEditing = !!homework;
 
-  const [formData, setFormData] = useState({
-    child_id: homework?.child_id || "",
+  const [formData, setFormData] = useState<HomeworkFormState>({
+    child_ids: homework?.child_id ? [homework.child_id] : [],
     type_id: homework?.type_id || "",
     type_name: homework?.type_name || "",
     type_icon: homework?.type_icon || "📝",
@@ -78,13 +93,40 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
       if (childrenData) setChildren(childrenData);
       if (customTypesData) setCustomTypes(customTypesData);
 
-      if (!formData.child_id && childrenData?.length) {
-        setFormData((prev) => ({ ...prev, child_id: childrenData[0].id }));
+      if (
+        !homework &&
+        !copyFromHomeworkId &&
+        !formData.child_ids.length &&
+        childrenData?.length
+      ) {
+        setFormData((prev) => ({ ...prev, child_ids: [childrenData[0].id] }));
       }
     };
 
     fetchData();
-  }, [supabase, formData.child_id]);
+  }, [supabase, copyFromHomeworkId, formData.child_ids.length, homework]);
+
+  useEffect(() => {
+    if (isEditing || !copyFromHomeworkId || hasLoadedCopySource) {
+      return;
+    }
+
+    const fetchCopySource = async () => {
+      const { data, error } = await supabase
+        .from("homeworks")
+        .select("*")
+        .eq("id", copyFromHomeworkId)
+        .maybeSingle();
+
+      if (!error && data) {
+        setFormData(buildHomeworkDraftFromSource(data));
+      }
+
+      setHasLoadedCopySource(true);
+    };
+
+    fetchCopySource();
+  }, [copyFromHomeworkId, hasLoadedCopySource, isEditing, supabase]);
 
   const allTypes = [
     ...DEFAULT_TYPES.map((t) => ({ ...t, is_custom: false })),
@@ -96,6 +138,13 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
       is_custom: true,
     })),
   ];
+
+  const selectedChildren = children.filter((child) =>
+    formData.child_ids.includes(child.id)
+  );
+  const assignmentSummary = buildAssignmentSummary(selectedChildren);
+  const preview = buildHomeworkRulePreview(formData, assignmentSummary.childNames);
+  const canBatchAssign = !isEditing;
 
   const handleTypeSelect = (type: (typeof allTypes)[0]) => {
     // Auto-fill title unless user has manually customized it
@@ -114,8 +163,8 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
       ...prev,
       type_id: type.is_custom ? type.id : "",
       type_name: type.name,
-      type_icon: type.icon,
-      point_value: type.default_points,
+      type_icon: type.icon || "📝",
+      point_value: type.default_points ?? 3,
       title: isAutoTitle ? type.name + "练习" : prev.title,
     }));
   };
@@ -145,7 +194,13 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
       }
 
       setCustomTypes((prev) => [...prev, newType]);
-      handleTypeSelect({ id: newType.id, name: newType.name, icon: newType.icon, default_points: newType.default_points, is_custom: true });
+      handleTypeSelect({
+        id: newType.id,
+        name: newType.name,
+        icon: newType.icon || "📝",
+        default_points: newType.default_points ?? 3,
+        is_custom: true,
+      });
       setShowCustomTypeForm(false);
       setCustomTypeForm({ name: "", icon: "📝", points: 3 });
     } else {
@@ -162,30 +217,12 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
     } = await supabase.auth.getSession();
     if (!session) return;
 
-    const homeworkData = {
-      child_id: formData.child_id,
-      type_id: formData.type_id || null,
-      type_name: formData.type_name,
-      type_icon: formData.type_icon,
-      title: formData.title,
-      description: formData.description || null,
-      required_checkpoint_type: formData.required_checkpoint_type || null,
-      repeat_type: formData.repeat_type,
-      repeat_days:
-        formData.repeat_type === "weekly" ? formData.repeat_days : null,
-      repeat_interval:
-        formData.repeat_type === "interval" ? formData.repeat_interval : null,
-      repeat_start_date: formData.repeat_start_date || null,
-      point_value: formData.point_value,
-      estimated_minutes: formData.estimated_minutes,
-      daily_cutoff_time: formData.daily_cutoff_time || null,
-      created_by: session.user.id,
-    };
+    const rows = buildHomeworkInsertRows(formData, session.user.id);
 
     if (homework) {
-      await supabase.from("homeworks").update(homeworkData).eq("id", homework.id);
+      await supabase.from("homeworks").update(rows[0]).eq("id", homework.id);
     } else {
-      await supabase.from("homeworks").insert(homeworkData);
+      await supabase.from("homeworks").insert(rows);
     }
 
     setLoading(false);
@@ -193,307 +230,377 @@ export function HomeworkForm({ homework, onSuccess }: HomeworkFormProps) {
     router.push("/homework");
   };
 
+  const handleToggleChild = (childId: string) => {
+    if (isEditing) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const alreadySelected = prev.child_ids.includes(childId);
+      const child_ids = alreadySelected
+        ? prev.child_ids.filter((id) => id !== childId)
+        : [...prev.child_ids, childId];
+
+      return {
+        ...prev,
+        child_ids: child_ids.length ? child_ids : prev.child_ids,
+      };
+    });
+  };
+
+  const handleQuickTypeChange = (value: string) => {
+    const matchedType = allTypes.find((type) => type.name === value);
+
+    if (!matchedType) {
+      setFormData((prev) => ({
+        ...prev,
+        type_id: "",
+        type_name: "",
+      }));
+      return;
+    }
+
+    handleTypeSelect(matchedType);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Child selector */}
-      <div>
-        <label className="block text-sm font-medium text-forest-700 mb-2">
-          孩子
-        </label>
-        <div className="flex gap-2">
-          {children.map((child) => (
-            <button
-              key={child.id}
-              type="button"
-              onClick={() =>
-                setFormData((prev) => ({ ...prev, child_id: child.id }))
+      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <HomeworkAssignmentPanel
+            children={children}
+            selectedIds={formData.child_ids}
+            canBatchAssign={canBatchAssign}
+            createCountLabel={assignmentSummary.createCountLabel}
+            independenceHint={assignmentSummary.independenceHint}
+            onToggle={handleToggleChild}
+          />
+          <HomeworkRulePreview preview={preview} />
+        </div>
+
+        <div className="space-y-6 rounded-3xl border border-forest-200 bg-white/90 p-5">
+          <Input
+            label="作业标题"
+            aria-label="作业标题"
+            value={formData.title}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, title: e.target.value }))
+            }
+            placeholder={formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"}
+            required
+          />
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-forest-700">
+              描述（可选）
+            </label>
+            <textarea
+              aria-label="描述（可选）"
+              value={formData.description}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, description: e.target.value }))
               }
-              className={`flex-1 px-4 py-2 rounded-xl border-2 transition-all
-                ${
-                  formData.child_id === child.id
-                    ? "border-primary bg-primary/10"
-                    : "border-forest-200"
-                }`}
-            >
-              {child.avatar} {child.name}
-            </button>
-          ))}
-        </div>
-      </div>
+              placeholder="详细说明..."
+              className="w-full rounded-xl border-2 border-forest-200 px-4 py-2 focus:border-primary focus:outline-none"
+              rows={3}
+            />
+          </div>
 
-      {/* Homework type */}
-      <div>
-        <label className="block text-sm font-medium text-forest-700 mb-2">
-          作业类型
-        </label>
-        <div className="grid grid-cols-5 gap-2">
-          {allTypes.map((type) => (
-            <button
-              key={type.id}
-              type="button"
-              onClick={() => handleTypeSelect(type)}
-              className={`p-3 rounded-xl border-2 text-center transition-all
-                ${
-                  formData.type_name === type.name
-                    ? "border-primary bg-primary/10"
-                    : "border-forest-200 hover:border-forest-300"
-                }`}
-            >
-              <div className="text-2xl">{type.icon}</div>
-              <div className="text-xs mt-1 truncate">{type.name}</div>
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={handleAddCustomType}
-            className="p-3 rounded-xl border-2 border-dashed border-forest-300 text-center transition-all hover:border-primary hover:bg-primary/5"
-          >
-            <div className="text-2xl text-forest-400">＋</div>
-            <div className="text-xs mt-1 text-forest-500">自定义</div>
-          </button>
-        </div>
-
-        {/* Custom type creation form */}
-        {showCustomTypeForm && (
-          <div className="mt-3 p-4 rounded-xl border-2 border-primary/30 bg-primary/5 space-y-3">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={customTypeForm.name}
-                onChange={(e) => setCustomTypeForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="类型名称，如：数学练习"
-                className="flex-1 px-3 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
-              />
-              <input
-                type="number"
-                min={1}
-                max={20}
-                value={customTypeForm.points}
-                onChange={(e) => setCustomTypeForm((p) => ({ ...p, points: parseInt(e.target.value) }))}
-                placeholder="积分"
-                className="w-20 px-3 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
-              />
+          <div>
+            <label className="mb-2 block text-sm font-medium text-forest-700">
+              重复规则
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {(["daily", "weekly", "interval", "once"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({ ...prev, repeat_type: type }))
+                  }
+                  className={`px-4 py-2 rounded-xl border-2 transition-all ${
+                    formData.repeat_type === type
+                      ? "border-primary bg-primary/10"
+                      : "border-forest-200"
+                  }`}
+                >
+                  {{
+                    daily: "每日",
+                    weekly: "每周",
+                    interval: "间隔",
+                    once: "单次",
+                  }[type]}
+                </button>
+              ))}
             </div>
+          </div>
+
+          {formData.repeat_type === "weekly" && (
             <div>
-              <label className="text-xs text-forest-600 mb-1 block">图标</label>
-              <div className="flex gap-1 flex-wrap">
+              <label className="mb-2 block text-sm font-medium text-forest-700">
+                选择星期
+              </label>
+              <div className="flex gap-2">
+                {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => {
+                      const days = formData.repeat_days.includes(index)
+                        ? formData.repeat_days.filter((d) => d !== index)
+                        : [...formData.repeat_days, index];
+                      setFormData((prev) => ({ ...prev, repeat_days: days }));
+                    }}
+                    className={`w-10 h-10 rounded-full border-2 transition-all ${
+                      formData.repeat_days.includes(index)
+                        ? "border-primary bg-primary text-white"
+                        : "border-forest-200"
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <label
+                  htmlFor="homework-quick-type"
+                  className="block text-sm font-medium text-forest-700"
+                >
+                  快捷类型（可选）
+                </label>
+                <p className="mt-1 text-sm text-forest-500">
+                  选一个常用类型，自动带入标题建议、图标和默认积分。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddCustomType}
+                className="rounded-xl border border-forest-200 px-3 py-2 text-sm text-forest-600 transition-all hover:border-primary hover:text-primary"
+              >
+                {showCustomTypeForm ? "保存类型" : "新建类型"}
+              </button>
+            </div>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+              <select
+                id="homework-quick-type"
+                aria-label="快捷类型（可选）"
+                value={formData.type_name}
+                onChange={(e) => handleQuickTypeChange(e.target.value)}
+                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-700 outline-none transition-all focus:border-primary"
+              >
+                <option value="">不预设类型</option>
+                {allTypes.map((type) => (
+                  <option key={type.id} value={type.name}>
+                    {type.icon} {type.name}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setShowIconPicker((prev) => !prev)}
+                className="flex items-center justify-center gap-2 rounded-xl border border-forest-200 bg-white px-4 py-3 text-sm text-forest-600 transition-all hover:border-primary hover:text-primary"
+              >
+                图标 {formData.type_icon}
+              </button>
+            </div>
+
+            {showCustomTypeForm && (
+              <div className="mt-3 space-y-3 rounded-xl border border-primary/30 bg-white p-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customTypeForm.name}
+                    onChange={(e) =>
+                      setCustomTypeForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    placeholder="类型名称，如：数学练习"
+                    className="flex-1 rounded-xl border-2 border-forest-200 px-3 py-2 focus:border-primary focus:outline-none"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={customTypeForm.points}
+                    onChange={(e) =>
+                      setCustomTypeForm((prev) => ({
+                        ...prev,
+                        points: parseInt(e.target.value),
+                      }))
+                    }
+                    placeholder="积分"
+                    className="w-20 rounded-xl border-2 border-forest-200 px-3 py-2 focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-forest-600">图标</label>
+                  <div className="flex flex-wrap gap-1">
+                    {ALL_ICONS.map((icon) => (
+                      <button
+                        key={icon}
+                        type="button"
+                        onClick={() => setCustomTypeForm((prev) => ({ ...prev, icon }))}
+                        className={`w-9 h-9 rounded-lg border-2 text-xl transition-all ${
+                          customTypeForm.icon === icon
+                            ? "border-primary bg-primary/10"
+                            : "border-forest-200"
+                        }`}
+                      >
+                        {icon}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showIconPicker && (
+              <div className="mt-3 flex flex-wrap gap-1">
                 {ALL_ICONS.map((icon) => (
                   <button
                     key={icon}
                     type="button"
-                    onClick={() => setCustomTypeForm((p) => ({ ...p, icon }))}
-                    className={`w-9 h-9 text-xl rounded-lg border-2 transition-all
-                      ${customTypeForm.icon === icon ? "border-primary bg-primary/10" : "border-forest-200"}`}
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, type_icon: icon }));
+                      setShowIconPicker(false);
+                    }}
+                    className={`w-9 h-9 rounded-lg border-2 text-xl transition-all ${
+                      formData.type_icon === icon
+                        ? "border-primary bg-primary/10"
+                        : "border-forest-200"
+                    }`}
                   >
                     {icon}
                   </button>
                 ))}
               </div>
-            </div>
+            )}
           </div>
-        )}
 
-        {/* Icon override */}
-        <div className="mt-3 flex items-center gap-2">
-          <label className="text-sm text-forest-600">图标</label>
-          <button
-            type="button"
-            onClick={() => setShowIconPicker(!showIconPicker)}
-            className="w-9 h-9 text-xl rounded-lg border-2 border-forest-200 flex items-center justify-center hover:border-primary"
-          >
-            {formData.type_icon}
-          </button>
-        </div>
-        {showIconPicker && (
-          <div className="flex gap-1 flex-wrap mt-2">
-            {ALL_ICONS.map((icon) => (
-              <button
-                key={icon}
-                type="button"
-                onClick={() => {
-                  setFormData((prev) => ({ ...prev, type_icon: icon }));
-                  setShowIconPicker(false);
-                }}
-                className={`w-9 h-9 text-xl rounded-lg border-2 transition-all
-                  ${formData.type_icon === icon ? "border-primary bg-primary/10" : "border-forest-200"}`}
-              >
-                {icon}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Required checkpoint type */}
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-forest-700 mb-2">
-            提交类型
-          </label>
-          <div className="flex gap-2">
-            {[
-              ["none", "无要求", "—"],
-              ["photo", "拍照", "📸"],
-              ["screenshot", "截图", "🖥️"],
-              ["audio", "录音", "🎵"],
-            ].map(([value, label, icon]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, required_checkpoint_type: value === "none" ? "" : value }))}
-                className={`flex-1 py-2 rounded-xl border-2 text-center transition-all
-                  ${
-                    (value === "none" && !formData.required_checkpoint_type) || formData.required_checkpoint_type === value
+          <div>
+            <label className="mb-2 block text-sm font-medium text-forest-700">
+              证明要求
+            </label>
+            <div className="flex gap-2">
+              {([
+                ["none", "无要求", "—"],
+                ["photo", "照片", "📸"],
+                ["audio", "录音", "🎵"],
+              ] as const).map(([value, label, icon]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      required_checkpoint_type: value === "none" ? "" : value,
+                    }))
+                  }
+                  className={`flex-1 py-2 rounded-xl border-2 text-center transition-all ${
+                    (value === "none" && !formData.required_checkpoint_type) ||
+                    formData.required_checkpoint_type === value
                       ? "border-primary bg-primary/10"
                       : "border-forest-200 hover:border-forest-300"
                   }`}
-              >
-                <span className="text-lg">{icon}</span>
-                <div className="text-xs">{label}</div>
-              </button>
-            ))}
+                >
+                  <span className="text-lg">{icon}</span>
+                  <div className="text-xs">{label}</div>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Title */}
-      <Input
-        label="作业标题"
-        value={formData.title}
-        onChange={(e) =>
-          setFormData((prev) => ({ ...prev, title: e.target.value }))
-        }
-        placeholder={formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"}
-        required
-      />
-
-      {/* Description */}
-      <div>
-        <label className="block text-sm font-medium text-forest-700 mb-1">
-          描述（可选）
-        </label>
-        <textarea
-          value={formData.description}
-          onChange={(e) =>
-            setFormData((prev) => ({ ...prev, description: e.target.value }))
-          }
-          placeholder="详细说明..."
-          className="w-full px-4 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
-          rows={3}
-        />
-      </div>
-
-      {/* Repeat rule */}
-      <div>
-        <label className="block text-sm font-medium text-forest-700 mb-2">
-          重复规则
-        </label>
-        <div className="flex gap-2 flex-wrap">
-          {["daily", "weekly", "interval", "once"].map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() =>
-                setFormData((prev) => ({ ...prev, repeat_type: type }))
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="积分奖励"
+              type="number"
+              min={1}
+              max={20}
+              value={formData.point_value}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  point_value: parseInt(e.target.value),
+                }))
               }
-              className={`px-4 py-2 rounded-xl border-2 transition-all
-                ${
-                  formData.repeat_type === type
-                    ? "border-primary bg-primary/10"
-                    : "border-forest-200"
-                }`}
-            >
-              {{
-                daily: "每日",
-                weekly: "每周",
-                interval: "间隔",
-                once: "单次",
-              }[type]}
-            </button>
-          ))}
-        </div>
-      </div>
+            />
+            <Input
+              label="预计时长（分钟）"
+              type="number"
+              min={5}
+              max={180}
+              value={formData.estimated_minutes}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  estimated_minutes: parseInt(e.target.value),
+                }))
+              }
+            />
+          </div>
 
-      {/* Weekly days selector */}
-      {formData.repeat_type === "weekly" && (
-        <div>
-          <label className="block text-sm font-medium text-forest-700 mb-2">
-            选择星期
-          </label>
-          <div className="flex gap-2">
-            {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
-              <button
-                key={day}
-                type="button"
-                onClick={() => {
-                  const days = formData.repeat_days.includes(index)
-                    ? formData.repeat_days.filter((d) => d !== index)
-                    : [...formData.repeat_days, index];
-                  setFormData((prev) => ({ ...prev, repeat_days: days }));
-                }}
-                className={`w-10 h-10 rounded-full border-2 transition-all
-                  ${
-                    formData.repeat_days.includes(index)
-                      ? "border-primary bg-primary text-white"
-                      : "border-forest-200"
-                  }`}
-              >
-                {day}
-              </button>
-            ))}
+          <Input
+            label="每日截止时间"
+            type="time"
+            value={formData.daily_cutoff_time}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                daily_cutoff_time: e.target.value,
+              }))
+            }
+          />
+
+          {formData.repeat_type === "interval" && (
+            <Input
+              label="每隔几天"
+              type="number"
+              min={1}
+              max={30}
+              value={formData.repeat_interval}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  repeat_interval: parseInt(e.target.value),
+                }))
+              }
+            />
+          )}
+
+          {["interval", "once"].includes(formData.repeat_type) && (
+            <Input
+              label={formData.repeat_type === "once" ? "作业日期" : "开始日期"}
+              type="date"
+              value={formData.repeat_start_date}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  repeat_start_date: e.target.value,
+                }))
+              }
+              required
+            />
+          )}
+
+          <div className="flex gap-3">
+            <Button type="button" variant="ghost" onClick={() => router.back()}>
+              取消
+            </Button>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={loading || formData.child_ids.length === 0 || !formData.title}
+            >
+              {loading ? "保存中..." : homework ? "更新作业" : "创建作业"}
+            </Button>
           </div>
         </div>
-      )}
-
-      {/* Points and duration */}
-      <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="积分奖励"
-          type="number"
-          min={1}
-          max={20}
-          value={formData.point_value}
-          onChange={(e) =>
-            setFormData((prev) => ({
-              ...prev,
-              point_value: parseInt(e.target.value),
-            }))
-          }
-        />
-        <Input
-          label="预计时长（分钟）"
-          type="number"
-          min={5}
-          max={180}
-          value={formData.estimated_minutes}
-          onChange={(e) =>
-            setFormData((prev) => ({
-              ...prev,
-              estimated_minutes: parseInt(e.target.value),
-            }))
-          }
-        />
-      </div>
-
-      {/* Daily cutoff time */}
-      <Input
-        label="每日截止时间"
-        type="time"
-        value={formData.daily_cutoff_time}
-        onChange={(e) =>
-          setFormData((prev) => ({
-            ...prev,
-            daily_cutoff_time: e.target.value,
-          }))
-        }
-      />
-
-      {/* Submit */}
-      <div className="flex gap-3">
-        <Button type="button" variant="ghost" onClick={() => router.back()}>
-          取消
-        </Button>
-        <Button type="submit" className="flex-1" disabled={loading}>
-          {loading ? "保存中..." : homework ? "更新作业" : "创建作业"}
-        </Button>
       </div>
     </form>
   );

@@ -61,6 +61,7 @@ export default function RewardsPage() {
           <div className="space-y-2">
             {checkIns.slice(0, 50).map((ci) => {
               const hw = homeworks.find((h) => h.id === ci.homework_id);
+              const displayTime = ci.created_at || ci.completed_at;
               return (
                 <div
                   key={ci.id}
@@ -72,19 +73,28 @@ export default function RewardsPage() {
                       <div className="text-sm font-medium text-forest-700">
                         +{ci.points_earned} {hw?.title || "作业"}
                       </div>
+                      <p className="text-xs text-forest-400 mt-1">
+                        {ci.is_scored
+                          ? ci.is_late
+                            ? "已逾期完成"
+                            : "已完成"
+                          : "本次记录已保存，今天不重复加分"}
+                      </p>
                       {ci.note && (
                         <p className="text-xs text-forest-500">{ci.note}</p>
                       )}
                     </div>
                   </div>
                   <span className="text-xs text-forest-400 whitespace-nowrap">
-                    {new Date(ci.completed_at).toLocaleDateString()}{" "}
-                    {new Date(
-                      ci.created_at || ci.completed_at
-                    ).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {ci.completed_at
+                      ? new Date(ci.completed_at).toLocaleDateString()
+                      : "时间待定"}{" "}
+                    {displayTime
+                      ? new Date(displayTime).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : ""}
                   </span>
                 </div>
               );
