@@ -217,6 +217,50 @@ export interface Database {
           created_at?: string | null;
         };
       };
+      homework_reminders: {
+        Row: {
+          id: string;
+          parent_id: string;
+          child_id: string;
+          homework_id: string;
+          target_date: string;
+          status: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
+          escalation_channel: string;
+          initial_sent_at: string | null;
+          escalated_at: string | null;
+          resolved_at: string | null;
+          failure_reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          parent_id: string;
+          child_id: string;
+          homework_id: string;
+          target_date: string;
+          status: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
+          escalation_channel?: string;
+          initial_sent_at?: string | null;
+          escalated_at?: string | null;
+          resolved_at?: string | null;
+          failure_reason?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          parent_id?: string;
+          child_id?: string;
+          homework_id?: string;
+          target_date?: string;
+          status?: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
+          escalation_channel?: string;
+          initial_sent_at?: string | null;
+          escalated_at?: string | null;
+          resolved_at?: string | null;
+          failure_reason?: string | null;
+          created_at?: string;
+        };
+      };
       attachments: {
         Row: {
           id: string;

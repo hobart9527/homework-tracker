@@ -304,3 +304,10 @@ export function getDefaultSelectedChildId(
 ): string | null {
   return summaries[0]?.childId ?? null;
 }
+
+export type ParentReminderState = {
+  homeworkId: string;
+  targetDate: string;
+  status: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
+  escalateAfter: string | null;
+};
