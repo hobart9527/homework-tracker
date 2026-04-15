@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { PasscodeInput } from "@/components/ui/PasscodeInput";
 import { Button } from "@/components/ui/Button";
@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function ParentLoginPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
@@ -16,35 +16,45 @@ export default function ParentLoginPage() {
     setLoading(true);
     setError("");
 
-    // Look up parent by passcode via SQL function (bypasses RLS)
-    const { data: parents, error: findError } = await supabase.rpc(
-      "get_parent_by_passcode",
-      { passcode_param: passcode }
-    );
+    try {
+      // Look up parent by passcode via SQL function (bypasses RLS)
+      const { data: parents, error: findError } = await supabase.rpc(
+        "get_parent_by_passcode",
+        { passcode_param: passcode }
+      );
 
-    const parent = parents?.[0];
-    if (findError || !parent) {
-      setError("密码错误，请重试");
+      console.log("RPC result:", { parents, findError });
+
+      const parent = parents?.[0];
+      if (findError || !parent) {
+        setError("密码错误，请重试");
+        setLoading(false);
+        return;
+      }
+
+      // Set session for parent
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.signInWithPassword({
+        email: `${parent.id}@parent.local`,
+        password: passcode,
+      });
+
+      console.log("Auth result:", { session, sessionError });
+
+      if (sessionError || !session) {
+        setError("登录失败，请重试");
+        setLoading(false);
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch (e) {
+      console.error("Login error:", e);
+      setError("登录出错，请重试");
       setLoading(false);
-      return;
     }
-
-    // Set session for parent
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.signInWithPassword({
-      email: `${parent.id}@parent.local`,
-      password: passcode,
-    });
-
-    if (sessionError || !session) {
-      setError("登录失败，请重试");
-      setLoading(false);
-      return;
-    }
-
-    router.push("/dashboard");
   };
 
   return (

@@ -41,8 +41,7 @@ export default function ChildLayout({
         supabase
           .from("check_ins")
           .select("points_earned")
-          .eq("child_id", session.user.id)
-          .eq("is_scored", true),
+          .eq("child_id", session.user.id),
       ]);
 
       if (!childData) {
@@ -51,13 +50,21 @@ export default function ChildLayout({
       }
 
       setChild(childData);
-      // Calculate total points from check_ins (authoritative source)
       const points = checkInsData?.reduce((sum, ci) => sum + (ci.points_earned || 0), 0) || 0;
       setTotalPoints(points);
       setLoading(false);
     };
 
-    checkAuth();
+    const handlePointsChanged = () => {
+      void checkAuth();
+    };
+
+    void checkAuth();
+    window.addEventListener("child-points-changed", handlePointsChanged);
+
+    return () => {
+      window.removeEventListener("child-points-changed", handlePointsChanged);
+    };
   }, [router, supabase]);
 
   if (loading) {

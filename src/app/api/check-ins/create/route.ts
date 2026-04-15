@@ -61,6 +61,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: existingError.message }, { status: 500 });
   }
 
+  if (existingSameDay && existingSameDay.length > 0) {
+    const latestExistingCheckIn = [...existingSameDay].sort((left, right) => {
+      const leftValue = new Date(String(left.completed_at ?? left.created_at ?? 0)).getTime();
+      const rightValue = new Date(String(right.completed_at ?? right.created_at ?? 0)).getTime();
+      return rightValue - leftValue;
+    })[0];
+
+    return NextResponse.json({
+      success: true,
+      scored: false,
+      awardedPoints: 0,
+      message: "今天已经提交过这项作业了",
+      deduplicated: true,
+      checkIn: latestExistingCheckIn,
+    });
+  }
+
   let decision;
   try {
     decision = buildSubmissionDecision({

@@ -80,9 +80,19 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const timeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), 3000)
+    );
+    const { data } = await Promise.race([
+      supabase.auth.getUser(),
+      timeoutPromise.then(() => ({ data: { user: null } })),
+    ]);
+    user = data?.user;
+  } catch {
+    user = null;
+  }
 
   const isProtectedPath = isParentProtectedPath(request.nextUrl.pathname);
   const isProtectedChildPath = isChildProtectedPath(request.nextUrl.pathname);

@@ -28,7 +28,11 @@
       "title": "本周日历",
       "previousWeek": "上一周",
       "nextWeek": "下一周",
-      "today": "今"
+      "today": "今",
+      "notStarted": "未开始",
+      "inProgress": "进行中/完成",
+      "overdue": "逾期",
+      "overdueInProgress": "逾期进行中"
     },
     "weekSummary": {
       "title": "本周概览",

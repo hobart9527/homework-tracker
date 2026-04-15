@@ -22,13 +22,18 @@ export function CheckInModal({
   onSuccess,
 }: CheckInModalProps) {
   const supabase = createClient();
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<BlobPart[]>([]);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const submittingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [submissionState, setSubmissionState] = useState<"idle" | "success" | "error">("idle");
+  const [submissionState, setSubmissionState] = useState<"idle" | "submitting" | "error">("idle");
   const [attachments, setAttachments] = useState<{ type: string; file: File }[]>(
     []
   );
   const [note, setNote] = useState("");
+  const [recording, setRecording] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -38,61 +43,130 @@ export function CheckInModal({
       setSubmissionState("idle");
       setAttachments([]);
       setNote("");
+      setRecording(false);
+      submittingRef.current = false;
     }
   }, [isOpen]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  useEffect(() => {
+    return () => {
+      mediaRecorderRef.current?.stop();
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const buildAttachmentFingerprint = (file: File) =>
+    [file.name, file.size, file.type, file.lastModified].join(":");
+
+  const addAttachments = (candidateFiles: File[]) => {
+    if (candidateFiles.length === 0) {
+      return;
+    }
+
     const expectedType = homework.required_checkpoint_type;
-    const newAttachments = files
+    const nextAttachments = candidateFiles
       .map((file) => ({
-      type: file.type.startsWith("image/") ? "photo" : "audio",
-      file,
+        type: file.type.startsWith("image/") ? "photo" : "audio",
+        file,
       }))
       .filter((attachment) =>
         expectedType ? attachment.type === expectedType : true
       );
 
-    if (files.length > 0 && newAttachments.length !== files.length) {
+    if (candidateFiles.length > 0 && nextAttachments.length !== candidateFiles.length) {
       setFeedback(
         expectedType === "photo"
           ? "这项作业需要上传照片，当前文件类型不匹配"
           : "这项作业需要上传录音，当前文件类型不匹配"
       );
       setSubmissionState("error");
-    } else {
-      setFeedback("");
-      setSubmissionState("idle");
+      return;
     }
 
-    setAttachments((prev) => [...prev, ...newAttachments]);
-    e.target.value = "";
-  };
+    setAttachments((prev) => {
+      const existingFingerprints = new Set(
+        prev.map((attachment) => buildAttachmentFingerprint(attachment.file))
+      );
+      const uniqueAttachments = nextAttachments.filter((attachment) => {
+        const fingerprint = buildAttachmentFingerprint(attachment.file);
+        if (existingFingerprints.has(fingerprint)) {
+          return false;
+        }
 
-  const handleAudioRecord = () => {
-    // Simplified audio recording using MediaRecorder API
-    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-      const mediaRecorder = new MediaRecorder(stream);
-      const chunks: BlobPart[] = [];
+        existingFingerprints.add(fingerprint);
+        return true;
+      });
 
-      mediaRecorder.ondataavailable = (e) => {
-        chunks.push(e.data);
-      };
+      if (uniqueAttachments.length !== nextAttachments.length) {
+        setFeedback("这个文件已经添加过了");
+        setSubmissionState("error");
+      } else {
+        setFeedback("");
+        setSubmissionState("idle");
+      }
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const file = new File([blob], "recording.webm", { type: "audio/webm" });
-        setAttachments((prev) => [...prev, { type: "audio", file }]);
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      mediaRecorder.start();
-      setTimeout(() => mediaRecorder.stop(), 5000); // 5 second recording
+      return [...prev, ...uniqueAttachments];
     });
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    addAttachments(files);
+    e.target.value = "";
+  };
+
+  const handleAudioRecord = async () => {
+    if (recording && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      return;
+    }
+
+    if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setFeedback("当前设备不支持直接录音，请改用上传录音文件");
+      setSubmissionState("error");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStreamRef.current = stream;
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      recordingChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordingChunksRef.current, { type: "audio/webm" });
+        const file = new File([blob], `recording-${Date.now()}.webm`, {
+          type: "audio/webm",
+          lastModified: Date.now(),
+        });
+        addAttachments([file]);
+        recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+        recordingStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        recordingChunksRef.current = [];
+        setRecording(false);
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+      setFeedback("录音中，点一次“停止录音”保存");
+      setSubmissionState("idle");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "录音启动失败，请检查麦克风权限");
+      setSubmissionState("error");
+      setRecording(false);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (loading || submissionState === "success") {
+    if (loading || submittingRef.current) {
       return;
     }
 
@@ -106,94 +180,106 @@ export function CheckInModal({
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
-    setFeedback("");
-    setSubmissionState("idle");
+    setFeedback("正在保存打卡记录...");
+    setSubmissionState("submitting");
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-      setFeedback("请先重新登录后再试");
-      setSubmissionState("error");
-      setLoading(false);
-      return;
-    }
-
-    const response = await fetch("/api/check-ins/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        homeworkId: homework.id,
-        note,
-        proofType: attachments[0]?.type ?? null,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok || !result.checkIn) {
-      setFeedback(result.error || "打卡失败，请重试");
-      setSubmissionState("error");
-      setLoading(false);
-      return;
-    }
-
-    const checkIn = result.checkIn;
-
-    let attachmentUploadFailed = false;
-
-    // Upload attachments
-    for (const attachment of attachments) {
-      const storagePath = `${session.user.id}/${checkIn.id}/${Date.now()}_${attachment.file.name}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("attachments")
-        .upload(storagePath, attachment.file);
-
-      if (uploadError) {
-        attachmentUploadFailed = true;
-        break;
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setFeedback("请先重新登录后再试");
+        setSubmissionState("error");
+        setLoading(false);
+        submittingRef.current = false;
+        return;
       }
 
-      const { error: insertAttachmentError } = await supabase.from("attachments").insert({
-        check_in_id: checkIn.id,
-        type: attachment.type,
-        storage_path: storagePath,
+      const response = await fetch("/api/check-ins/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          homeworkId: homework.id,
+          note,
+          proofType: attachments[0]?.type ?? null,
+        }),
       });
 
-      if (insertAttachmentError) {
-        attachmentUploadFailed = true;
-        break;
-      }
-    }
+      const result = await response.json();
 
-    if (attachmentUploadFailed) {
-      setFeedback("作业已记录，但附件上传失败，请稍后重新提交");
+      if (!response.ok || !result.checkIn) {
+        setFeedback(result.error || "打卡失败，请重试");
+        setSubmissionState("error");
+        setLoading(false);
+        submittingRef.current = false;
+        return;
+      }
+
+      const checkIn = result.checkIn;
+
+      if (!result.deduplicated) {
+        let attachmentUploadFailed = false;
+
+        for (const attachment of attachments) {
+          const storagePath = `${session.user.id}/${checkIn.id}/${Date.now()}_${attachment.file.name}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("attachments")
+            .upload(storagePath, attachment.file);
+
+          if (uploadError) {
+            attachmentUploadFailed = true;
+            break;
+          }
+
+          const { error: insertAttachmentError } = await supabase.from("attachments").insert({
+            check_in_id: checkIn.id,
+            type: attachment.type,
+            storage_path: storagePath,
+          });
+
+          if (insertAttachmentError) {
+            attachmentUploadFailed = true;
+            break;
+          }
+        }
+
+        if (attachmentUploadFailed) {
+          setFeedback("作业已记录，但附件上传失败，请稍后重新提交");
+          setSubmissionState("error");
+          setLoading(false);
+          submittingRef.current = false;
+          onSuccess();
+          return;
+        }
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("child-points-changed"));
+      }
+
+      setLoading(false);
+      submittingRef.current = false;
+      onSuccess();
+      onClose();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "打卡失败，请重试");
       setSubmissionState("error");
       setLoading(false);
-      onSuccess();
-      return;
+      submittingRef.current = false;
     }
-
-    setFeedback(result.message || "完成成功");
-    setSubmissionState("success");
-    setLoading(false);
-    onSuccess();
   };
 
-  const isSuccess = submissionState === "success";
   const requiredProofLabel =
     homework.required_checkpoint_type === "photo"
       ? "照片"
       : homework.required_checkpoint_type === "audio"
         ? "录音"
         : null;
-  const uploadButtonLabel =
-    homework.required_checkpoint_type === "audio" ? "上传录音" : "添加照片";
   const canSubmit =
     !loading &&
-    !isSuccess &&
     (!homework.required_checkpoint_type || attachments.length > 0);
 
   return (
@@ -226,12 +312,12 @@ export function CheckInModal({
             multiple={homework.required_checkpoint_type !== "audio"}
             className="hidden"
             onChange={handleFileSelect}
-            disabled={loading || isSuccess}
+            disabled={loading}
           />
           <Button
             variant="secondary"
             onClick={() => fileInputRef.current?.click()}
-            disabled={loading || isSuccess}
+            disabled={loading}
           >
             {homework.required_checkpoint_type === "audio" ? "🎵 上传录音" : "📷 添加照片"}
           </Button>
@@ -240,9 +326,9 @@ export function CheckInModal({
             <Button
               variant="secondary"
               onClick={handleAudioRecord}
-              disabled={loading || isSuccess}
+              disabled={loading}
             >
-              🎤 录音
+              {recording ? "⏹️ 停止录音" : "🎤 录音"}
             </Button>
           )}
         </div>
@@ -278,15 +364,17 @@ export function CheckInModal({
             placeholder="可以写点备注..."
             className="w-full px-4 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
             rows={2}
-            disabled={loading || isSuccess}
+            disabled={loading}
           />
         </div>
 
         {feedback && (
           <p
             className={`rounded-xl px-4 py-3 text-sm ${
-              isSuccess
-                ? "bg-emerald-50 text-emerald-700"
+              submissionState === "submitting"
+                ? "bg-sky-50 text-sky-700"
+                : submissionState === "error"
+                ? "bg-rose-50 text-rose-700"
                 : "bg-rose-50 text-rose-700"
             }`}
           >
@@ -295,15 +383,9 @@ export function CheckInModal({
         )}
 
         {/* Submit */}
-        {isSuccess ? (
-          <Button className="w-full" onClick={onClose}>
-            知道了
-          </Button>
-        ) : (
-          <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit}>
-            {loading ? "提交中..." : "确认完成 ✨"}
-          </Button>
-        )}
+        <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit}>
+          {loading ? "提交中..." : "确认完成 ✨"}
+        </Button>
       </div>
     </Modal>
   );

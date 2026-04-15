@@ -24,6 +24,7 @@ export type DailyTaskStatus = {
   scored: boolean;
   awardedPoints: number;
   submissionCount: number;
+  latestCheckInId: string | null;
 };
 
 function isCheckInOnDate(checkIn: Pick<CheckIn, "completed_at">, date: string) {
@@ -46,6 +47,11 @@ export function buildDailyTaskStatuses(
       (ci) => ci.homework_id === hw.id && isCheckInOnDate(ci, date)
     );
     const firstScored = sameDay.find((ci) => ci.is_scored);
+    const latestCheckIn = [...sameDay].sort((left, right) => {
+      const leftValue = parseDateValue(left.completed_at ?? left.created_at ?? "").getTime();
+      const rightValue = parseDateValue(right.completed_at ?? right.created_at ?? "").getTime();
+      return rightValue - leftValue;
+    })[0];
 
     return {
       homeworkId: hw.id,
@@ -61,6 +67,7 @@ export function buildDailyTaskStatuses(
       scored: Boolean(firstScored),
       awardedPoints: firstScored?.awarded_points ?? 0,
       submissionCount: sameDay.length,
+      latestCheckInId: latestCheckIn?.id ?? null,
     };
   });
 }

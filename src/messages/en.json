@@ -28,7 +28,11 @@
       "title": "This Week",
       "previousWeek": "Previous Week",
       "nextWeek": "Next Week",
-      "today": "Today"
+      "today": "Today",
+      "notStarted": "Not Started",
+      "inProgress": "In Progress",
+      "overdue": "Overdue",
+      "overdueInProgress": "Overdue"
     },
     "weekSummary": {
       "title": "Weekly Summary",

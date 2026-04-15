@@ -55,6 +55,7 @@ export function DayHomeworkView({
                 isCompleted={task.completed}
                 isOverdue={!task.completed && isAfterCutoff(homework.daily_cutoff_time, new Date())}
                 isRepeatSubmission={task.submissionCount > 1}
+                latestCheckInId={task.latestCheckInId}
                 statusText={
                   task.completed
                     ? task.late
