@@ -208,9 +208,10 @@ export function HomeworkForm({
         ? prev.child_ids.filter((id) => id !== childId)
         : [...prev.child_ids, childId];
 
+      // Always update, even if empty - user should be able to deselect all
       return {
         ...prev,
-        child_ids: child_ids.length ? child_ids : prev.child_ids,
+        child_ids,
       };
     });
   };

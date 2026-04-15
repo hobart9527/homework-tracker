@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +12,7 @@ type Child = Database["public"]["Tables"]["children"]["Row"];
 
 export default function ChildrenListPage() {
   const { t } = useTranslation();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,7 +21,10 @@ export default function ChildrenListPage() {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        setLoading(false);
+        return;
+      }
 
       const { data } = await supabase
         .from("children")

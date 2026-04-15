@@ -118,7 +118,8 @@
       "noChildren": "No children added yet",
       "noChildrenHint": "Click the button below to add your first child",
       "addChild": "Add Child",
-      "loading": "🦊 Loading..."
+      "loading": "🦊 Loading...",
+      "allChildren": "All Children"
     },
     "monthCalendar": {
       "sectionLabel": "Monthly View",

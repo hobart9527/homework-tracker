@@ -38,8 +38,9 @@ export function isChildProtectedPath(pathname: string) {
 
 export async function middleware(request: NextRequest) {
   // Run next-intl middleware first
-  const response = intlMiddleware(request);
+  const intlResponse = intlMiddleware(request);
 
+  // Create supabase client that can modify cookies
   const supabaseResponse = NextResponse.next({
     request,
   });
@@ -108,6 +109,19 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/child-login";
     return NextResponse.redirect(url);
+  }
+
+  // If intl middleware redirected, we need to apply the redirect with cookies
+  if (intlResponse.status !== 200) {
+    const redirectResponse = NextResponse.redirect(
+      intlResponse.headers.get("location") || "/",
+      intlResponse.status
+    );
+    // Copy cookies from supabaseResponse to redirectResponse
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+    return redirectResponse;
   }
 
   return supabaseResponse;
