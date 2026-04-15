@@ -5,6 +5,37 @@ import { routing } from "./i18n/routing";
 
 const intlMiddleware = createMiddleware(routing);
 
+export function normalizeProtectedPath(pathname: string) {
+  for (const locale of routing.locales) {
+    if (pathname === `/${locale}`) {
+      return "/";
+    }
+
+    if (pathname.startsWith(`/${locale}/`)) {
+      return pathname.slice(locale.length + 1) || "/";
+    }
+  }
+
+  return pathname;
+}
+
+export function isParentProtectedPath(pathname: string) {
+  const normalizedPath = normalizeProtectedPath(pathname);
+  const protectedPaths = ["/dashboard", "/homework", "/children", "/settings"];
+
+  return protectedPaths.some((path) => normalizedPath.startsWith(path));
+}
+
+export function isChildProtectedPath(pathname: string) {
+  const normalizedPath = normalizeProtectedPath(pathname);
+  const childProtectedPaths = ["/progress", "/rewards"];
+
+  return (
+    normalizedPath === "/" ||
+    childProtectedPaths.some((path) => normalizedPath.startsWith(path))
+  );
+}
+
 export async function middleware(request: NextRequest) {
   // Run next-intl middleware first
   const response = intlMiddleware(request);
@@ -53,15 +84,8 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protected routes
-  const protectedPaths = ["/dashboard", "/homework", "/children", "/settings"];
-  const childProtectedPaths = ["/progress", "/rewards", "/"];
-  const isProtectedPath = protectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
-  const isChildProtectedPath = childProtectedPaths.some((path) =>
-    request.nextUrl.pathname.startsWith(path)
-  );
+  const isProtectedPath = isParentProtectedPath(request.nextUrl.pathname);
+  const isProtectedChildPath = isChildProtectedPath(request.nextUrl.pathname);
 
   if (isProtectedPath && !user) {
     const url = request.nextUrl.clone();
@@ -70,7 +94,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Child routes need auth too (redirect to child-login)
-  if (isChildProtectedPath && !user) {
+  if (isProtectedChildPath && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/child-login";
     return NextResponse.redirect(url);
