@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -29,14 +29,22 @@ export function ChildHomeworkCard({
   statusText,
   onComplete,
 }: ChildHomeworkCardProps) {
-  const supabase = createClient();
   const proofLabel = {
     photo: "照片",
     audio: "录音",
   } as const;
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewUrls, setPreviewUrls] = useState<Array<{ type: "photo" | "audio"; url: string }>>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  const getSupabase = () => {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+
+    return supabaseRef.current;
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -49,7 +57,7 @@ export function ChildHomeworkCard({
         return;
       }
 
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from("attachments")
         .select("*")
         .eq("check_in_id", latestCheckInId);
@@ -64,12 +72,12 @@ export function ChildHomeworkCard({
     return () => {
       ignore = true;
     };
-  }, [homework.required_checkpoint_type, isCompleted, latestCheckInId, supabase]);
+  }, [homework.required_checkpoint_type, isCompleted, latestCheckInId]);
 
   const handleViewAttachments = async () => {
     const results = await Promise.all(
       attachments.map(async (attachment) => {
-        const { data } = await supabase.storage
+        const { data } = await getSupabase().storage
           .from("attachments")
           .createSignedUrl(attachment.storage_path, 60 * 10);
 

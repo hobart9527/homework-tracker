@@ -20,6 +20,8 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
     reminder_cutoff_time: settings.reminder_cutoff_time || "20:00",
     auto_remind_parent: settings.auto_remind_parent ?? true,
     auto_remind_child: settings.auto_remind_child ?? false,
+    telegram_chat_id: settings.telegram_chat_id || "",
+    telegram_recipient_label: settings.telegram_recipient_label || "",
   });
 
   const handleSave = async () => {
@@ -50,6 +52,30 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
             reminder_cutoff_time: e.target.value,
           }))
         }
+      />
+
+      <Input
+        label="Telegram Chat ID"
+        value={formData.telegram_chat_id}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            telegram_chat_id: e.target.value,
+          }))
+        }
+        placeholder="例如 123456789"
+      />
+
+      <Input
+        label="接收人备注"
+        value={formData.telegram_recipient_label}
+        onChange={(e) =>
+          setFormData((prev) => ({
+            ...prev,
+            telegram_recipient_label: e.target.value,
+          }))
+        }
+        placeholder="例如 家长通知"
       />
 
       <div className="flex items-center justify-between">

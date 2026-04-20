@@ -51,6 +51,8 @@ function buildHomework(task: Task, index: number): Homework {
     daily_cutoff_time: task.cutoffTime,
     is_active: true,
     required_checkpoint_type: task.proofType,
+    platform_binding_platform: null,
+    platform_binding_source_ref: null,
     created_by: "",
     created_at: "1970-01-01T00:00:00.000Z",
   };

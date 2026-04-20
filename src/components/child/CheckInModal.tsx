@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { buildVoicePushTaskPayload } from "@/lib/family-notifications";
+import { createVoicePushTask } from "@/lib/voice-push-tasks";
 import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
@@ -234,15 +236,44 @@ export function CheckInModal({
             break;
           }
 
-          const { error: insertAttachmentError } = await supabase.from("attachments").insert({
-            check_in_id: checkIn.id,
-            type: attachment.type,
-            storage_path: storagePath,
-          });
+          const { data: insertedAttachment, error: insertAttachmentError } = await supabase
+            .from("attachments")
+            .insert({
+              check_in_id: checkIn.id,
+              type: attachment.type,
+              storage_path: storagePath,
+            })
+            .select()
+            .single();
 
           if (insertAttachmentError) {
             attachmentUploadFailed = true;
             break;
+          }
+
+          if (attachment.type === "audio" && insertedAttachment) {
+            const voicePushTask = buildVoicePushTaskPayload({
+              childId: homework.child_id,
+              homeworkId: homework.id,
+              checkInId: checkIn.id,
+              attachmentId: insertedAttachment.id,
+              storagePath,
+            });
+
+            try {
+              await createVoicePushTask({
+                supabase: supabase as any,
+                task: {
+                  childId: voicePushTask.childId,
+                  homeworkId: voicePushTask.homeworkId,
+                  checkInId: voicePushTask.checkInId,
+                  attachmentId: voicePushTask.attachmentId,
+                  filePath: voicePushTask.filePath,
+                },
+              });
+            } catch {
+              // Voice push is a beta side-channel and must not block homework completion.
+            }
           }
         }
 

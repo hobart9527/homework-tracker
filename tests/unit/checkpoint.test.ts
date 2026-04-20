@@ -1,28 +1,34 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { createElement } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { CheckInModal } from "@/components/child/CheckInModal";
 import { isAfterCutoff } from "@/lib/homework-utils";
 
+const {
+  getSessionMock,
+  uploadMock,
+  attachmentsInsertMock,
+  voicePushTasksInsertMock,
+  tableSelectMock,
+} = vi.hoisted(() => ({
+  getSessionMock: vi.fn(),
+  uploadMock: vi.fn(),
+  attachmentsInsertMock: vi.fn(),
+  voicePushTasksInsertMock: vi.fn(),
+  tableSelectMock: vi.fn(),
+}));
+
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     auth: {
-      getSession: vi.fn().mockResolvedValue({
-        data: {
-          session: {
-            user: { id: "child-1" },
-          },
-        },
-      }),
+      getSession: getSessionMock,
     },
     storage: {
       from: vi.fn(() => ({
-        upload: vi.fn().mockResolvedValue({ error: null }),
+        upload: uploadMock,
       })),
     },
-    from: vi.fn(() => ({
-      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
-    })),
+    from: tableSelectMock,
   }),
 }));
 
@@ -108,6 +114,51 @@ describe("Data ownership model", () => {
 });
 
 describe("Child check-in UI strings", () => {
+  beforeEach(() => {
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          user: { id: "child-1" },
+        },
+      },
+    });
+    uploadMock.mockResolvedValue({ error: null });
+    attachmentsInsertMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { id: "attachment-default" },
+          error: null,
+        }),
+      }),
+    });
+    voicePushTasksInsertMock.mockResolvedValue({ error: null });
+    tableSelectMock.mockImplementation((table: string) => {
+      if (table === "attachments") {
+        return {
+          insert: attachmentsInsertMock,
+        };
+      }
+
+      if (table === "voice_push_tasks") {
+        return {
+          insert: voicePushTasksInsertMock,
+        };
+      }
+
+      return {
+        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    });
+  });
+
+  afterEach(() => {
+    getSessionMock.mockReset();
+    uploadMock.mockReset();
+    attachmentsInsertMock.mockReset();
+    voicePushTasksInsertMock.mockReset();
+    tableSelectMock.mockReset();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -120,7 +171,7 @@ describe("Child check-in UI strings", () => {
     expect("需要照片").toContain("照片");
   });
 
-  it("surfaces the server success message in the modal", async () => {
+  it("closes the modal after a successful submission", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -153,12 +204,9 @@ describe("Child check-in UI strings", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认完成 ✨" }));
 
     await waitFor(() => {
-      expect(screen.getByText("完成成功，获得 4 积分")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "知道了" })).toBeInTheDocument();
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
-
-    expect(onSuccess).toHaveBeenCalledTimes(1);
-    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("blocks submission until the required attachment is added", () => {
@@ -179,5 +227,189 @@ describe("Child check-in UI strings", () => {
 
     expect(screen.getByText("请先添加照片，再提交本次作业")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认完成 ✨" })).toBeDisabled();
+  });
+
+  it("creates a voice push task after an audio attachment is stored", async () => {
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          user: { id: "child-1" },
+        },
+      },
+    });
+    uploadMock.mockResolvedValue({ error: null });
+    attachmentsInsertMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { id: "attachment-1" },
+          error: null,
+        }),
+      }),
+    });
+    voicePushTasksInsertMock.mockResolvedValue({ error: null });
+    tableSelectMock.mockImplementation((table: string) => {
+      if (table === "attachments") {
+        return {
+          insert: attachmentsInsertMock,
+        };
+      }
+
+      if (table === "voice_push_tasks") {
+        return {
+          insert: voicePushTasksInsertMock,
+        };
+      }
+
+      return {
+        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          checkIn: { id: "check-voice-1" },
+          message: "完成成功，获得 4 积分",
+        }),
+      } as any)
+    );
+
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    const { container } = render(
+      createElement(CheckInModal, {
+        homework: {
+          id: "hw-audio-1",
+          child_id: "child-1",
+          title: "朗读打卡",
+          type_icon: "🎧",
+          point_value: 4,
+          required_checkpoint_type: "audio",
+        } as any,
+        isOpen: true,
+        onClose,
+        onSuccess,
+      })
+    );
+
+    const audioFile = new File(["voice"], "reading.webm", {
+      type: "audio/webm",
+      lastModified: 1234,
+    });
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput as HTMLInputElement, {
+      target: { files: [audioFile] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "确认完成 ✨" }));
+
+    await waitFor(() => {
+      expect(voicePushTasksInsertMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(voicePushTasksInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        child_id: "child-1",
+        homework_id: "hw-audio-1",
+        check_in_id: "check-voice-1",
+        attachment_id: "attachment-1",
+        file_path: expect.stringContaining("reading.webm"),
+        status: "pending",
+      })
+    );
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps homework submission successful when voice push task creation fails", async () => {
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          user: { id: "child-1" },
+        },
+      },
+    });
+    uploadMock.mockResolvedValue({ error: null });
+    attachmentsInsertMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { id: "attachment-2" },
+          error: null,
+        }),
+      }),
+    });
+    voicePushTasksInsertMock.mockResolvedValue({
+      error: { message: "bridge unavailable" },
+    });
+    tableSelectMock.mockImplementation((table: string) => {
+      if (table === "attachments") {
+        return {
+          insert: attachmentsInsertMock,
+        };
+      }
+
+      if (table === "voice_push_tasks") {
+        return {
+          insert: voicePushTasksInsertMock,
+        };
+      }
+
+      return {
+        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          checkIn: { id: "check-voice-2" },
+          message: "完成成功，获得 4 积分",
+        }),
+      } as any)
+    );
+
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    const { container } = render(
+      createElement(CheckInModal, {
+        homework: {
+          id: "hw-audio-2",
+          child_id: "child-1",
+          title: "朗读打卡",
+          type_icon: "🎧",
+          point_value: 4,
+          required_checkpoint_type: "audio",
+        } as any,
+        isOpen: true,
+        onClose,
+        onSuccess,
+      })
+    );
+
+    const audioFile = new File(["voice"], "reading.webm", {
+      type: "audio/webm",
+      lastModified: 5678,
+    });
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput as HTMLInputElement, {
+      target: { files: [audioFile] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "确认完成 ✨" }));
+
+    await waitFor(() => {
+      expect(onSuccess).toHaveBeenCalledTimes(1);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 });
