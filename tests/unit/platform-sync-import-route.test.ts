@@ -1,11 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { POST } from "@/app/api/platform-sync/import/route";
+import { IxlManagedSessionError } from "@/lib/platform-adapters/ixl-fetch";
 
 const createClientMock = vi.hoisted(() => vi.fn());
+const runIxlManagedSessionSyncMock = vi.hoisted(() => vi.fn());
+const runKhanManagedSessionSyncMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: createClientMock,
 }));
+
+vi.mock("@/lib/platform-adapters/ixl-connector", () => ({
+  runIxlManagedSessionSync: runIxlManagedSessionSyncMock,
+}));
+
+vi.mock("@/lib/platform-adapters/khan-connector", () => ({
+  runKhanManagedSessionSync: runKhanManagedSessionSyncMock,
+}));
+
+import { POST } from "@/app/api/platform-sync/import/route";
 
 function makeSupabaseClient(options?: {
   sessionUserId?: string | null;
@@ -13,12 +25,41 @@ function makeSupabaseClient(options?: {
   duplicateEvent?: boolean;
   duplicateJob?: boolean;
   platform?: "ixl" | "khan-academy" | "raz-kids";
+  managedSessionPayload?: Record<string, unknown> | null;
   existingCheckIn?: boolean;
   homeworks?: Array<Record<string, unknown>>;
 }) {
   const sessionUserId =
     options && "sessionUserId" in options ? options.sessionUserId : "parent-1";
   const childParentId = options?.childParentId ?? "parent-1";
+  const platformAccountsUpdateMock = vi.fn(() => ({
+    eq: vi.fn().mockResolvedValue({ error: null }),
+  }));
+  const platformSyncJobsUpdateMock = vi.fn(() => ({
+    eq: vi.fn().mockResolvedValue({ error: null }),
+  }));
+  const learningEventsInsertMock = vi.fn(() => ({
+    select: vi.fn(() => ({
+      single: vi.fn().mockResolvedValue(
+        options?.duplicateEvent
+          ? {
+              data: null,
+              error: {
+                message:
+                  "duplicate key value violates unique constraint learning_events_account_source_key",
+              },
+            }
+          : {
+              data: {
+                id: "event-1",
+                child_id: "child-1",
+                local_date_key: "2026-04-20",
+              },
+              error: null,
+            }
+      ),
+    })),
+  }));
 
   return {
     auth: {
@@ -39,14 +80,14 @@ function makeSupabaseClient(options?: {
                   child_id: "child-1",
                   platform: options?.platform ?? "ixl",
                   external_account_ref: "family-account",
+                  managed_session_payload:
+                    options?.managedSessionPayload ?? null,
                 },
                 error: null,
               }),
             })),
           })),
-          update: vi.fn(() => ({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          })),
+          update: platformAccountsUpdateMock,
         };
       }
 
@@ -75,9 +116,7 @@ function makeSupabaseClient(options?: {
               ),
             })),
           })),
-          update: vi.fn(() => ({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          })),
+          update: platformSyncJobsUpdateMock,
         };
       }
 
@@ -167,28 +206,7 @@ function makeSupabaseClient(options?: {
 
       if (table === "learning_events") {
         return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue(
-                options?.duplicateEvent
-                  ? {
-                      data: null,
-                      error: {
-                        message:
-                          "duplicate key value violates unique constraint learning_events_account_source_key",
-                      },
-                    }
-                  : {
-                      data: {
-                        id: "event-1",
-                        child_id: "child-1",
-                        local_date_key: "2026-04-20",
-                      },
-                      error: null,
-                    }
-              ),
-            })),
-          })),
+          insert: learningEventsInsertMock,
         };
       }
 
@@ -226,12 +244,19 @@ function makeSupabaseClient(options?: {
 
       return {};
     }),
+    _mocks: {
+      platformAccountsUpdateMock,
+      platformSyncJobsUpdateMock,
+      learningEventsInsertMock,
+    },
   };
 }
 
 describe("platform sync import route", () => {
   beforeEach(() => {
     createClientMock.mockReset();
+    runIxlManagedSessionSyncMock.mockReset();
+    runKhanManagedSessionSyncMock.mockReset();
   });
 
   it("rejects unauthenticated imports", async () => {
@@ -463,6 +488,279 @@ describe("platform sync import route", () => {
         },
       ],
     });
+  });
+
+  it("runs the Khan managed-session connector and imports the returned event set", async () => {
+    createClientMock.mockResolvedValue(
+      makeSupabaseClient({
+        platform: "khan-academy",
+        managedSessionPayload: {
+          cookies: [{ name: "KAAS", value: "session-token" }],
+        },
+      })
+    );
+    runKhanManagedSessionSyncMock.mockResolvedValue({
+      summary: {
+        fetchedCount: 1,
+      },
+      events: [
+        {
+          occurredAt: "2026-04-20T11:00:00.000Z",
+          eventType: "lesson_completed",
+          title: "Khan Academy Fractions basics",
+          subject: "Math 3",
+          durationMinutes: 30,
+          score: 0.88,
+          completionState: "practiced",
+          sourceRef: "lesson-123",
+          rawPayload: {
+            lessonId: "lesson-123",
+          },
+        },
+      ],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(runKhanManagedSessionSyncMock).toHaveBeenCalledWith({
+      account: expect.objectContaining({
+        id: "acct-1",
+        platform: "khan-academy",
+      }),
+    });
+    expect(body).toMatchObject({
+      jobStatus: "claimed",
+      ingestStatus: "inserted",
+      learningEventId: "event-1",
+      importedEventCount: 1,
+      fetchSummary: {
+        fetchedCount: 1,
+      },
+    });
+  });
+
+  it("runs the IXL managed-session connector and imports the returned event set", async () => {
+    createClientMock.mockResolvedValue(
+      makeSupabaseClient({
+        managedSessionPayload: {
+          cookies: [
+            {
+              name: "PHPSESSID",
+              value: "session-token",
+            },
+          ],
+        },
+      })
+    );
+    runIxlManagedSessionSyncMock.mockResolvedValue({
+      summary: {
+        fetchedCount: 1,
+      },
+      events: [
+        {
+          occurredAt: "2026-04-20T10:00:00.000Z",
+          eventType: "skill_practice",
+          title: "IXL A.1 Add within 10",
+          subject: "math",
+          durationMinutes: 25,
+          score: 0.92,
+          completionState: "completed",
+          sourceRef: "session-123",
+          rawPayload: {
+            skillId: "A.1",
+          },
+        },
+      ],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(runIxlManagedSessionSyncMock).toHaveBeenCalledWith({
+      account: expect.objectContaining({
+        id: "acct-1",
+        platform: "ixl",
+      }),
+    });
+    expect(body).toMatchObject({
+      jobStatus: "claimed",
+      jobId: "sync-job-1",
+      ingestStatus: "inserted",
+      learningEventId: "event-1",
+      homeworkResults: [
+        {
+          homeworkId: "hw-1",
+          decision: "auto_completed",
+          createdCheckInId: "check-1",
+        },
+      ],
+      fetchSummary: {
+        fetchedCount: 1,
+      },
+    });
+  });
+
+  it("imports each fetched IXL managed-session event and returns aggregate counts", async () => {
+    createClientMock.mockResolvedValue(
+      makeSupabaseClient({
+        managedSessionPayload: {
+          cookies: [{ name: "PHPSESSID", value: "session-token" }],
+        },
+      })
+    );
+    runIxlManagedSessionSyncMock.mockResolvedValue({
+      summary: {
+        fetchedCount: 2,
+      },
+      events: [
+        {
+          occurredAt: "2026-04-20T10:00:00.000Z",
+          eventType: "skill_practice",
+          title: "IXL A.1 Add within 10",
+          subject: "math",
+          durationMinutes: 25,
+          score: 0.92,
+          completionState: "completed",
+          sourceRef: "session-123",
+          rawPayload: { skillId: "A.1" },
+        },
+        {
+          occurredAt: "2026-04-20T11:00:00.000Z",
+          eventType: "skill_practice",
+          title: "IXL B.2 Subtract within 20",
+          subject: "math",
+          durationMinutes: 30,
+          score: 0.97,
+          completionState: "completed",
+          sourceRef: "session-124",
+          rawPayload: { skillId: "B.2" },
+        },
+      ],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.fetchSummary).toEqual({ fetchedCount: 2 });
+    expect(body.importedEventCount).toBe(2);
+    expect(body.learningEventIds).toEqual(["event-1", "event-1"]);
+    expect(body.homeworkResults).toHaveLength(2);
+  });
+
+  it("marks the account attention_required when the IXL managed session is expired", async () => {
+    const client = makeSupabaseClient({
+      managedSessionPayload: {
+        cookies: [{ name: "PHPSESSID", value: "session-token" }],
+      },
+    });
+    createClientMock.mockResolvedValue(client);
+    runIxlManagedSessionSyncMock.mockRejectedValue(
+      new IxlManagedSessionError("Managed IXL session expired")
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      jobStatus: "attention_required",
+      jobId: "sync-job-1",
+      status: "attention_required",
+      error: "Managed IXL session expired",
+    });
+    expect(client._mocks.platformSyncJobsUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "attention_required",
+        error_summary: "Managed IXL session expired",
+      })
+    );
+    expect(client._mocks.platformAccountsUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "attention_required",
+      })
+    );
+  });
+
+  it("marks the sync job failed with retry metadata for retryable IXL fetch errors", async () => {
+    const client = makeSupabaseClient({
+      managedSessionPayload: {
+        cookies: [{ name: "PHPSESSID", value: "session-token" }],
+      },
+    });
+    createClientMock.mockResolvedValue(client);
+    runIxlManagedSessionSyncMock.mockRejectedValue(
+      new Error("Unexpected IXL page shape")
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      jobStatus: "failed",
+      jobId: "sync-job-1",
+      status: "failed",
+      error: "Unexpected IXL page shape",
+      retryCount: 1,
+    });
+    expect(client._mocks.platformSyncJobsUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        error_summary: "Unexpected IXL page shape",
+        retry_count: 1,
+        next_retry_at: expect.any(String),
+      })
+    );
+    expect(client._mocks.platformAccountsUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        last_sync_error_summary: "Unexpected IXL page shape",
+      })
+    );
   });
 
   it("preserves manual completion precedence when imported activity matches an already completed homework", async () => {

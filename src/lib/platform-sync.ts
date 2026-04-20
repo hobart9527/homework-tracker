@@ -34,6 +34,7 @@ export async function claimPlatformSyncJob(input: {
       status: "running",
       window_key: input.windowKey,
       started_at: new Date().toISOString(),
+      retry_count: 0,
     })
     .select()
     .single();
@@ -81,6 +82,7 @@ export async function completePlatformSyncJob(input: {
     .update!({
       status: "active",
       last_synced_at: finishedAt,
+      last_sync_error_summary: null,
     })
     .eq("id", input.platformAccountId);
 
@@ -114,10 +116,73 @@ export async function markPlatformAccountAttentionRequired(input: {
     .from("platform_accounts")
     .update!({
       status: "attention_required",
+      last_sync_error_summary: input.errorSummary,
     })
     .eq("id", input.platformAccountId);
 
   if (accountError) {
     throw new Error(accountError.message);
+  }
+}
+
+export async function markPlatformSyncJobFailed(input: {
+  supabase: SupabaseLike;
+  jobId: string;
+  platformAccountId: string;
+  errorSummary: string;
+  retryCount: number;
+  nextRetryAt: string | null;
+}) {
+  const finishedAt = new Date().toISOString();
+
+  const { error: jobError } = await input.supabase
+    .from("platform_sync_jobs")
+    .update!({
+      status: "failed",
+      error_summary: input.errorSummary,
+      retry_count: input.retryCount,
+      next_retry_at: input.nextRetryAt,
+      finished_at: finishedAt,
+    })
+    .eq("id", input.jobId);
+
+  if (jobError) {
+    throw new Error(jobError.message);
+  }
+
+  const { error: accountError } = await input.supabase
+    .from("platform_accounts")
+    .update!({
+      status: "failed",
+      last_sync_error_summary: input.errorSummary,
+    })
+    .eq("id", input.platformAccountId);
+
+  if (accountError) {
+    throw new Error(accountError.message);
+  }
+}
+
+export async function restartPlatformSyncJob(input: {
+  supabase: SupabaseLike;
+  jobId: string;
+  retryCount: number;
+}) {
+  const startedAt = new Date().toISOString();
+
+  const { error } = await input.supabase
+    .from("platform_sync_jobs")
+    .update!({
+      status: "running",
+      retry_count: input.retryCount,
+      next_retry_at: null,
+      error_summary: null,
+      finished_at: null,
+      started_at: startedAt,
+    })
+    .eq("id", input.jobId);
+
+  if (error) {
+    throw new Error(error.message);
   }
 }

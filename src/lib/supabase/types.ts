@@ -358,6 +358,10 @@ export interface Database {
           auth_mode: string;
           status: "attention_required" | "active" | "syncing" | "failed";
           last_synced_at: string | null;
+          managed_session_payload: Json | null;
+          managed_session_captured_at: string | null;
+          managed_session_expires_at: string | null;
+          last_sync_error_summary: string | null;
           created_at: string | null;
         };
         Insert: {
@@ -368,6 +372,10 @@ export interface Database {
           auth_mode?: string;
           status?: "attention_required" | "active" | "syncing" | "failed";
           last_synced_at?: string | null;
+          managed_session_payload?: Json | null;
+          managed_session_captured_at?: string | null;
+          managed_session_expires_at?: string | null;
+          last_sync_error_summary?: string | null;
           created_at?: string | null;
         };
         Update: {
@@ -378,6 +386,10 @@ export interface Database {
           auth_mode?: string;
           status?: "attention_required" | "active" | "syncing" | "failed";
           last_synced_at?: string | null;
+          managed_session_payload?: Json | null;
+          managed_session_captured_at?: string | null;
+          managed_session_expires_at?: string | null;
+          last_sync_error_summary?: string | null;
           created_at?: string | null;
         };
       };
@@ -391,6 +403,8 @@ export interface Database {
           started_at: string;
           finished_at: string | null;
           error_summary: string | null;
+          retry_count: number;
+          next_retry_at: string | null;
           raw_summary: Json;
           created_at: string | null;
         };
@@ -403,6 +417,8 @@ export interface Database {
           started_at?: string;
           finished_at?: string | null;
           error_summary?: string | null;
+          retry_count?: number;
+          next_retry_at?: string | null;
           raw_summary?: Json;
           created_at?: string | null;
         };
@@ -415,6 +431,8 @@ export interface Database {
           started_at?: string;
           finished_at?: string | null;
           error_summary?: string | null;
+          retry_count?: number;
+          next_retry_at?: string | null;
           raw_summary?: Json;
           created_at?: string | null;
         };

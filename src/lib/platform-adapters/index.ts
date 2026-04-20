@@ -1,5 +1,7 @@
 import { normalizeIxlLearningEvent } from "@/lib/platform-adapters/ixl";
 import { normalizeKhanLearningEvent } from "@/lib/platform-adapters/khan-academy";
+export { runIxlManagedSessionSync } from "@/lib/platform-adapters/ixl-connector";
+export { runKhanManagedSessionSync } from "@/lib/platform-adapters/khan-connector";
 
 type NormalizedLearningEvent = {
   occurredAt: string;

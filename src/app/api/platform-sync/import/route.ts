@@ -1,8 +1,4 @@
 import {
-  loadAutoCheckinContext,
-  syncLearningEventAutoCheckins,
-} from "@/lib/learning-event-auto-checkins";
-import {
   normalizePlatformLearningEvent,
   supportsRawPlatformImport,
 } from "@/lib/platform-adapters";
@@ -11,6 +7,10 @@ import {
   completePlatformSyncJob,
   markPlatformAccountAttentionRequired,
 } from "@/lib/platform-sync";
+import {
+  executeManagedSessionSync,
+  importNormalizedEvent,
+} from "@/lib/platform-sync-execution";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -31,6 +31,7 @@ export async function POST(request: Request) {
   const platformAccountId = payload.platformAccountId;
   const householdTimeZone =
     payload.householdTimeZone || DEFAULT_HOUSEHOLD_TIME_ZONE;
+  const fetchMode = payload.fetchMode;
   const eventPayload = payload.event;
   const rawEventPayload = payload.rawEvent;
   const windowKey =
@@ -79,6 +80,10 @@ export async function POST(request: Request) {
       rawEvent: rawEventPayload ?? null,
     });
 
+  const usingManagedSessionFetch =
+    fetchMode === "managed_session" &&
+    (account.platform === "ixl" || account.platform === "khan-academy");
+
   if (rawEventPayload && !eventPayload && !supportsRawPlatformImport(account.platform)) {
     return NextResponse.json(
       { error: `Raw event import not supported for platform ${account.platform}` },
@@ -86,12 +91,13 @@ export async function POST(request: Request) {
     );
   }
 
-  if (
+  const hasInvalidNormalizedEvent =
     !normalizedEvent?.occurredAt ||
     !normalizedEvent?.eventType ||
     !normalizedEvent?.title ||
-    !normalizedEvent?.sourceRef
-  ) {
+    !normalizedEvent?.sourceRef;
+
+  if (!usingManagedSessionFetch && hasInvalidNormalizedEvent) {
     return NextResponse.json(
       { error: "Missing required fields" },
       { status: 400 }
@@ -117,36 +123,29 @@ export async function POST(request: Request) {
   }
 
   try {
-    const context = await loadAutoCheckinContext({
-      supabase: supabase as any,
-      childId: account.child_id,
-      localDateKey: new Intl.DateTimeFormat("en-CA", {
-        timeZone: householdTimeZone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date(normalizedEvent.occurredAt)),
-    });
+    if (usingManagedSessionFetch) {
+      const result = await executeManagedSessionSync({
+        supabase: supabase as any,
+        account: account as any,
+        householdTimeZone,
+        jobId: String(claimResult.job?.id),
+      });
 
-    const result = await syncLearningEventAutoCheckins({
-      supabase: supabase as any,
+      return NextResponse.json({
+        jobStatus:
+          result.status === "attention_required" || result.status === "failed"
+            ? result.status
+            : claimResult.status,
+        jobId: claimResult.job?.id ?? null,
+        ...result,
+      });
+    }
+
+    const result = await importNormalizedEvent({
+      supabase,
+      account,
       householdTimeZone,
-      event: {
-        childId: account.child_id,
-        platform: account.platform,
-        platformAccountId: account.id,
-        occurredAt: normalizedEvent.occurredAt,
-        eventType: normalizedEvent.eventType,
-        title: normalizedEvent.title,
-        subject: normalizedEvent.subject ?? null,
-        durationMinutes: normalizedEvent.durationMinutes ?? null,
-        score: normalizedEvent.score ?? null,
-        completionState: normalizedEvent.completionState ?? null,
-        sourceRef: normalizedEvent.sourceRef,
-        rawPayload: normalizedEvent.rawPayload ?? {},
-      },
-      candidateHomeworks: context.candidateHomeworks,
-      existingCheckInsByHomeworkId: context.existingCheckInsByHomeworkId,
+      normalizedEvent,
     });
 
     await completePlatformSyncJob({

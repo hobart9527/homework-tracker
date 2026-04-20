@@ -15,6 +15,33 @@ function makeSupabaseClient(options?: {
   const sessionUserId =
     options && "sessionUserId" in options ? options.sessionUserId : "parent-1";
   const childParentId = options?.childParentId ?? "parent-1";
+  const platformAccountsInsertMock = vi.fn((insertedAccount: Record<string, unknown>) => ({
+    select: vi.fn(() => ({
+      single: vi.fn().mockResolvedValue({
+        data: options?.insertError
+          ? null
+          : {
+              id: "platform-account-1",
+              child_id: "child-1",
+              platform: insertedAccount.platform ?? "khan-academy",
+              external_account_ref:
+                insertedAccount.external_account_ref ?? "school-account",
+              auth_mode:
+                insertedAccount.auth_mode ?? "account_password_managed_session",
+              status: insertedAccount.status ?? "attention_required",
+              managed_session_payload:
+                insertedAccount.managed_session_payload ?? null,
+              managed_session_captured_at:
+                insertedAccount.managed_session_captured_at ?? null,
+              managed_session_expires_at:
+                insertedAccount.managed_session_expires_at ?? null,
+              last_sync_error_summary:
+                insertedAccount.last_sync_error_summary ?? null,
+            },
+        error: options?.insertError ?? null,
+      }),
+    })),
+  }));
 
   return {
     auth: {
@@ -52,28 +79,15 @@ function makeSupabaseClient(options?: {
 
       if (table === "platform_accounts") {
         return {
-          insert: vi.fn(() => ({
-            select: vi.fn(() => ({
-              single: vi.fn().mockResolvedValue({
-                data: options?.insertError
-                  ? null
-                  : {
-                      id: "platform-account-1",
-                      child_id: "child-1",
-                      platform: "khan-academy",
-                      external_account_ref: "school-account",
-                      auth_mode: "account_password_managed_session",
-                      status: "attention_required",
-                    },
-                error: options?.insertError ?? null,
-              }),
-            })),
-          })),
+          insert: platformAccountsInsertMock,
         };
       }
 
       return {};
     }),
+    _mocks: {
+      platformAccountsInsertMock,
+    },
   };
 }
 
@@ -127,6 +141,128 @@ describe("platform connections route", () => {
       external_account_ref: "school-account",
       auth_mode: "account_password_managed_session",
       status: "attention_required",
+    });
+  });
+
+  it("stores managed session metadata for an IXL account and marks it active", async () => {
+    const client = makeSupabaseClient();
+    createClientMock.mockResolvedValue(client);
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-connections", {
+        method: "POST",
+        body: JSON.stringify({
+          childId: "child-1",
+          platform: "ixl",
+          username: "demo@ixl.test",
+          externalAccountRef: "family-account",
+          managedSessionPayload: {
+            cookies: [
+              {
+                name: "PHPSESSID",
+                value: "session-token",
+              },
+            ],
+          },
+          managedSessionCapturedAt: "2026-04-20T12:00:00.000Z",
+          managedSessionExpiresAt: "2026-04-21T12:00:00.000Z",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(client._mocks.platformAccountsInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        child_id: "child-1",
+        platform: "ixl",
+        external_account_ref: "family-account",
+        status: "active",
+        managed_session_payload: {
+          cookies: [
+            {
+              name: "PHPSESSID",
+              value: "session-token",
+            },
+          ],
+        },
+        managed_session_captured_at: "2026-04-20T12:00:00.000Z",
+        managed_session_expires_at: "2026-04-21T12:00:00.000Z",
+      })
+    );
+    expect(body.account).toMatchObject({
+      platform: "ixl",
+      external_account_ref: "family-account",
+      status: "active",
+      managed_session_payload: {
+        cookies: [
+          {
+            name: "PHPSESSID",
+            value: "session-token",
+          },
+        ],
+      },
+    });
+  });
+
+  it("stores managed session metadata for a Khan account and marks it active", async () => {
+    const client = makeSupabaseClient();
+    createClientMock.mockResolvedValue(client);
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-connections", {
+        method: "POST",
+        body: JSON.stringify({
+          childId: "child-1",
+          platform: "khan-academy",
+          username: "demo@khan.test",
+          externalAccountRef: "school-account",
+          managedSessionPayload: {
+            cookies: [
+              {
+                name: "KAAS",
+                value: "session-token",
+              },
+            ],
+          },
+          managedSessionCapturedAt: "2026-04-20T12:00:00.000Z",
+          managedSessionExpiresAt: "2026-04-21T12:00:00.000Z",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(client._mocks.platformAccountsInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        child_id: "child-1",
+        platform: "khan-academy",
+        external_account_ref: "school-account",
+        status: "active",
+        managed_session_payload: {
+          cookies: [
+            {
+              name: "KAAS",
+              value: "session-token",
+            },
+          ],
+        },
+        managed_session_captured_at: "2026-04-20T12:00:00.000Z",
+        managed_session_expires_at: "2026-04-21T12:00:00.000Z",
+      })
+    );
+    expect(body.account).toMatchObject({
+      platform: "khan-academy",
+      external_account_ref: "school-account",
+      status: "active",
+      managed_session_payload: {
+        cookies: [
+          {
+            name: "KAAS",
+            value: "session-token",
+          },
+        ],
+      },
     });
   });
 

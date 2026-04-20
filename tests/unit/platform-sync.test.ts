@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   claimPlatformSyncJob,
   completePlatformSyncJob,
+  restartPlatformSyncJob,
+  markPlatformSyncJobFailed,
   markPlatformAccountAttentionRequired,
 } from "@/lib/platform-sync";
 
@@ -41,6 +43,7 @@ describe("claimPlatformSyncJob", () => {
         trigger_mode: "scheduled",
         status: "running",
         window_key: "2026-04-20T15:30",
+        retry_count: 0,
       })
     );
     expect(result).toMatchObject({
@@ -79,6 +82,86 @@ describe("claimPlatformSyncJob", () => {
       status: "duplicate",
       job: null,
     });
+  });
+});
+
+describe("markPlatformSyncJobFailed", () => {
+  it("stores a retryable failure on the sync job and leaves the account in failed state", async () => {
+    const jobUpdateMock = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }));
+    const accountUpdateMock = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }));
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === "platform_sync_jobs") {
+          return {
+            update: jobUpdateMock,
+          };
+        }
+
+        return {
+          update: accountUpdateMock,
+        };
+      }),
+    };
+
+    await markPlatformSyncJobFailed({
+      supabase: supabase as any,
+      jobId: "sync-job-1",
+      platformAccountId: "acct-1",
+      errorSummary: "Unexpected IXL page shape",
+      retryCount: 2,
+      nextRetryAt: "2026-04-20T16:00:00.000Z",
+    });
+
+    expect(jobUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        error_summary: "Unexpected IXL page shape",
+        retry_count: 2,
+        next_retry_at: "2026-04-20T16:00:00.000Z",
+      })
+    );
+    expect(accountUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        last_sync_error_summary: "Unexpected IXL page shape",
+      })
+    );
+  });
+});
+
+describe("restartPlatformSyncJob", () => {
+  it("moves a failed job back to running before retry execution", async () => {
+    const jobUpdateMock = vi.fn(() => ({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }));
+
+    const supabase = {
+      from: vi.fn(() => ({
+        update: jobUpdateMock,
+      })),
+    };
+
+    await restartPlatformSyncJob({
+      supabase: supabase as any,
+      jobId: "sync-job-1",
+      retryCount: 2,
+    });
+
+    expect(jobUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "running",
+        retry_count: 2,
+        next_retry_at: null,
+        error_summary: null,
+        finished_at: null,
+        started_at: expect.any(String),
+      })
+    );
   });
 });
 

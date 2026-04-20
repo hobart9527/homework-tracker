@@ -24,6 +24,22 @@ export async function POST(request: Request) {
   const platform = payload.platform;
   const username = payload.username;
   const externalAccountRef = payload.externalAccountRef || username;
+  const managedSessionPayload =
+    payload.managedSessionPayload &&
+    typeof payload.managedSessionPayload === "object"
+      ? payload.managedSessionPayload
+      : null;
+  const managedSessionCapturedAt =
+    typeof payload.managedSessionCapturedAt === "string"
+      ? payload.managedSessionCapturedAt
+      : null;
+  const managedSessionExpiresAt =
+    typeof payload.managedSessionExpiresAt === "string"
+      ? payload.managedSessionExpiresAt
+      : null;
+  const hasManagedSession =
+    (platform === "ixl" || platform === "khan-academy") &&
+    Boolean(managedSessionPayload);
 
   if (!childId || !platform || !username) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -51,7 +67,11 @@ export async function POST(request: Request) {
       platform,
       external_account_ref: externalAccountRef,
       auth_mode: "account_password_managed_session",
-      status: "attention_required",
+      status: hasManagedSession ? "active" : "attention_required",
+      managed_session_payload: managedSessionPayload,
+      managed_session_captured_at: managedSessionCapturedAt,
+      managed_session_expires_at: managedSessionExpiresAt,
+      last_sync_error_summary: null,
     })
     .select()
     .single();

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { PlatformSyncStatusPanel } from "@/components/parent/PlatformSyncStatusPanel";
 import { ReminderSettings } from "@/components/parent/ReminderSettings";
 import { QuickTypeManager } from "@/components/parent/QuickTypeManager";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -12,6 +13,9 @@ import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
 type CustomType = Database["public"]["Tables"]["custom_homework_types"]["Row"];
+type Child = Database["public"]["Tables"]["children"]["Row"];
+type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
+type PlatformSyncJob = Database["public"]["Tables"]["platform_sync_jobs"]["Row"];
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -19,6 +23,82 @@ export default function SettingsPage() {
   const [parent, setParent] = useState<Parent | null>(null);
   const [loading, setLoading] = useState(true);
   const [customTypes, setCustomTypes] = useState<CustomType[]>([]);
+  const [platformAccounts, setPlatformAccounts] = useState<
+    Array<{
+      id: string;
+      childName: string;
+      platform: string;
+      externalAccountRef: string;
+      status: "active" | "failed" | "attention_required" | "syncing";
+      lastSyncedAt: string | null;
+      lastSyncErrorSummary: string | null;
+      nextRetryAt: string | null;
+    }>
+  >([]);
+
+  const refreshPlatformAccounts = async (parentId: string) => {
+    const { data: children } = await supabase
+      .from("children")
+      .select("*")
+      .eq("parent_id", parentId);
+
+    const childRows = (children ?? []) as Child[];
+
+    if (!childRows.length) {
+      setPlatformAccounts([]);
+      return;
+    }
+
+    const childIds = childRows.map((child) => child.id);
+    const childNameById = Object.fromEntries(
+      childRows.map((child) => [child.id, child.name])
+    );
+
+    const { data: accounts } = await supabase
+      .from("platform_accounts")
+      .select("*")
+      .in("child_id", childIds);
+
+    const accountRows = (accounts ?? []) as PlatformAccount[];
+
+    if (!accountRows.length) {
+      setPlatformAccounts([]);
+      return;
+    }
+
+    const accountIds = accountRows.map((account) => account.id);
+    const { data: jobs } = await supabase
+      .from("platform_sync_jobs")
+      .select("*")
+      .in("platform_account_id", accountIds)
+      .order("created_at", { ascending: false });
+
+    const latestRetryJobByAccountId = new Map<string, PlatformSyncJob>();
+
+    for (const job of (jobs ?? []) as PlatformSyncJob[]) {
+      if (
+        job.status === "failed" &&
+        job.next_retry_at &&
+        !latestRetryJobByAccountId.has(job.platform_account_id)
+      ) {
+        latestRetryJobByAccountId.set(job.platform_account_id, job);
+      }
+    }
+
+    setPlatformAccounts(
+      accountRows.map((account) => ({
+        id: account.id,
+        childName: childNameById[account.child_id] ?? "未命名孩子",
+        platform: account.platform,
+        externalAccountRef: account.external_account_ref,
+        status: account.status,
+        lastSyncedAt: account.last_synced_at,
+        lastSyncErrorSummary: account.last_sync_error_summary,
+        nextRetryAt:
+          latestRetryJobByAccountId.get(account.id)?.next_retry_at ?? null,
+      }))
+    );
+  };
 
   useEffect(() => {
     const fetchParent = async () => {
@@ -34,6 +114,7 @@ export default function SettingsPage() {
         .single();
 
       if (data) setParent(data);
+      await refreshPlatformAccounts(session.user.id);
       setLoading(false);
     };
 
@@ -95,6 +176,26 @@ export default function SettingsPage() {
             onDelete={async (id) => {
               await supabase.from("custom_homework_types").delete().eq("id", id);
               setCustomTypes((prev) => prev.filter((t) => t.id !== id));
+            }}
+          />
+        </Card>
+
+        <Card>
+          <PlatformSyncStatusPanel
+            accounts={platformAccounts}
+            onRetry={async (platformAccountId) => {
+              await fetch("/api/platform-sync/import", {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                },
+                body: JSON.stringify({
+                  platformAccountId,
+                  fetchMode: "managed_session",
+                }),
+              });
+
+              await refreshPlatformAccounts(parent.id);
             }}
           />
         </Card>

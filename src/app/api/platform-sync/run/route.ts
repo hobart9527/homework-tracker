@@ -4,7 +4,8 @@ import {
   type PlatformSyncWindowKey,
   resolvePlatformSyncWindow,
 } from "@/lib/platform-sync-schedule";
-import { claimPlatformSyncJob } from "@/lib/platform-sync";
+import { claimPlatformSyncJob, restartPlatformSyncJob } from "@/lib/platform-sync";
+import { executeManagedSessionSync } from "@/lib/platform-sync-execution";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -79,8 +80,11 @@ export async function GET(request: Request) {
   }
 
   const results = [];
+  const processedAccountIds = new Set<string>();
 
   for (const account of accounts ?? []) {
+    processedAccountIds.add(account.id);
+
     if (account.status === "attention_required") {
       results.push({
         platformAccountId: account.id,
@@ -96,10 +100,107 @@ export async function GET(request: Request) {
       windowKey,
     });
 
+    if (claimResult.status === "duplicate") {
+      results.push({
+        platformAccountId: account.id,
+        status: "duplicate",
+        jobId: null,
+      });
+      continue;
+    }
+
+    if (
+      (account.platform === "ixl" || account.platform === "khan-academy") &&
+      account.status === "active" &&
+      account.managed_session_payload
+    ) {
+      const executionResult = await executeManagedSessionSync({
+        supabase: supabase as any,
+        account: account as any,
+        householdTimeZone,
+        jobId: String(claimResult.job?.id),
+      });
+
+      results.push({
+        platformAccountId: account.id,
+        jobId: claimResult.job?.id ?? null,
+        ...executionResult,
+      });
+      continue;
+    }
+
     results.push({
       platformAccountId: account.id,
       status: claimResult.status,
       jobId: claimResult.job?.id ?? null,
+    });
+  }
+
+  const { data: retryJobs, error: retryJobsError } = await supabase
+    .from("platform_sync_jobs")
+    .select("*")
+    .eq("status", "failed")
+    .lte("next_retry_at", now.toISOString())
+    .order("next_retry_at", { ascending: true });
+
+  if (retryJobsError) {
+    return NextResponse.json({ error: retryJobsError.message }, { status: 500 });
+  }
+
+  for (const retryJob of retryJobs ?? []) {
+    const platformAccountId = String(retryJob.platform_account_id);
+
+    if (processedAccountIds.has(platformAccountId)) {
+      continue;
+    }
+
+    const { data: retryAccount, error: retryAccountError } = await supabase
+      .from("platform_accounts")
+      .select("*")
+      .eq("id", platformAccountId)
+      .single();
+
+    if (retryAccountError || !retryAccount) {
+      results.push({
+        platformAccountId,
+        retriedJobId: retryJob.id,
+        status: "failed",
+        error: "Platform account not found for retry",
+      });
+      continue;
+    }
+
+    if (
+      (retryAccount.platform !== "ixl" &&
+        retryAccount.platform !== "khan-academy") ||
+      !retryAccount.managed_session_payload ||
+      retryAccount.status === "attention_required"
+    ) {
+      results.push({
+        platformAccountId,
+        retriedJobId: retryJob.id,
+        status: "skipped",
+      });
+      continue;
+    }
+
+    await restartPlatformSyncJob({
+      supabase: supabase as any,
+      jobId: String(retryJob.id),
+      retryCount: Number(retryJob.retry_count ?? 0),
+    });
+
+    const executionResult = await executeManagedSessionSync({
+      supabase: supabase as any,
+      account: retryAccount as any,
+      householdTimeZone,
+      jobId: String(retryJob.id),
+    });
+
+    results.push({
+      platformAccountId,
+      retriedJobId: retryJob.id,
+      ...executionResult,
     });
   }
 
@@ -108,6 +209,7 @@ export async function GET(request: Request) {
     householdTimeZone,
     windowKey,
     totalAccounts: accounts?.length ?? 0,
+    retryJobCount: retryJobs?.length ?? 0,
     results,
   });
 }
