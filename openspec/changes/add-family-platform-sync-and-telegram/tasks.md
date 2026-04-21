@@ -54,7 +54,7 @@ This slice is intended to be implementable without committing to the final exter
 - [x] 6.1 Add unit tests for sync deduplication, household time-zone normalization, Telegram payload building, and auto-match rules
 - [x] 6.2 Add integration coverage for multi-child household summaries, same-day auto-checkins, and manual-state precedence
 - [x] 6.3 Add smoke coverage for recording submission creating a voice push task without blocking homework completion
-- [ ] 6.4 Verify acceptance criteria for sync correctness, Telegram delivery behavior, bridge idempotency, and the revised channel-ownership model before rollout
+- [x] 6.4 Verify acceptance criteria for sync correctness, Telegram delivery behavior, bridge idempotency, and the revised channel-ownership model before rollout
 - [x] 6.5 Pilot IXL and Khan Academy first before enabling later connectors
 
 ## Execution Slice B: Connector Delivery For The First Platforms

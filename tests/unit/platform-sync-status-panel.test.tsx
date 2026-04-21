@@ -16,6 +16,13 @@ describe("PlatformSyncStatusPanel", () => {
             lastSyncedAt: "2026-04-20T10:00:00.000Z",
             lastSyncErrorSummary: null,
             nextRetryAt: null,
+            recentActivities: [
+              {
+                id: "evt-1",
+                title: "IXL A.1 Add within 10",
+                occurredAt: "2026-04-20T10:00:00.000Z",
+              },
+            ],
           },
           {
             id: "acct-2",
@@ -26,6 +33,7 @@ describe("PlatformSyncStatusPanel", () => {
             lastSyncedAt: null,
             lastSyncErrorSummary: "Unexpected IXL page shape",
             nextRetryAt: "2026-04-20T10:15:00.000Z",
+            recentActivities: [],
           },
           {
             id: "acct-3",
@@ -34,8 +42,15 @@ describe("PlatformSyncStatusPanel", () => {
             externalAccountRef: "classroom",
             status: "attention_required",
             lastSyncedAt: null,
-            lastSyncErrorSummary: "Managed IXL session expired",
+            lastSyncErrorSummary: "Managed Khan session expired",
             nextRetryAt: null,
+            recentActivities: [
+              {
+                id: "evt-2",
+                title: "Khan Academy Fractions basics",
+                occurredAt: "2026-04-20T11:00:00.000Z",
+              },
+            ],
           },
         ]}
       />
@@ -49,9 +64,12 @@ describe("PlatformSyncStatusPanel", () => {
     expect(screen.getByText("等待重试")).toBeInTheDocument();
     expect(screen.getByText("需要处理")).toBeInTheDocument();
     expect(screen.getByText("Unexpected IXL page shape")).toBeInTheDocument();
-    expect(screen.getByText("Managed IXL session expired")).toBeInTheDocument();
+    expect(screen.getByText("Managed Khan session expired")).toBeInTheDocument();
     expect(screen.getByText(/下次重试/)).toBeInTheDocument();
     expect(screen.getByText(/最近同步/)).toBeInTheDocument();
+    expect(screen.getByText("最近内容")).toBeInTheDocument();
+    expect(screen.getByText("IXL A.1 Add within 10")).toBeInTheDocument();
+    expect(screen.getByText("Khan Academy Fractions basics")).toBeInTheDocument();
   });
 
   it("shows an empty state when no platform accounts are bound", () => {
@@ -77,6 +95,7 @@ describe("PlatformSyncStatusPanel", () => {
             lastSyncedAt: null,
             lastSyncErrorSummary: "Unexpected IXL page shape",
             nextRetryAt: "2026-04-20T10:15:00.000Z",
+            recentActivities: [],
           },
           {
             id: "acct-3",
@@ -87,6 +106,7 @@ describe("PlatformSyncStatusPanel", () => {
             lastSyncedAt: null,
             lastSyncErrorSummary: "Managed IXL session expired",
             nextRetryAt: null,
+            recentActivities: [],
           },
         ]}
         onRetry={onRetry}
