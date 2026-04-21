@@ -11,6 +11,11 @@ import {
   markPlatformSyncJobFailed,
   markPlatformAccountAttentionRequired,
 } from "@/lib/platform-sync";
+import { decryptCredential } from "@/lib/crypto";
+import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
+import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
+import type { LearningEventInput } from "@/lib/learning-events";
+import type { Json } from "@/lib/supabase/types";
 
 type SupabaseLike = {
   from: (table: string) => {
@@ -45,8 +50,11 @@ type SupabaseLike = {
 type PlatformAccount = {
   id: string;
   child_id: string;
-  platform: string;
+  platform: LearningEventInput["platform"];
   managed_session_payload?: Record<string, unknown> | null;
+  managed_session_expires_at?: string | null;
+  auto_login_enabled?: boolean | null;
+  login_credentials_encrypted?: string | null;
 };
 
 type NormalizedEvent = {
@@ -58,8 +66,32 @@ type NormalizedEvent = {
   score?: number | null;
   completionState?: string | null;
   sourceRef: string;
-  rawPayload?: Record<string, unknown>;
+  rawPayload?: Json;
 };
+
+function getManagedSessionExpiredError(
+  platform: PlatformAccount["platform"]
+) {
+  if (platform === "ixl") {
+    return new IxlManagedSessionError("Managed IXL session expired");
+  }
+
+  return new KhanManagedSessionError("Managed Khan session expired");
+}
+
+function isManagedSessionExpired(account: PlatformAccount) {
+  if (!account.managed_session_expires_at) {
+    return false;
+  }
+
+  const expiresAt = Date.parse(account.managed_session_expires_at);
+
+  if (Number.isNaN(expiresAt)) {
+    return false;
+  }
+
+  return expiresAt <= Date.now();
+}
 
 export async function importNormalizedEvent(input: {
   supabase: SupabaseLike;
@@ -102,6 +134,56 @@ export async function importNormalizedEvent(input: {
   });
 }
 
+async function tryAutoLoginRefresh(
+  supabase: SupabaseLike,
+  account: PlatformAccount
+): Promise<boolean> {
+  if (!account.auto_login_enabled || !account.login_credentials_encrypted) {
+    return false;
+  }
+
+  const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
+  if (!key) {
+    return false;
+  }
+
+  let credentials: { username: string; password: string };
+  try {
+    const decrypted = decryptCredential(account.login_credentials_encrypted, key);
+    credentials = JSON.parse(decrypted);
+  } catch {
+    return false;
+  }
+
+  const loginResult =
+    account.platform === "ixl"
+      ? await simulateIxlLogin(credentials.username, credentials.password)
+      : account.platform === "khan-academy"
+        ? await simulateKhanLogin(credentials.username, credentials.password)
+        : null;
+
+  if (!loginResult || !loginResult.success) {
+    return false;
+  }
+
+  // Update the account with new session payload
+  await (supabase as any)
+    .from("platform_accounts")
+    .update({
+      managed_session_payload: { cookies: loginResult.cookies },
+      managed_session_captured_at: new Date().toISOString(),
+      status: "active",
+      last_sync_error_summary: null,
+    })
+    .eq("id", account.id);
+
+  // Mutate the local account object so downstream sync uses the new payload
+  account.managed_session_payload = { cookies: loginResult.cookies };
+  account.managed_session_expires_at = null;
+
+  return true;
+}
+
 export async function executeManagedSessionSync(input: {
   supabase: SupabaseLike;
   account: PlatformAccount;
@@ -109,6 +191,13 @@ export async function executeManagedSessionSync(input: {
   jobId: string;
 }) {
   try {
+    if (isManagedSessionExpired(input.account)) {
+      const refreshed = await tryAutoLoginRefresh(input.supabase, input.account);
+      if (!refreshed) {
+        throw getManagedSessionExpiredError(input.account.platform);
+      }
+    }
+
     const connectorResult =
       input.account.platform === "ixl"
         ? await runIxlManagedSessionSync({

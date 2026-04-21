@@ -14,8 +14,17 @@ import { HomeworkCard } from "@/components/parent/HomeworkCard";
 
 const push = vi.fn();
 const back = vi.fn();
-const insert = vi.fn().mockResolvedValue({ error: null });
+const homeworkInsertSelect = vi.fn().mockResolvedValue({
+  data: [{ id: "new-homework-id" }],
+  error: null,
+});
+const insert = vi.fn(() => ({
+  select: homeworkInsertSelect,
+}));
 const update = vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) }));
+const routingInsert = vi.fn().mockResolvedValue({ error: null });
+const routingUpdateEq = vi.fn().mockResolvedValue({ error: null });
+const routingDeleteEq = vi.fn().mockResolvedValue({ error: null });
 const selectSourceHomework = vi.fn(() =>
   Promise.resolve({
     data: {
@@ -32,10 +41,13 @@ const selectSourceHomework = vi.fn(() =>
       repeat_start_date: "2026-04-01",
       repeat_end_date: null,
       point_value: 6,
+      point_deduction: 0,
       estimated_minutes: 30,
       daily_cutoff_time: "19:30",
       is_active: true,
       required_checkpoint_type: "photo",
+      platform_binding_platform: "khan-academy",
+      platform_binding_source_ref: "lesson-123",
       created_by: "parent-1",
       created_at: "2026-04-11T08:00:00.000Z",
     },
@@ -61,6 +73,41 @@ const selectChildren = vi.fn(() =>
   })
 );
 const selectCustomTypes = vi.fn(() => Promise.resolve({ data: [] }));
+const selectPlatformAccounts = vi.fn(() =>
+  Promise.resolve({
+    data: [
+      {
+        id: "acct-1",
+        child_id: "child-1",
+        platform: "ixl",
+        external_account_ref: "ivy-ixl",
+        status: "active",
+      },
+      {
+        id: "acct-2",
+        child_id: "child-2",
+        platform: "khan-academy",
+        external_account_ref: "albert-khan",
+        status: "active",
+      },
+    ],
+  })
+);
+const selectRoutingRules = vi.fn(() =>
+  Promise.resolve({
+    data: [
+      {
+        id: "route-default-1",
+        child_id: "child-1",
+        homework_id: null,
+        channel: "wechat_group",
+        recipient_ref: "wechat-group-math",
+        recipient_label: "Ivy 数学群",
+        created_at: "2026-04-20T10:00:00.000Z",
+      },
+    ],
+  })
+);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -108,6 +155,31 @@ const supabaseClient = {
       };
     }
 
+    if (table === "platform_accounts") {
+      return {
+        select: () => ({
+          in: selectPlatformAccounts,
+        }),
+      };
+    }
+
+    if (table === "message_routing_rules") {
+      return {
+        select: () => ({
+          in: vi.fn(() => ({
+            order: selectRoutingRules,
+          })),
+        }),
+        insert: routingInsert,
+        update: vi.fn(() => ({
+          eq: routingUpdateEq,
+        })),
+        delete: vi.fn(() => ({
+          eq: routingDeleteEq,
+        })),
+      };
+    }
+
     return {
       select: () => ({
         eq: vi.fn(),
@@ -135,9 +207,12 @@ function makeForm(
     repeat_interval: 1,
     repeat_start_date: "",
     point_value: 3,
+    point_deduction: 3,
     estimated_minutes: 20,
     daily_cutoff_time: "20:00",
     required_checkpoint_type: "",
+    platform_binding_platform: "",
+    platform_binding_source_ref: "",
     ...overrides,
   };
 }
@@ -180,6 +255,19 @@ describe("buildHomeworkInsertRows", () => {
     expect(weeklyRow.repeat_interval).toBeNull();
     expect(intervalRow.repeat_days).toBeNull();
     expect(intervalRow.repeat_interval).toBe(3);
+  });
+
+  it("persists platform binding metadata when explicitly configured", () => {
+    const row = buildHomeworkInsertRows(
+      makeForm({
+        platform_binding_platform: "khan-academy",
+        platform_binding_source_ref: "lesson-123",
+      }),
+      "parent-1"
+    )[0];
+
+    expect(row.platform_binding_platform).toBe("khan-academy");
+    expect(row.platform_binding_source_ref).toBe("lesson-123");
   });
 });
 
@@ -230,15 +318,20 @@ describe("buildHomeworkDraftFromSource", () => {
       repeat_interval: null,
       repeat_start_date: "2026-04-01",
       point_value: 6,
+      point_deduction: 0,
       estimated_minutes: 30,
       daily_cutoff_time: "19:30",
       required_checkpoint_type: "photo",
+      platform_binding_platform: "khan-academy",
+      platform_binding_source_ref: "lesson-123",
     } as any);
 
     expect(draft.child_ids).toEqual(["child-2"]);
     expect(draft.title).toBe("钢琴加练");
     expect(draft.repeat_days).toEqual([1, 3, 5]);
     expect(draft.required_checkpoint_type).toBe("photo");
+    expect(draft.platform_binding_platform).toBe("khan-academy");
+    expect(draft.platform_binding_source_ref).toBe("lesson-123");
   });
 });
 
@@ -286,6 +379,54 @@ describe("HomeworkForm workbench", () => {
     expect(screen.getByDisplayValue("钢琴练习")).toBeInTheDocument();
   });
 
+  it("auto-matches platform binding for IXL type and surfaces the child account", async () => {
+    render(createElement(HomeworkForm));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("combobox", { name: "快捷类型（可选）" })
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByRole("combobox", { name: "快捷类型（可选）" }), {
+      target: { value: "IXL" },
+    });
+
+    expect(screen.getByRole("combobox", { name: "来源平台" })).toHaveValue("ixl");
+    expect(screen.getByText(/已匹配 ixl 账号：ivy-ixl/i)).toBeInTheDocument();
+  });
+
+  it("lets homework editing own the per-homework message route", async () => {
+    render(createElement(HomeworkForm));
+
+    await waitFor(() => {
+      expect(screen.getByText("作业消息路由")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "为这条作业单独指定" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ivy 数学群" }));
+
+    expect(screen.getByDisplayValue("wechat-group-math")).toBeInTheDocument();
+  });
+
+  it("keeps homework message routing focused on wechat bridge targets", async () => {
+    render(createElement(HomeworkForm));
+
+    await waitFor(() => {
+      expect(screen.getByText("作业消息路由")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "为这条作业单独指定" }));
+
+    expect(
+      screen.getByRole("option", { name: "微信群" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Telegram Chat" })
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("微信群标识")).toBeInTheDocument();
+  });
+
   it("shows the photo proof explanation in the preview", async () => {
     render(createElement(HomeworkForm));
 
@@ -308,6 +449,10 @@ describe("HomeworkForm workbench", () => {
     });
 
     expect(screen.getByDisplayValue("每天 30 分钟")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "来源平台" })).toHaveValue(
+      "khan-academy"
+    );
+    expect(screen.getByDisplayValue("lesson-123")).toBeInTheDocument();
     expect(screen.getByText("将创建 1 份独立作业")).toBeInTheDocument();
     expect(screen.getByText(/会分别分配给 Albert/)).toBeInTheDocument();
   });

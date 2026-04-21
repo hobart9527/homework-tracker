@@ -17,7 +17,9 @@ import {
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
-type CustomType = Database["public"]["Tables"]["custom_homework_types"]["Row"];
+type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
+type MessageRoutingRule =
+  Database["public"]["Tables"]["message_routing_rules"]["Row"];
 
 const DEFAULT_TYPES = [
   { id: "piano", name: "钢琴", icon: "🎹", default_points: 6 },
@@ -50,10 +52,19 @@ export function HomeworkForm({
   const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [children, setChildren] = useState<Child[]>([]);
-  const [customTypes, setCustomTypes] = useState<CustomType[]>([]);
+  const [platformAccounts, setPlatformAccounts] = useState<PlatformAccount[]>([]);
+  const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
+  const [homeworkRoutingMode, setHomeworkRoutingMode] = useState<
+    "child_default" | "homework_override"
+  >("child_default");
+  const [homeworkRoutingForm, setHomeworkRoutingForm] = useState({
+    channel: "wechat_group" as "telegram_chat" | "wechat_group",
+    recipientRef: "",
+    recipientLabel: "",
+  });
 
   const isEditing = !!homework;
 
@@ -73,6 +84,8 @@ export function HomeworkForm({
     estimated_minutes: homework?.estimated_minutes || 30,
     daily_cutoff_time: homework?.daily_cutoff_time || "23:30",
     required_checkpoint_type: homework?.required_checkpoint_type || "",
+    platform_binding_platform: homework?.platform_binding_platform || "",
+    platform_binding_source_ref: homework?.platform_binding_source_ref || "",
   });
 
   useEffect(() => {
@@ -82,17 +95,35 @@ export function HomeworkForm({
       } = await supabase.auth.getSession();
       if (!session) return;
 
-      const [{ data: childrenData }, { data: customTypesData }] =
-        await Promise.all([
-          supabase.from("children").select("*").eq("parent_id", session.user.id),
-          supabase
-            .from("custom_homework_types")
-            .select("*")
-            .eq("parent_id", session.user.id),
-        ]);
+      const { data: childrenData } = await supabase
+        .from("children")
+        .select("*")
+        .eq("parent_id", session.user.id);
 
       if (childrenData) setChildren(childrenData);
-      if (customTypesData) setCustomTypes(customTypesData);
+
+      if (childrenData?.length) {
+        const childIds = childrenData.map((child) => child.id);
+        const [{ data: platformAccountsData }, { data: routingRulesData }] =
+          await Promise.all([
+            supabase
+              .from("platform_accounts")
+              .select("*")
+              .in("child_id", childIds),
+            supabase
+              .from("message_routing_rules")
+              .select("*")
+              .in("child_id", childIds)
+              .order("created_at", { ascending: false }),
+          ]);
+
+        if (platformAccountsData) {
+          setPlatformAccounts(platformAccountsData as PlatformAccount[]);
+        }
+        if (routingRulesData) {
+          setRoutingRules(routingRulesData as MessageRoutingRule[]);
+        }
+      }
 
       // Only auto-select first child on initial load when editing a new homework
       if (!homework && !copyFromHomeworkId && childrenData?.length && !prefilledChildId) {
@@ -134,23 +165,82 @@ export function HomeworkForm({
     // Intentionally omits formData.child_ids from deps to avoid re-triggering.
   }, [prefilledChildId, children.length]);
 
-  const allTypes = [
-    ...DEFAULT_TYPES.map((t) => ({ ...t, is_custom: false })),
-    ...customTypes.map((t) => ({
-      id: t.id,
-      name: t.name,
-      icon: t.icon,
-      default_points: t.default_points,
-      is_custom: true,
-    })),
-  ];
+  useEffect(() => {
+    if (!homework?.id) {
+      return;
+    }
+
+    const existingHomeworkRoute = routingRules.find(
+      (rule) => rule.homework_id === homework.id
+    );
+
+    if (!existingHomeworkRoute) {
+      setHomeworkRoutingMode("child_default");
+      setHomeworkRoutingForm({
+        channel: "wechat_group",
+        recipientRef: "",
+        recipientLabel: "",
+      });
+      return;
+    }
+
+    setHomeworkRoutingMode("homework_override");
+    setHomeworkRoutingForm({
+      channel: "wechat_group",
+      recipientRef: existingHomeworkRoute.recipient_ref,
+      recipientLabel: existingHomeworkRoute.recipient_label || "",
+    });
+  }, [homework?.id, routingRules]);
+
+  const allTypes = DEFAULT_TYPES.map((t) => ({ ...t, is_custom: false }));
 
   const selectedChildren = children.filter((child) =>
     formData.child_ids.includes(child.id)
   );
+  const canConfigurePlatformBinding = formData.child_ids.length === 1;
+  const selectedChildId = canConfigurePlatformBinding ? formData.child_ids[0] : null;
+  const autoMatchedPlatform = (() => {
+    const normalizedType = formData.type_name.trim().toLowerCase();
+    if (normalizedType === "ixl") {
+      return "ixl";
+    }
+    if (normalizedType === "khan academy" || normalizedType === "khan") {
+      return "khan-academy";
+    }
+    return "";
+  })();
+  const selectedChildPlatformAccounts = platformAccounts.filter(
+    (account) => account.child_id === selectedChildId
+  );
+  const matchedPlatformAccount = selectedChildPlatformAccounts.find(
+    (account) => account.platform === formData.platform_binding_platform
+  );
+  const routeSuggestions = routingRules.filter(
+    (rule) =>
+      rule.child_id === selectedChildId &&
+      rule.channel === "wechat_group" &&
+      (rule.homework_id === null || rule.homework_id === homework?.id)
+  );
   const assignmentSummary = buildAssignmentSummary(selectedChildren);
   const preview = buildHomeworkRulePreview(formData, assignmentSummary.childNames);
   const canBatchAssign = !isEditing && !prefilledChildId;
+
+  useEffect(() => {
+    if (!autoMatchedPlatform || !canConfigurePlatformBinding) {
+      return;
+    }
+
+    setFormData((prev) => {
+      if (prev.platform_binding_platform === autoMatchedPlatform) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        platform_binding_platform: autoMatchedPlatform,
+      };
+    });
+  }, [autoMatchedPlatform, canConfigurePlatformBinding]);
 
   const handleTypeSelect = (type: (typeof allTypes)[0]) => {
     // Auto-fill title unless user has manually customized it
@@ -158,8 +248,6 @@ export function HomeworkForm({
       ? (() => {
           const found = DEFAULT_TYPES.find((t) => t.name === formData.type_name);
           if (found) return found.name + "练习";
-          const custom = customTypes.find((t) => t.name === formData.type_name);
-          if (custom) return custom.name + "练习";
         })()
       : null;
     // If no previous type, or current title matches previous default, it's auto-filled
@@ -167,7 +255,7 @@ export function HomeworkForm({
 
     setFormData((prev) => ({
       ...prev,
-      type_id: type.is_custom ? type.id : "",
+      type_id: "",
       type_name: type.name,
       type_icon: type.icon || "📝",
       point_value: type.default_points ?? 3,
@@ -185,11 +273,53 @@ export function HomeworkForm({
     if (!session) return;
 
     const rows = buildHomeworkInsertRows(formData, session.user.id);
+    let savedHomeworkId = homework?.id ?? null;
 
     if (homework) {
       await supabase.from("homeworks").update(rows[0]).eq("id", homework.id);
     } else {
-      await supabase.from("homeworks").insert(rows);
+      const { data } = await supabase.from("homeworks").insert(rows).select("id");
+      if (data?.length === 1) {
+        savedHomeworkId = data[0].id;
+      }
+    }
+
+    if (savedHomeworkId && selectedChildId && canConfigurePlatformBinding) {
+      const existingHomeworkRoutes = routingRules.filter(
+        (rule) => rule.homework_id === savedHomeworkId
+      );
+
+      if (homeworkRoutingMode === "child_default") {
+        for (const rule of existingHomeworkRoutes) {
+          await supabase.from("message_routing_rules").delete().eq("id", rule.id);
+        }
+      } else if (homeworkRoutingForm.recipientRef.trim()) {
+        if (existingHomeworkRoutes.length) {
+          await supabase
+            .from("message_routing_rules")
+            .update({
+              channel: homeworkRoutingForm.channel,
+              recipient_ref: homeworkRoutingForm.recipientRef.trim(),
+              recipient_label: homeworkRoutingForm.recipientLabel.trim() || null,
+            })
+            .eq("id", existingHomeworkRoutes[0].id);
+
+          for (const redundantRule of existingHomeworkRoutes.slice(1)) {
+            await supabase
+              .from("message_routing_rules")
+              .delete()
+              .eq("id", redundantRule.id);
+          }
+        } else {
+          await supabase.from("message_routing_rules").insert({
+            child_id: selectedChildId,
+            homework_id: savedHomeworkId,
+            channel: homeworkRoutingForm.channel,
+            recipient_ref: homeworkRoutingForm.recipientRef.trim(),
+            recipient_label: homeworkRoutingForm.recipientLabel.trim() || null,
+          });
+        }
+      }
     }
 
     setLoading(false);
@@ -510,6 +640,204 @@ export function HomeworkForm({
               required
             />
           )}
+
+          <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
+            <div>
+              <label className="block text-sm font-medium text-forest-700">
+                平台任务绑定
+              </label>
+              <p className="mt-1 text-sm text-forest-500">
+                绑定后，平台同步会优先把学习事件匹配到这条作业。适合单个孩子的精确任务；多人批量创建时先保持为空更稳妥。
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="platform-binding-platform"
+                  className="mb-1 block text-sm font-medium text-forest-700"
+                >
+                  来源平台
+                </label>
+                <select
+                  id="platform-binding-platform"
+                  aria-label="来源平台"
+                  disabled={!canConfigurePlatformBinding}
+                  value={formData.platform_binding_platform}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      platform_binding_platform: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary disabled:cursor-not-allowed disabled:bg-forest-100"
+                >
+                  <option value="">不绑定具体平台任务</option>
+                  <option value="ixl">IXL</option>
+                  <option value="khan-academy">Khan Academy</option>
+                </select>
+              </div>
+
+              <Input
+                id="platform-binding-source-ref"
+                label="平台任务 Source Ref"
+                aria-label="平台任务 Source Ref"
+                disabled={!canConfigurePlatformBinding}
+                value={formData.platform_binding_source_ref}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    platform_binding_source_ref: e.target.value,
+                  }))
+                }
+                placeholder="例如 lesson-123 / skill-a4"
+              />
+            </div>
+
+            <p className="mt-3 text-xs text-forest-500">
+              {canConfigurePlatformBinding
+                ? "如果平台端有明确的任务编号或课程编号，建议在这里填入，能明显减少误匹配。"
+                : "当前选择了多个孩子，已暂时禁用精确平台绑定，避免不同孩子共享同一个外部任务编号。"}
+            </p>
+
+            {canConfigurePlatformBinding ? (
+              <div className="mt-3 rounded-xl border border-forest-100 bg-white px-3 py-3 text-sm text-forest-600">
+                <p className="font-medium text-forest-700">孩子平台账号自动匹配</p>
+                {matchedPlatformAccount ? (
+                  <p className="mt-1">
+                    已匹配 {matchedPlatformAccount.platform} 账号：
+                    {matchedPlatformAccount.external_account_ref}
+                  </p>
+                ) : autoMatchedPlatform ? (
+                  <p className="mt-1 text-amber-700">
+                    当前作业类型已自动匹配到平台 {autoMatchedPlatform}，但这个孩子还没有绑定对应的平台账号。
+                  </p>
+                ) : (
+                  <p className="mt-1">
+                    当作业类型是 IXL 或 Khan Academy 时，这里会自动带出对应平台，作业级只需要再补精确的 task source ref。
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
+            <div>
+              <label className="block text-sm font-medium text-forest-700">
+                作业消息路由
+              </label>
+              <p className="mt-1 text-sm text-forest-500">
+                这条作业发到哪个微信群或 Telegram 目标，应该在创建或编辑作业时确定。只有留空时，才回退到孩子默认路由。
+              </p>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={!canConfigurePlatformBinding}
+                onClick={() => setHomeworkRoutingMode("child_default")}
+                className={`rounded-xl border-2 px-4 py-2 text-sm transition-all ${
+                  homeworkRoutingMode === "child_default"
+                    ? "border-primary bg-primary/10"
+                    : "border-forest-200 bg-white"
+                }`}
+              >
+                使用孩子默认路由
+              </button>
+              <button
+                type="button"
+                disabled={!canConfigurePlatformBinding}
+                onClick={() => setHomeworkRoutingMode("homework_override")}
+                className={`rounded-xl border-2 px-4 py-2 text-sm transition-all ${
+                  homeworkRoutingMode === "homework_override"
+                    ? "border-primary bg-primary/10"
+                    : "border-forest-200 bg-white"
+                }`}
+              >
+                为这条作业单独指定
+              </button>
+            </div>
+
+            {canConfigurePlatformBinding ? (
+              <>
+                {routeSuggestions.length ? (
+                  <div className="mt-4">
+                    <p className="mb-2 text-sm font-medium text-forest-700">
+                      快速套用已有目标
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {routeSuggestions.map((rule) => (
+                        <button
+                          key={rule.id}
+                          type="button"
+                          onClick={() => {
+                            setHomeworkRoutingMode("homework_override");
+                            setHomeworkRoutingForm({
+                              channel: rule.channel,
+                              recipientRef: rule.recipient_ref,
+                              recipientLabel: rule.recipient_label || "",
+                            });
+                          }}
+                          className="rounded-full border border-forest-200 bg-white px-3 py-1.5 text-xs text-forest-600 transition-all hover:border-primary"
+                        >
+                          {rule.recipient_label || rule.recipient_ref}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {homeworkRoutingMode === "homework_override" ? (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-forest-700">
+                        通道
+                      </label>
+                      <select
+                        value={homeworkRoutingForm.channel}
+                        onChange={() => undefined}
+                        className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary"
+                      >
+                        <option value="wechat_group">微信群</option>
+                      </select>
+                    </div>
+
+                    <Input
+                      label="微信群标识"
+                      value={homeworkRoutingForm.recipientRef}
+                      onChange={(e) =>
+                        setHomeworkRoutingForm((prev) => ({
+                          ...prev,
+                          recipientRef: e.target.value,
+                        }))
+                      }
+                      placeholder="例如 wechat-group-math"
+                    />
+
+                    <Input
+                      label="目标备注（可选）"
+                      value={homeworkRoutingForm.recipientLabel}
+                      onChange={(e) =>
+                        setHomeworkRoutingForm((prev) => ({
+                          ...prev,
+                          recipientLabel: e.target.value,
+                        }))
+                      }
+                      placeholder="例如 Mia 数学群"
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-forest-500">
+                    当前这条作业不单独覆盖消息目标，运行时会回退到孩子默认消息路由。
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-forest-500">
+                当前是多人批量创建。作业级消息路由只在单个孩子的作业上配置，避免把同一目标误绑给多个孩子。
+              </p>
+            )}
+          </div>
 
           <div className="flex gap-3">
             <Button type="button" variant="ghost" onClick={() => router.back()}>

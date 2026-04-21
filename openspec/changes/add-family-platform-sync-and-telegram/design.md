@@ -65,6 +65,31 @@ Alternatives considered:
 The first release uses a fixed batch schedule several times per day rather than near-real-time polling.
 The primary initial sync window should start after school, using a batch that runs after 15:30 local time.
 
+### Decision: Use a managed-session-first connector runtime inside the current app for the first IXL and Khan Academy rollout
+
+The first-release connector runtime should stay inside the existing app boundary rather than introducing a separate worker service. Scheduled sync enters through the shared platform-sync route, manual troubleshooting enters through the import route, and both paths call the same managed-session execution layer for IXL and Khan Academy.
+
+Rationale:
+
+- Keeps the first release operationally simple while the supported platform set is intentionally narrow.
+- Reuses the same normalized event pipeline, sync-job model, retry handling, and audit trail for both scheduled and manual runs.
+- Avoids prematurely committing to a separate connector daemon before the household workflow and platform failure modes are better understood.
+
+Alternatives considered:
+
+- Separate connector worker from day one: cleaner long term, but adds deployment and observability overhead before the first-release runtime model is proven.
+- Pure raw-payload/manual import only: useful for debugging, but does not satisfy the intended scheduled household workflow.
+
+The concrete first-release runtime strategy is:
+
+- scheduled execution calls the shared sync orchestrator and defaults to IXL plus Khan Academy only
+- manual execution remains available for operator recovery and acceptance checks
+- IXL and Khan Academy use stored managed-session cookies as the fetch credential at runtime
+- account identity may still be captured during binding, but the live connector fetch path depends on managed-session material rather than replaying a password login flow inside the app
+- expired or invalid managed sessions must move the account into `attention_required` instead of silently returning no events
+- retryable connector failures must remain visible as `failed` jobs with retry metadata
+- raw event import remains available as a debugging and support path, not the primary release workflow
+
 ### Decision: Use aggressive auto-checkins with mandatory evidence storage
 
 If same-day platform learning evidence exists and matches a configured rule, the system will auto-complete eligible homework without waiting for parent review. Every such completion must store the evidence basis that triggered it.
@@ -103,6 +128,44 @@ The delivery pattern is mixed:
 - immediate event notification when homework is completed
 - one daily household summary sent during the 21:30-22:00 window
 
+Telegram should be treated as a household-level parent channel in the first release rather than as a per-homework routing target. Homework-level or child-level routing rules may later support Telegram as an explicit override, but Release 1 should keep family Telegram delivery separate from homework message-routing concerns so that household summaries, parent completion notifications, and WeChat bridge routing do not share one ambiguous target model.
+
+### Decision: Store Telegram recipient identity in the database, but keep the bot secret in runtime configuration
+
+The first release should persist the household Telegram recipient reference in application data, but the Telegram bot secret should stay in runtime configuration rather than in a normal parent profile row.
+
+Rationale:
+
+- `telegram_chat_id` and an optional recipient label are household-owned business configuration and need to be editable per family.
+- The bot token is a channel secret, not household content, and should be treated like other runtime credentials.
+- This keeps the product compatible with the current one-household, one-recipient pilot while avoiding normalizing secret storage into application-level profile tables.
+
+Alternatives considered:
+
+- Store the bot token directly on the parent row: simple short term, but weakens secret handling and blurs the line between household settings and runtime credentials.
+- Put both chat identity and token in environment variables: operationally simple, but makes per-household setup impossible.
+
+The first release should therefore use:
+
+- database-backed `telegram_chat_id`
+- database-backed `telegram_recipient_label`
+- runtime-configured `TELEGRAM_BOT_TOKEN`
+
+### Decision: Keep message routing focused on delivery targets for child- and homework-level outputs, not household summary channels
+
+`message_routing_rules` should resolve where child- or homework-scoped outbound items go, especially for WeChat bridge delivery. It should not be treated as the source of truth for the household Telegram summary channel in the first release.
+
+Rationale:
+
+- Homework routing and household summary delivery belong to different object owners.
+- The WeChat bridge needs a stable target abstraction for child defaults and homework overrides.
+- Household Telegram notifications already have a single family-owned recipient and do not benefit from being forced through the same routing table.
+
+Alternatives considered:
+
+- Unify all outbound channels under one routing table immediately: looks generic, but collapses family-level and homework-level ownership into one model too early.
+- Separate everything permanently: clearer, but may be too rigid if a later phase adds true per-homework Telegram overrides.
+
 ### Decision: Treat personal WeChat-group audio delivery as an isolated Beta bridge
 
 Audio homework submission will generate a `voice_push_task`, but the homework completion itself will succeed independently of whether the WeChat bridge later delivers the recording to a personal group. The bridge is modeled as an external worker or automation layer rather than a core Next.js request path.
@@ -119,6 +182,29 @@ Alternatives considered:
 - Manual export only: safe, but does not meet the stated automation goal.
 
 The first delivery payload contains only the final audio file and no additional caption requirement.
+
+### Decision: Use a split coordinator/sender bridge runtime for the pilot
+
+The pilot bridge runtime should use a split model. The current app remains the queue coordinator and retry authority for `voice_push_tasks`, while the actual audio delivery happens in an external bridge sender reached through a webhook-style HTTP call.
+
+Rationale:
+
+- Keeps unofficial or desktop-dependent WeChat delivery logic outside the main app runtime.
+- Lets the app own queue state, retries, idempotency, and audit history without needing to host GUI automation itself.
+- Works with either a home computer sender or a Synology-hosted bridge endpoint, as long as one reachable sender endpoint exists.
+
+Alternatives considered:
+
+- Home computer only with local queue state: simpler on one machine, but weakens observability and makes retries depend on one host.
+- Synology-only sender with all queue logic moved out of the app: cleaner for operations, but pushes too much first-release logic into a second runtime at once.
+
+The concrete pilot bridge strategy is:
+
+- the app exposes a worker entrypoint that consumes pending and retrying `voice_push_tasks`
+- the worker builds a stable per-task delivery key and forwards the audio delivery request to the external bridge endpoint
+- the bridge endpoint returns `sent`, `duplicate`, or failure semantics back to the app worker
+- duplicate acknowledgements are treated as successful sends so retries remain idempotent
+- the app remains the source of truth for retry budget, failure history, and terminal task state
 
 ## Architecture
 
@@ -152,6 +238,15 @@ The initial rollout order is:
 2. Khan Academy
 3. Raz-Kids
 4. Epic
+
+For the first release, the orchestrator runtime stays in-process with the current app:
+
+- scheduled sync enters through the platform-sync run route on a fixed daily batch cadence
+- manual troubleshooting enters through the platform-sync import route
+- both paths call the same managed-session connector execution layer
+- both paths hand normalized events into the shared learning-event and auto-checkin pipeline
+
+This keeps connector behavior consistent across scheduled execution, manual retry, and acceptance testing.
 
 ### 3. Learning Event Store
 
@@ -188,6 +283,7 @@ A household-level Telegram notification service consumes homework and sync outco
 - event notifications for sync failures, automatic completions, and unresolved work
 
 The first release must support immediate “homework completed” events plus one nightly household digest in the 21:30-22:00 window.
+Its recipient identity is resolved from the household parent record, not from `message_routing_rules`.
 
 ### 6. Voice Push Bridge Queue
 
@@ -195,6 +291,13 @@ Completed audio homework creates a bridge task that packages child name, assignm
 
 The first release should only require the final audio file to be delivered. Captions remain optional and out of scope.
 The intended pilot runtime for the bridge is a home always-on computer or a Synology NAS environment.
+
+For the pilot, the queue runtime is split across two responsibilities:
+
+- the app owns task selection, retry accounting, and state transitions
+- the external bridge sender owns the final WeChat-group delivery attempt
+
+This allows the sender implementation to vary by environment without changing the queue semantics in the core app.
 
 ## Data Model
 
@@ -372,13 +475,15 @@ IXL and Khan Academy should not be treated as identical data sources. One platfo
 
 The first release allows account-password credentials together with managed session storage, which introduces operational risk: password changes, expired sessions, MFA prompts, captcha challenges, and unusual-login protections. The system therefore needs an intermediate operational state such as `attention_required`; it is not sufficient to model sync outcomes as only `success` or `failed`.
 
+The chosen first-release runtime strategy intentionally limits the live fetch path to managed-session execution for IXL and Khan Academy. This reduces the amount of login automation inside the app, but it also means session freshness becomes the key operational dependency and must be checked explicitly before connector fetch attempts.
+
 ### Telegram Delivery Variance
 
 Telegram delivery must tolerate recipient-side and platform-side variance, including invalid chat IDs, rate limits, muted chats, blocked bots, or revoked access. Immediate event notifications and nightly digests should be treated as separate delivery attempts with separate retry and failure states.
 
 ### Runtime Differences Between Home Computer And Synology NAS
 
-The WeChat bridge runtime is not environment-neutral. A home always-on computer is a more natural host for desktop-driven automation or GUI-dependent sending flows, while a Synology NAS is more naturally suited to queue processing, scheduling, and bridge coordination. The first release should not assume both environments can act as the same final delivery host.
+The WeChat bridge runtime is not environment-neutral. A home always-on computer is a more natural host for desktop-driven automation or GUI-dependent sending flows, while a Synology NAS is more naturally suited to queue coordination or webhook hosting. The split coordinator/sender model reduces this risk by keeping queue truth in the app while allowing the final sender host to vary.
 
 ### Duplicate Information Across Telegram Channels
 
@@ -425,6 +530,7 @@ When imported learning evidence includes a valid study duration greater than or 
 ### Telegram Notifications
 
 The system must send an immediate Telegram notification when homework is completed automatically. The system must also send one nightly household digest during the 21:30-22:00 window. Delivery failure for either message type must not affect homework completion state. Retries must not cause duplicate immediate notifications for the same logical homework-completion event. The nightly digest must correctly aggregate multiple children within one household.
+The first release must read the Telegram recipient identity from household-owned database fields and must read the Telegram bot secret from runtime configuration rather than a normal parent profile field.
 
 ### Voice Homework Bridge
 
@@ -445,6 +551,5 @@ Operators or maintainers must be able to inspect recent platform sync status, sy
 
 The main product behavior is now clear. Remaining work is implementation planning rather than product clarification. The only details still best finalized inside the implementation plan are:
 
-- the exact batch schedule beyond the first after-school window
 - platform-specific matching details for IXL and Khan Academy beyond the shared duration threshold
-- the bridge deployment model for home computer versus Synology NAS
+- the concrete sender implementation details for the chosen bridge host

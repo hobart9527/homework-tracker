@@ -280,6 +280,11 @@ export default function ParentDashboardPage() {
                 {t('parent.dashboard.children')}
               </Button>
             </Link>
+            <Link href="/settings">
+              <Button size="sm" variant="ghost">
+                设置
+              </Button>
+            </Link>
             <Button size="sm" variant="ghost" onClick={handleLogout}>
               {t('common.logout')}
             </Button>

@@ -30,16 +30,23 @@ export function CheckInModal({
   const submittingRef = useRef(false);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [submissionState, setSubmissionState] = useState<"idle" | "submitting" | "error">("idle");
-  const [attachments, setAttachments] = useState<{ type: string; file: File }[]>(
-    []
-  );
+  const [submissionState, setSubmissionState] = useState<
+    "idle" | "submitting" | "error" | "success"
+  >("idle");
+  const [attachments, setAttachments] = useState<
+    { type: string; file: File; previewUrl: string }[]
+  >([]);
   const [note, setNote] = useState("");
   const [recording, setRecording] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
+      attachments.forEach((attachment) => {
+        if (attachment.previewUrl) {
+          URL.revokeObjectURL(attachment.previewUrl);
+        }
+      });
       setLoading(false);
       setFeedback("");
       setSubmissionState("idle");
@@ -54,8 +61,13 @@ export function CheckInModal({
     return () => {
       mediaRecorderRef.current?.stop();
       recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      attachments.forEach((attachment) => {
+        if (attachment.previewUrl) {
+          URL.revokeObjectURL(attachment.previewUrl);
+        }
+      });
     };
-  }, []);
+  }, [attachments]);
 
   const buildAttachmentFingerprint = (file: File) =>
     [file.name, file.size, file.type, file.lastModified].join(":");
@@ -70,6 +82,7 @@ export function CheckInModal({
       .map((file) => ({
         type: file.type.startsWith("image/") ? "photo" : "audio",
         file,
+        previewUrl: typeof URL !== "undefined" ? URL.createObjectURL(file) : "",
       }))
       .filter((attachment) =>
         expectedType ? attachment.type === expectedType : true
@@ -103,8 +116,12 @@ export function CheckInModal({
         setFeedback("这个文件已经添加过了");
         setSubmissionState("error");
       } else {
-        setFeedback("");
-        setSubmissionState("idle");
+        setFeedback(
+          expectedType === "audio"
+            ? "录音已保存，可以试听后再提交"
+            : "照片已添加，可以确认后再提交"
+        );
+        setSubmissionState("success");
       }
 
       return [...prev, ...uniqueAttachments];
@@ -221,7 +238,7 @@ export function CheckInModal({
 
       const checkIn = result.checkIn;
 
-      if (!result.deduplicated) {
+      if (attachments.length > 0) {
         let attachmentUploadFailed = false;
 
         for (const attachment of attachments) {
@@ -372,13 +389,59 @@ export function CheckInModal({
 
         {/* Attachment preview */}
         {attachments.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
+          <div className="space-y-3">
             {attachments.map((att, index) => (
               <div
-                key={index}
-                className="w-16 h-16 bg-forest-100 rounded-lg flex items-center justify-center text-2xl"
+                key={`${att.file.name}-${index}`}
+                className="rounded-2xl border border-forest-100 bg-forest-50/70 p-3"
               >
-                {att.type === "photo" ? "🖼️" : "🎵"}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-forest-700">
+                      {att.file.name}
+                    </p>
+                    <p className="mt-1 text-xs text-forest-500">
+                      {att.type === "photo" ? "已添加照片" : "已添加录音"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setAttachments((prev) => {
+                        const next = [...prev];
+                        const [removed] = next.splice(index, 1);
+                        if (removed?.previewUrl) {
+                          URL.revokeObjectURL(removed.previewUrl);
+                        }
+                        return next;
+                      });
+                      setFeedback(
+                        homework.required_checkpoint_type === "audio"
+                          ? "请先添加录音，再提交本次作业"
+                          : "请先添加照片，再提交本次作业"
+                      );
+                      setSubmissionState("idle");
+                    }}
+                    className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                  >
+                    删除重录
+                  </Button>
+                </div>
+
+                {att.type === "photo" ? (
+                  <img
+                    src={att.previewUrl}
+                    alt={att.file.name}
+                    className="mt-3 h-32 w-full rounded-xl object-cover"
+                  />
+                ) : (
+                  <audio
+                    src={att.previewUrl}
+                    controls
+                    className="mt-3 w-full"
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -406,7 +469,9 @@ export function CheckInModal({
                 ? "bg-sky-50 text-sky-700"
                 : submissionState === "error"
                 ? "bg-rose-50 text-rose-700"
-                : "bg-rose-50 text-rose-700"
+                : submissionState === "success"
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-forest-50 text-forest-700"
             }`}
           >
             {feedback}

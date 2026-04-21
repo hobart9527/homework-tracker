@@ -66,7 +66,6 @@ describe("Checkpoint type validation", () => {
     expect(checkRequiresCheckpoint("screenshot")).toBe(false);
     expect(checkRequiresCheckpoint("invalid")).toBe(false);
   });
-});
 
 // Check-in overdue detection
 describe("Overdue detection", () => {
@@ -326,6 +325,81 @@ describe("Child check-in UI strings", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a saved-audio preview state before submission", async () => {
+    const { container } = render(
+      createElement(CheckInModal, {
+        homework: {
+          id: "hw-audio-preview-1",
+          child_id: "child-1",
+          title: "朗读试听",
+          type_icon: "🎧",
+          point_value: 4,
+          required_checkpoint_type: "audio",
+        } as any,
+        isOpen: true,
+        onClose: vi.fn(),
+        onSuccess: vi.fn(),
+      })
+    );
+
+    const audioFile = new File(["voice"], "preview-reading.webm", {
+      type: "audio/webm",
+      lastModified: 1357,
+    });
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput as HTMLInputElement, {
+      target: { files: [audioFile] },
+    });
+
+    expect(
+      screen.getByText("录音已保存，可以试听后再提交")
+    ).toBeInTheDocument();
+    expect(screen.getByText("preview-reading.webm")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "删除重录" })).toBeInTheDocument();
+    expect(container.querySelector("audio")).not.toBeNull();
+  });
+
+  it("lets the child remove a recorded attachment and record again", async () => {
+    const { container } = render(
+      createElement(CheckInModal, {
+        homework: {
+          id: "hw-audio-remove-1",
+          child_id: "child-1",
+          title: "朗读重录",
+          type_icon: "🎧",
+          point_value: 4,
+          required_checkpoint_type: "audio",
+        } as any,
+        isOpen: true,
+        onClose: vi.fn(),
+        onSuccess: vi.fn(),
+      })
+    );
+
+    const audioFile = new File(["voice"], "retry-reading.webm", {
+      type: "audio/webm",
+      lastModified: 2468,
+    });
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput as HTMLInputElement, {
+      target: { files: [audioFile] },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "删除重录" }));
+
+    expect(screen.queryByText("retry-reading.webm")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText("请先添加录音，再提交本次作业").length
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "确认完成 ✨" })).toBeDisabled();
+  });
+
   it("keeps homework submission successful when voice push task creation fails", async () => {
     getSessionMock.mockResolvedValue({
       data: {
@@ -412,4 +486,95 @@ describe("Child check-in UI strings", () => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("still uploads the attachment when the same-day check-in already exists", async () => {
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          user: { id: "child-1" },
+        },
+      },
+    });
+    uploadMock.mockResolvedValue({ error: null });
+    attachmentsInsertMock.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { id: "attachment-existing" },
+          error: null,
+        }),
+      }),
+    });
+    voicePushTasksInsertMock.mockResolvedValue({ error: null });
+    tableSelectMock.mockImplementation((table: string) => {
+      if (table === "attachments") {
+        return {
+          insert: attachmentsInsertMock,
+        };
+      }
+
+      if (table === "voice_push_tasks") {
+        return {
+          insert: voicePushTasksInsertMock,
+        };
+      }
+
+      return {
+        insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      };
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          deduplicated: true,
+          checkIn: { id: "check-existing-1" },
+          message: "今天已经提交过这项作业了",
+        }),
+      } as any)
+    );
+
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    const { container } = render(
+      createElement(CheckInModal, {
+        homework: {
+          id: "hw-audio-existing-1",
+          child_id: "child-1",
+          title: "朗读补传",
+          type_icon: "🎧",
+          point_value: 4,
+          required_checkpoint_type: "audio",
+        } as any,
+        isOpen: true,
+        onClose,
+        onSuccess,
+      })
+    );
+
+    const audioFile = new File(["voice"], "retry-reading.webm", {
+      type: "audio/webm",
+      lastModified: 5678,
+    });
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).not.toBeNull();
+
+    fireEvent.change(fileInput as HTMLInputElement, {
+      target: { files: [audioFile] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "确认完成 ✨" }));
+
+    await waitFor(() => {
+      expect(uploadMock).toHaveBeenCalledTimes(1);
+      expect(attachmentsInsertMock).toHaveBeenCalledTimes(1);
+      expect(voicePushTasksInsertMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
 });

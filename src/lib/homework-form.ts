@@ -16,6 +16,8 @@ export type HomeworkFormState = {
   estimated_minutes: number;
   daily_cutoff_time: string;
   required_checkpoint_type: HomeworkProofType | "";
+  platform_binding_platform: string;
+  platform_binding_source_ref: string;
 };
 
 export type HomeworkAssignmentSummary = {
@@ -50,6 +52,8 @@ type SourceHomework = {
   estimated_minutes: number;
   daily_cutoff_time: string | null;
   required_checkpoint_type: HomeworkProofType;
+  platform_binding_platform: string | null;
+  platform_binding_source_ref: string | null;
 };
 
 type ChildRef = {
@@ -93,6 +97,8 @@ export function buildHomeworkDraftFromSource(
     estimated_minutes: source.estimated_minutes,
     daily_cutoff_time: source.daily_cutoff_time || "23:30",
     required_checkpoint_type: source.required_checkpoint_type || "",
+    platform_binding_platform: source.platform_binding_platform || "",
+    platform_binding_source_ref: source.platform_binding_source_ref || "",
   };
 }
 
@@ -116,6 +122,8 @@ export function buildHomeworkInsertRows(
     point_deduction: form.point_deduction,
     estimated_minutes: form.estimated_minutes,
     daily_cutoff_time: form.daily_cutoff_time || null,
+    platform_binding_platform: form.platform_binding_platform || null,
+    platform_binding_source_ref: form.platform_binding_source_ref || null,
     created_by: createdBy,
   }));
 }

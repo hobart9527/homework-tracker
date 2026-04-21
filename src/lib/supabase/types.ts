@@ -18,6 +18,7 @@ export interface Database {
           auto_remind_child: boolean | null;
           quiet_hours_start: string | null;
           quiet_hours_end: string | null;
+          telegram_bot_token: string | null;
           telegram_chat_id: string | null;
           telegram_recipient_label: string | null;
           created_at: string | null;
@@ -30,6 +31,7 @@ export interface Database {
           auto_remind_child?: boolean | null;
           quiet_hours_start?: string | null;
           quiet_hours_end?: string | null;
+          telegram_bot_token?: string | null;
           telegram_chat_id?: string | null;
           telegram_recipient_label?: string | null;
           created_at?: string | null;
@@ -42,6 +44,7 @@ export interface Database {
           auto_remind_child?: boolean | null;
           quiet_hours_start?: string | null;
           quiet_hours_end?: string | null;
+          telegram_bot_token?: string | null;
           telegram_chat_id?: string | null;
           telegram_recipient_label?: string | null;
           created_at?: string | null;
@@ -362,6 +365,8 @@ export interface Database {
           managed_session_captured_at: string | null;
           managed_session_expires_at: string | null;
           last_sync_error_summary: string | null;
+          login_credentials_encrypted: string | null;
+          auto_login_enabled: boolean;
           created_at: string | null;
         };
         Insert: {
@@ -376,6 +381,8 @@ export interface Database {
           managed_session_captured_at?: string | null;
           managed_session_expires_at?: string | null;
           last_sync_error_summary?: string | null;
+          login_credentials_encrypted?: string | null;
+          auto_login_enabled?: boolean;
           created_at?: string | null;
         };
         Update: {
@@ -390,6 +397,8 @@ export interface Database {
           managed_session_captured_at?: string | null;
           managed_session_expires_at?: string | null;
           last_sync_error_summary?: string | null;
+          login_credentials_encrypted?: string | null;
+          auto_login_enabled?: boolean;
           created_at?: string | null;
         };
       };
@@ -552,6 +561,35 @@ export interface Database {
           sent_at?: string | null;
           failure_reason?: string | null;
           created_at?: string | null;
+        };
+      };
+      message_routing_rules: {
+        Row: {
+          id: string;
+          child_id: string;
+          homework_id: string | null;
+          channel: "wechat_group" | "telegram_chat";
+          recipient_ref: string;
+          recipient_label: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          child_id: string;
+          homework_id?: string | null;
+          channel: "wechat_group" | "telegram_chat";
+          recipient_ref: string;
+          recipient_label?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          child_id?: string;
+          homework_id?: string | null;
+          channel?: "wechat_group" | "telegram_chat";
+          recipient_ref?: string;
+          recipient_label?: string | null;
+          created_at?: string;
         };
       };
       voice_push_tasks: {

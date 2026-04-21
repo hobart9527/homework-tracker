@@ -21,7 +21,10 @@ vi.mock("@/lib/platform-adapters/khan-connector", () => ({
 
 import { GET } from "@/app/api/platform-sync/run/route";
 
-function makeSyncRouteClient(options?: { includeRetryJobs?: boolean }) {
+function makeSyncRouteClient(options?: {
+  includeRetryJobs?: boolean;
+  activeManagedSessionExpiresAt?: string | null;
+}) {
   const platformAccountsUpdateMock = vi.fn(() => ({
     eq: vi.fn().mockResolvedValue({ error: null }),
   }));
@@ -41,42 +44,46 @@ function makeSyncRouteClient(options?: { includeRetryJobs?: boolean }) {
     },
     from: vi.fn((table: string) => {
       if (table === "platform_accounts") {
+        const accounts = [
+          {
+            id: "acct-active",
+            child_id: "child-1",
+            platform: "ixl",
+            external_account_ref: "family",
+            status: "active",
+            managed_session_expires_at:
+              options?.activeManagedSessionExpiresAt ?? null,
+            managed_session_payload: {
+              cookies: [
+                {
+                  name: "PHPSESSID",
+                  value: "session-token",
+                },
+              ],
+            },
+          },
+          {
+            id: "acct-attention",
+            child_id: "child-2",
+            platform: "khan-academy",
+            external_account_ref: "school",
+            status: "active",
+            managed_session_payload: {
+              cookies: [
+                {
+                  name: "KAAS",
+                  value: "khan-session-token",
+                },
+              ],
+            },
+          },
+        ];
+
         return {
           select: vi.fn(() => ({
-            in: vi.fn(() => ({
+            in: vi.fn((_column: string, values: string[]) => ({
               order: vi.fn().mockResolvedValue({
-                data: [
-                  {
-                    id: "acct-active",
-                    child_id: "child-1",
-                    platform: "ixl",
-                    external_account_ref: "family",
-                    status: "active",
-                    managed_session_payload: {
-                      cookies: [
-                        {
-                          name: "PHPSESSID",
-                          value: "session-token",
-                        },
-                      ],
-                    },
-                  },
-                  {
-                    id: "acct-attention",
-                    child_id: "child-2",
-                    platform: "khan-academy",
-                    external_account_ref: "school",
-                    status: "active",
-                    managed_session_payload: {
-                      cookies: [
-                        {
-                          name: "KAAS",
-                          value: "khan-session-token",
-                        },
-                      ],
-                    },
-                  },
-                ],
+                data: accounts.filter((account) => values.includes(account.platform)),
                 error: null,
               }),
             })),
@@ -376,6 +383,38 @@ describe("platform sync run route", () => {
     expect(client._mocks.platformAccountsUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "attention_required",
+      })
+    );
+  });
+
+  it("marks an IXL account attention_required before fetch when the managed session is already expired", async () => {
+    const client = makeSyncRouteClient({
+      activeManagedSessionExpiresAt: "2026-04-19T10:30:00.000Z",
+    });
+    createClientMock.mockResolvedValue(client);
+
+    const response = await GET(
+      new Request(
+        "http://localhost/api/platform-sync/run?platforms=ixl&scheduleWindow=after-school&now=2026-04-20T10:30:00.000Z"
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          platformAccountId: "acct-active",
+          status: "attention_required",
+          error: "Managed IXL session expired",
+        }),
+      ])
+    );
+    expect(runIxlManagedSessionSyncMock).not.toHaveBeenCalled();
+    expect(client._mocks.platformSyncJobsUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "attention_required",
+        error_summary: "Managed IXL session expired",
       })
     );
   });

@@ -1,3 +1,5 @@
+import type { MessageDeliveryTarget } from "@/lib/message-routing";
+
 type SupabaseInsertResult<T> = {
   data: T | null;
   error: { message: string } | null;
@@ -84,11 +86,21 @@ export function shouldRetryVoicePushTask(input: {
   return input.deliveryAttempts < maxAttempts;
 }
 
-export function buildVoicePushDeliveryRequest(task: VoicePushTaskRecord) {
+export function buildVoicePushDeliveryRequest(
+  task: VoicePushTaskRecord,
+  target: MessageDeliveryTarget,
+  fileUrl?: string | null
+) {
   return {
     taskId: task.id,
+    childId: task.child_id,
+    homeworkId: task.homework_id,
     attachmentId: task.attachment_id,
     filePath: task.file_path,
+    fileUrl: fileUrl ?? null,
+    channel: target.channel,
+    recipientRef: target.recipientRef,
+    recipientLabel: target.recipientLabel,
     attemptNumber: task.delivery_attempts + 1,
     deliveryKey: buildVoicePushDeliveryKey({
       taskId: task.id,

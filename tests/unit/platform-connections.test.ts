@@ -27,7 +27,7 @@ function makeSupabaseClient(options?: {
               external_account_ref:
                 insertedAccount.external_account_ref ?? "school-account",
               auth_mode:
-                insertedAccount.auth_mode ?? "account_password_managed_session",
+                insertedAccount.auth_mode ?? "manual_session",
               status: insertedAccount.status ?? "attention_required",
               managed_session_payload:
                 insertedAccount.managed_session_payload ?? null,
@@ -139,7 +139,7 @@ describe("platform connections route", () => {
       child_id: "child-1",
       platform: "khan-academy",
       external_account_ref: "school-account",
-      auth_mode: "account_password_managed_session",
+      auth_mode: "manual_session",
       status: "attention_required",
     });
   });
@@ -263,6 +263,28 @@ describe("platform connections route", () => {
           },
         ],
       },
+    });
+  });
+
+  it("rejects platforms that are staged for a later rollout", async () => {
+    createClientMock.mockResolvedValue(makeSupabaseClient());
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-connections", {
+        method: "POST",
+        body: JSON.stringify({
+          childId: "child-1",
+          platform: "raz-kids",
+          username: "demo@raz.test",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error:
+        "Unsupported platform. The current pilot only supports IXL and Khan Academy.",
     });
   });
 

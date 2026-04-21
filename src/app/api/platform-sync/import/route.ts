@@ -142,10 +142,10 @@ export async function POST(request: Request) {
     }
 
     const result = await importNormalizedEvent({
-      supabase,
-      account,
+      supabase: supabase as any,
+      account: account as any,
       householdTimeZone,
-      normalizedEvent,
+      normalizedEvent: normalizedEvent as any,
     });
 
     await completePlatformSyncJob({

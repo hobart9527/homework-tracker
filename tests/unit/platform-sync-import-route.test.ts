@@ -26,6 +26,11 @@ function makeSupabaseClient(options?: {
   duplicateJob?: boolean;
   platform?: "ixl" | "khan-academy" | "raz-kids";
   managedSessionPayload?: Record<string, unknown> | null;
+  managedSessionExpiresAt?: string | null;
+  learningEventInsertResults?: Array<{
+    data: Record<string, unknown> | null;
+    error: { message: string } | null;
+  }>;
   existingCheckIn?: boolean;
   homeworks?: Array<Record<string, unknown>>;
 }) {
@@ -38,25 +43,29 @@ function makeSupabaseClient(options?: {
   const platformSyncJobsUpdateMock = vi.fn(() => ({
     eq: vi.fn().mockResolvedValue({ error: null }),
   }));
+  const queuedLearningEventInsertResults = [
+    ...(options?.learningEventInsertResults ?? []),
+  ];
   const learningEventsInsertMock = vi.fn(() => ({
     select: vi.fn(() => ({
       single: vi.fn().mockResolvedValue(
-        options?.duplicateEvent
-          ? {
-              data: null,
-              error: {
-                message:
-                  "duplicate key value violates unique constraint learning_events_account_source_key",
-              },
-            }
-          : {
-              data: {
-                id: "event-1",
-                child_id: "child-1",
-                local_date_key: "2026-04-20",
-              },
-              error: null,
-            }
+        queuedLearningEventInsertResults.shift() ??
+          (options?.duplicateEvent
+            ? {
+                data: null,
+                error: {
+                  message:
+                    "duplicate key value violates unique constraint learning_events_account_source_key",
+                },
+              }
+            : {
+                data: {
+                  id: "event-1",
+                  child_id: "child-1",
+                  local_date_key: "2026-04-20",
+                },
+                error: null,
+              })
       ),
     })),
   }));
@@ -80,6 +89,8 @@ function makeSupabaseClient(options?: {
                   child_id: "child-1",
                   platform: options?.platform ?? "ixl",
                   external_account_ref: "family-account",
+                  managed_session_expires_at:
+                    options?.managedSessionExpiresAt ?? null,
                   managed_session_payload:
                     options?.managedSessionPayload ?? null,
                 },
@@ -675,6 +686,172 @@ describe("platform sync import route", () => {
     expect(body.homeworkResults).toHaveLength(2);
   });
 
+  it("surfaces unmatched review status when a managed-session batch contains both matched and unmatched events", async () => {
+    createClientMock.mockResolvedValue(
+      makeSupabaseClient({
+        managedSessionPayload: {
+          cookies: [{ name: "PHPSESSID", value: "session-token" }],
+        },
+        learningEventInsertResults: [
+          {
+            data: {
+              id: "event-1",
+              child_id: "child-1",
+              local_date_key: "2026-04-20",
+            },
+            error: null,
+          },
+          {
+            data: {
+              id: "event-2",
+              child_id: "child-1",
+              local_date_key: "2026-04-20",
+            },
+            error: null,
+          },
+        ],
+      })
+    );
+    runIxlManagedSessionSyncMock.mockResolvedValue({
+      summary: {
+        fetchedCount: 2,
+      },
+      events: [
+        {
+          occurredAt: "2026-04-20T10:00:00.000Z",
+          eventType: "skill_practice",
+          title: "IXL A.1 Add within 10",
+          subject: "math",
+          durationMinutes: 25,
+          score: 0.92,
+          completionState: "completed",
+          sourceRef: "session-123",
+          rawPayload: { skillId: "A.1" },
+        },
+        {
+          occurredAt: "2026-04-20T12:00:00.000Z",
+          eventType: "skill_practice",
+          title: "IXL Reading Practice",
+          subject: "reading",
+          durationMinutes: 10,
+          score: 0.75,
+          completionState: "completed",
+          sourceRef: "session-124",
+          rawPayload: { skillId: "R.1" },
+        },
+      ],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      jobStatus: "claimed",
+      ingestStatus: "inserted",
+      importedEventCount: 2,
+      learningEventIds: ["event-1", "event-2"],
+      reviewStatus: "unmatched",
+      fetchSummary: {
+        fetchedCount: 2,
+      },
+    });
+    expect(body.homeworkResults).toEqual([
+      expect.objectContaining({
+        homeworkId: "hw-1",
+        decision: "auto_completed",
+      }),
+    ]);
+  });
+
+  it("keeps batch ingestion inserted when a managed-session batch contains a duplicate alongside a new event", async () => {
+    createClientMock.mockResolvedValue(
+      makeSupabaseClient({
+        managedSessionPayload: {
+          cookies: [{ name: "PHPSESSID", value: "session-token" }],
+        },
+        learningEventInsertResults: [
+          {
+            data: {
+              id: "event-1",
+              child_id: "child-1",
+              local_date_key: "2026-04-20",
+            },
+            error: null,
+          },
+          {
+            data: null,
+            error: {
+              message:
+                "duplicate key value violates unique constraint learning_events_account_source_key",
+            },
+          },
+        ],
+      })
+    );
+    runIxlManagedSessionSyncMock.mockResolvedValue({
+      summary: {
+        fetchedCount: 2,
+      },
+      events: [
+        {
+          occurredAt: "2026-04-20T10:00:00.000Z",
+          eventType: "skill_practice",
+          title: "IXL A.1 Add within 10",
+          subject: "math",
+          durationMinutes: 25,
+          score: 0.92,
+          completionState: "completed",
+          sourceRef: "session-123",
+          rawPayload: { skillId: "A.1" },
+        },
+        {
+          occurredAt: "2026-04-20T10:00:00.000Z",
+          eventType: "skill_practice",
+          title: "IXL A.1 Add within 10",
+          subject: "math",
+          durationMinutes: 25,
+          score: 0.92,
+          completionState: "completed",
+          sourceRef: "session-123",
+          rawPayload: { skillId: "A.1" },
+        },
+      ],
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      jobStatus: "claimed",
+      ingestStatus: "inserted",
+      importedEventCount: 2,
+      learningEventId: "event-1",
+      learningEventIds: ["event-1"],
+      fetchSummary: {
+        fetchedCount: 2,
+      },
+    });
+    expect(body.homeworkResults).toHaveLength(1);
+  });
+
   it("marks the account attention_required when the IXL managed session is expired", async () => {
     const client = makeSupabaseClient({
       managedSessionPayload: {
@@ -713,6 +890,47 @@ describe("platform sync import route", () => {
     expect(client._mocks.platformAccountsUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "attention_required",
+      })
+    );
+  });
+
+  it("marks the account attention_required before fetch when the managed session is already expired", async () => {
+    const client = makeSupabaseClient({
+      managedSessionPayload: {
+        cookies: [{ name: "PHPSESSID", value: "expired-token" }],
+      },
+      managedSessionExpiresAt: "2026-04-19T10:30:00.000Z",
+    });
+    createClientMock.mockResolvedValue(client);
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      jobStatus: "attention_required",
+      status: "attention_required",
+      error: "Managed IXL session expired",
+    });
+    expect(runIxlManagedSessionSyncMock).not.toHaveBeenCalled();
+    expect(client._mocks.platformSyncJobsUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "attention_required",
+        error_summary: "Managed IXL session expired",
+      })
+    );
+    expect(client._mocks.platformAccountsUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "attention_required",
+        last_sync_error_summary: "Managed IXL session expired",
       })
     );
   });

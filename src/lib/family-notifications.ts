@@ -51,6 +51,18 @@ export function buildUnresolvedHomeworkNotification(input: {
   };
 }
 
+export function buildParentReminderTelegramText(input: {
+  childName: string;
+  homeworkTitle: string;
+  targetDate: string;
+}) {
+  return [
+    "作业提醒",
+    `${input.childName} 还有未完成作业《${input.homeworkTitle}》`,
+    `日期：${input.targetDate}`,
+  ].join("\n");
+}
+
 export function buildSyncFailureNotification(input: {
   childName: string;
   platformLabel: string;

@@ -323,6 +323,10 @@ describe("family platform sync acceptance", () => {
       last_attempted_at: "2026-04-20T10:00:00.000Z",
       sent_at: null,
       created_at: "2026-04-20T09:50:00.000Z",
+    }, {
+      channel: "wechat_group",
+      recipientRef: "wechat-default",
+      recipientLabel: null,
     });
 
     expect(request.deliveryKey).toBe(

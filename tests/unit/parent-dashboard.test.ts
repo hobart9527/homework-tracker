@@ -1491,6 +1491,63 @@ describe("ParentDashboardPage wiring", () => {
 
     expect(mockSupabase.auth.signOut).toHaveBeenCalled();
   });
+
+  it("keeps settings as a first-level header entry", async () => {
+    const mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { id: "parent-1" } } },
+        }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "children") {
+          return {
+            select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "child-1",
+                      parent_id: "parent-1",
+                      name: "Ivy",
+                      avatar: "🦊",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        if (table === "homeworks") {
+          return {
+            select: () => ({
+              eq: () => Promise.resolve({ data: [] }),
+            }),
+          };
+        }
+
+        if (table === "check_ins") {
+          return {
+            select: () => ({
+              in: () => Promise.resolve({ data: [] }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockReturnValue(mockSupabase as any);
+
+    render(createElement(ParentDashboardPage));
+    await screen.findByRole("link", { name: "设置" });
+
+    expect(screen.getByRole("link", { name: "设置" })).toHaveAttribute(
+      "href",
+      "/settings"
+    );
+  });
 });
 
 describe("Parent attachment previews and monthly cluster", () => {
