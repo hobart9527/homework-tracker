@@ -33,7 +33,7 @@ describe("normalizePlatformLearningEvent", () => {
       })
     ).toMatchObject({
       eventType: "skill_practice",
-      title: "IXL A.1 Add within 10",
+      title: "Add within 10",
       sourceRef: "session-123",
       score: 0.92,
       durationMinutes: 25,

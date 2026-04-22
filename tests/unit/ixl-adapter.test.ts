@@ -16,7 +16,7 @@ describe("normalizeIxlLearningEvent", () => {
     ).toEqual({
       occurredAt: "2026-04-20T10:00:00.000Z",
       eventType: "skill_practice",
-      title: "IXL A.1 Add within 10",
+      title: "Add within 10",
       subject: "math",
       durationMinutes: 25,
       score: 0.92,
@@ -29,6 +29,7 @@ describe("normalizeIxlLearningEvent", () => {
         scorePercent: 92,
         durationSeconds: 1500,
         sessionId: "session-123",
+        mergeKey: "ixl:math:A.1:2026-04-20",
       },
     });
   });
@@ -41,7 +42,7 @@ describe("normalizeIxlLearningEvent", () => {
       durationSeconds: 600,
     });
 
-    expect(normalized.sourceRef).toBe("ixl:B.2:2026-04-20T10:00:00.000Z");
+    expect(normalized.sourceRef).toBe("ixl:unknown:B.2:2026-04-20");
     expect(normalized.durationMinutes).toBe(10);
     expect(normalized.score).toBeNull();
   });

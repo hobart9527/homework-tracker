@@ -124,6 +124,14 @@ export async function applyAutoCheckinMatches(input: {
       .select()
       .single();
 
+    if (
+      error?.message.includes(
+        "homework_auto_matches_homework_event_key"
+      )
+    ) {
+      continue;
+    }
+
     if (error) {
       throw new Error(error.message);
     }

@@ -1,5 +1,6 @@
 import { deliverVoicePushRequest } from "@/lib/voice-push-bridge";
 import { runVoicePushDeliveryBatch } from "@/lib/voice-push-worker";
+import { resolveWeChatTarget } from "@/lib/wechat-target-resolver";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
@@ -35,6 +36,12 @@ export async function GET(request: Request) {
       deliver: (request) =>
         deliverVoicePushRequest({
           request,
+        }),
+      resolveTarget: (task) =>
+        resolveWeChatTarget({
+          supabase: supabase as any,
+          childId: task.child_id,
+          homeworkId: task.homework_id,
         }),
       generateFileUrl: async (task) => {
         const { data, error } = await supabase.storage

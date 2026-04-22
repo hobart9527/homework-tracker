@@ -11,6 +11,14 @@
     "test": "vitest",
     "voice-push:bridge-example": "node scripts/voice-push-bridge-example.mjs",
     "voice-push:bridge-ilink": "node scripts/voice-push-bridge-ilink.mjs",
+    "dev:with-bridge": "concurrently \"next dev\" \"npm run voice-push:bridge-ilink\" -n app,bridge --kill-others",
+    "start:with-bridge": "concurrently \"next start\" \"npm run voice-push:bridge-ilink\" -n app,bridge --kill-others",
+    "session:collect": "node scripts/collect-platform-session.mjs",
+    "test:ixl-sync": "node scripts/test-ixl-sync.mjs",
+    "sync:khan": "node scripts/sync-khan.mjs",
+    "sync:ixl": "node scripts/sync-ixl.mjs",
+    "verify:khan-data": "node scripts/verify-khan-data.mjs",
+    "verify:ixl-data": "node scripts/verify-ixl-data.mjs",
     "supabase:init": "supabase init",
     "supabase:migrate": "supabase db push",
     "supabase:generate-types": "supabase gen types typescript --project-id $PROJECT_ID > src/lib/supabase/types.ts"
@@ -20,6 +28,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@pawastation/ilink-bot-sdk": "^0.2.0",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.102.1",
     "@types/node": "^25.5.2",
@@ -39,6 +48,8 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "dotenv": "^17.4.2",
     "jsdom": "^29.0.2",
     "vitest": "^4.1.3"
   }

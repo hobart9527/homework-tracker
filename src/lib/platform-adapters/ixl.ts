@@ -10,7 +10,7 @@ export function normalizeIxlLearningEvent(input: {
   return {
     occurredAt: input.occurredAt,
     eventType: "skill_practice",
-    title: `IXL ${input.skillId} ${input.skillName}`.trim(),
+    title: input.skillName.trim(),
     subject: input.subject ?? null,
     durationMinutes:
       input.durationSeconds && input.durationSeconds > 0
@@ -23,7 +23,7 @@ export function normalizeIxlLearningEvent(input: {
     completionState: "completed",
     sourceRef:
       input.sessionId ||
-      `ixl:${input.skillId}:${input.occurredAt}`,
+      `ixl:${input.subject ?? "unknown"}:${input.skillId}:${input.occurredAt.slice(0, 10)}`,
     rawPayload: {
       skillId: input.skillId,
       skillName: input.skillName,
@@ -31,6 +31,7 @@ export function normalizeIxlLearningEvent(input: {
       scorePercent: input.scorePercent ?? null,
       durationSeconds: input.durationSeconds ?? null,
       sessionId: input.sessionId ?? null,
+      mergeKey: `ixl:${input.subject ?? "unknown"}:${input.skillId}:${input.occurredAt.slice(0, 10)}`,
     },
   };
 }

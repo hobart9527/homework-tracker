@@ -62,6 +62,7 @@ export interface Database {
           points: number | null;
           streak_days: number | null;
           last_check_in: string | null;
+          default_wechat_group_id: string | null;
           created_at: string | null;
         };
         Insert: {
@@ -75,6 +76,7 @@ export interface Database {
           points?: number | null;
           streak_days?: number | null;
           last_check_in?: string | null;
+          default_wechat_group_id?: string | null;
           created_at?: string | null;
         };
         Update: {
@@ -88,6 +90,7 @@ export interface Database {
           points?: number | null;
           streak_days?: number | null;
           last_check_in?: string | null;
+          default_wechat_group_id?: string | null;
           created_at?: string | null;
         };
       };
@@ -137,6 +140,8 @@ export interface Database {
           daily_cutoff_time: string | null;
           is_active: boolean | null;
           required_checkpoint_type: "photo" | "audio" | null;
+          send_to_wechat: boolean;
+          wechat_group_id: string | null;
           platform_binding_platform: string | null;
           platform_binding_source_ref: string | null;
           created_by: string | null;
@@ -161,6 +166,8 @@ export interface Database {
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
           required_checkpoint_type?: "photo" | "audio" | null;
+          send_to_wechat?: boolean;
+          wechat_group_id?: string | null;
           platform_binding_platform?: string | null;
           platform_binding_source_ref?: string | null;
           created_by?: string | null;
@@ -185,6 +192,8 @@ export interface Database {
           daily_cutoff_time?: string | null;
           is_active?: boolean | null;
           required_checkpoint_type?: "photo" | "audio" | null;
+          send_to_wechat?: boolean;
+          wechat_group_id?: string | null;
           platform_binding_platform?: string | null;
           platform_binding_source_ref?: string | null;
           created_by?: string | null;
@@ -589,6 +598,38 @@ export interface Database {
           channel?: "wechat_group" | "telegram_chat";
           recipient_ref?: string;
           recipient_label?: string | null;
+          created_at?: string;
+        };
+      };
+      wechat_groups: {
+        Row: {
+          id: string;
+          parent_id: string;
+          recipient_ref: string;
+          display_name: string | null;
+          source: string;
+          is_active: boolean;
+          last_seen_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          parent_id: string;
+          recipient_ref: string;
+          display_name?: string | null;
+          source?: string;
+          is_active?: boolean;
+          last_seen_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          parent_id?: string;
+          recipient_ref?: string;
+          display_name?: string | null;
+          source?: string;
+          is_active?: boolean;
+          last_seen_at?: string | null;
           created_at?: string;
         };
       };

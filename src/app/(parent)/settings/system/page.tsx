@@ -12,6 +12,7 @@ type Child = Database["public"]["Tables"]["children"]["Row"];
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
 type PlatformSyncJob = Database["public"]["Tables"]["platform_sync_jobs"]["Row"];
+type LearningEvent = Database["public"]["Tables"]["learning_events"]["Row"];
 type VoicePushTask = Database["public"]["Tables"]["voice_push_tasks"]["Row"];
 
 export default function SettingsSystemPage() {
@@ -28,6 +29,11 @@ export default function SettingsSystemPage() {
       lastSyncedAt: string | null;
       lastSyncErrorSummary: string | null;
       nextRetryAt: string | null;
+      recentActivities: Array<{
+        id: string;
+        title: string;
+        occurredAt: string;
+      }>;
     }>
   >([]);
   const [voicePushTasks, setVoicePushTasks] = useState<
@@ -74,9 +80,9 @@ export default function SettingsSystemPage() {
       supabase
         .from("voice_push_tasks")
         .select("*")
-        .in("child_id", childIds)
-        .order("created_at", { ascending: false })
-        .limit(10),
+      .in("child_id", childIds)
+      .order("created_at", { ascending: false })
+      .limit(10),
     ]);
 
     const accountRows = (accounts ?? []) as PlatformAccount[];
@@ -91,13 +97,29 @@ export default function SettingsSystemPage() {
       setPlatformAccounts([]);
     } else {
       const accountIds = accountRows.map((account) => account.id);
-      const { data: jobs } = await supabase
-        .from("platform_sync_jobs")
-        .select("*")
-        .in("platform_account_id", accountIds)
-        .order("created_at", { ascending: false });
+      const [{ data: jobs }, { data: events }] = await Promise.all([
+        supabase
+          .from("platform_sync_jobs")
+          .select("*")
+          .in("platform_account_id", accountIds)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("learning_events")
+          .select("*")
+          .in("platform_account_id", accountIds)
+          .order("occurred_at", { ascending: false })
+          .limit(30),
+      ]);
 
       const latestRetryJobByAccountId = new Map<string, PlatformSyncJob>();
+      const recentActivitiesByAccountId = new Map<
+        string,
+        Array<{
+          id: string;
+          title: string;
+          occurredAt: string;
+        }>
+      >();
 
       for (const job of (jobs ?? []) as PlatformSyncJob[]) {
         if (
@@ -106,6 +128,20 @@ export default function SettingsSystemPage() {
           !latestRetryJobByAccountId.has(job.platform_account_id)
         ) {
           latestRetryJobByAccountId.set(job.platform_account_id, job);
+        }
+      }
+
+      for (const event of (events ?? []) as LearningEvent[]) {
+        const recentActivities =
+          recentActivitiesByAccountId.get(event.platform_account_id) ?? [];
+
+        if (recentActivities.length < 3) {
+          recentActivities.push({
+            id: event.id,
+            title: event.title,
+            occurredAt: event.occurred_at,
+          });
+          recentActivitiesByAccountId.set(event.platform_account_id, recentActivities);
         }
       }
 
@@ -120,6 +156,7 @@ export default function SettingsSystemPage() {
           lastSyncErrorSummary: account.last_sync_error_summary,
           nextRetryAt:
             latestRetryJobByAccountId.get(account.id)?.next_retry_at ?? null,
+          recentActivities: recentActivitiesByAccountId.get(account.id) ?? [],
         }))
       );
     }

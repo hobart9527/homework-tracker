@@ -8,6 +8,28 @@ type SupabaseInsertResult<T> = {
 
 type SupabaseLike = {
   from: (table: string) => {
+    select?: (columns?: string) => {
+      eq: (column: string, value: string) => {
+        eq: (column: string, value: string) => {
+          eq: (column: string, value: string) => {
+            eq: (column: string, value: string) => {
+              eq: (column: string, value: string) => {
+                maybeSingle: () => Promise<SupabaseInsertResult<Record<string, unknown>>>;
+              };
+            };
+          };
+        };
+      };
+    };
+    update?: (
+      payload: Record<string, unknown>
+    ) => {
+      eq: (column: string, value: string) => {
+        select: () => {
+          single: () => Promise<SupabaseInsertResult<Record<string, unknown>>>;
+        };
+      };
+    };
     insert: (
       payload: Record<string, unknown>
     ) => {
@@ -33,6 +55,49 @@ export type LearningEventInput = {
   rawPayload: Json;
 };
 
+function getSessionIdFromRawPayload(rawPayload: Json) {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return null;
+  }
+
+  return typeof rawPayload.sessionId === "string" ? rawPayload.sessionId : null;
+}
+
+function getSessionIdsFromRawPayload(rawPayload: unknown) {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return [];
+  }
+
+  const payload = rawPayload as Record<string, unknown>;
+  if (Array.isArray(payload.sessionIds)) {
+    return payload.sessionIds.filter(
+      (value): value is string => typeof value === "string" && value.length > 0
+    );
+  }
+
+  if (typeof payload.sessionId === "string" && payload.sessionId.length > 0) {
+    return [payload.sessionId];
+  }
+
+  return [];
+}
+
+function withInitialSessionIds(rawPayload: Json) {
+  if (!rawPayload || typeof rawPayload !== "object" || Array.isArray(rawPayload)) {
+    return rawPayload;
+  }
+
+  const sessionId = getSessionIdFromRawPayload(rawPayload);
+  if (!sessionId) {
+    return rawPayload;
+  }
+
+  return {
+    ...rawPayload,
+    sessionIds: [sessionId],
+  };
+}
+
 export async function ingestLearningEvent(input: {
   supabase: SupabaseLike;
   householdTimeZone: string;
@@ -42,6 +107,73 @@ export async function ingestLearningEvent(input: {
     input.event.occurredAt,
     input.householdTimeZone
   );
+  const sessionId = getSessionIdFromRawPayload(input.event.rawPayload);
+
+  if (input.event.platform === "ixl" && input.event.subject) {
+    const existingLookup = await input.supabase
+      .from("learning_events")
+      .select?.("id, duration_minutes, raw_payload")
+      .eq("platform_account_id", input.event.platformAccountId)
+      .eq("local_date_key", localDateKey)
+      .eq("event_type", input.event.eventType)
+      .eq("title", input.event.title)
+      .eq("subject", input.event.subject)
+      .maybeSingle();
+
+    if (existingLookup?.error) {
+      throw new Error(existingLookup.error.message);
+    }
+
+    if (existingLookup?.data) {
+      const knownSessionIds = getSessionIdsFromRawPayload(
+        existingLookup.data.raw_payload
+      );
+
+      if (sessionId && knownSessionIds.includes(sessionId)) {
+        return {
+          status: "duplicate" as const,
+          localDateKey,
+          event: existingLookup.data,
+        };
+      }
+
+      const mergedSessionIds = sessionId
+        ? Array.from(new Set([...knownSessionIds, sessionId]))
+        : knownSessionIds;
+      const mergedRawPayload =
+        input.event.rawPayload &&
+        typeof input.event.rawPayload === "object" &&
+        !Array.isArray(input.event.rawPayload)
+          ? {
+              ...input.event.rawPayload,
+              sessionIds: mergedSessionIds,
+            }
+          : input.event.rawPayload;
+
+      const { data, error } = await input.supabase
+        .from("learning_events")
+        .update?.({
+          duration_minutes:
+            (Number(existingLookup.data.duration_minutes ?? 0) || 0) +
+            (input.event.durationMinutes ?? 0),
+          score: input.event.score,
+          raw_payload: mergedRawPayload,
+        })
+        .eq("id", String(existingLookup.data.id))
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return {
+        status: "merged" as const,
+        localDateKey,
+        event: data,
+      };
+    }
+  }
 
   const { data, error } = await input.supabase
     .from("learning_events")
@@ -57,7 +189,7 @@ export async function ingestLearningEvent(input: {
       score: input.event.score,
       completion_state: input.event.completionState,
       source_ref: input.event.sourceRef,
-      raw_payload: input.event.rawPayload,
+      raw_payload: withInitialSessionIds(input.event.rawPayload),
       local_date_key: localDateKey,
     })
     .select()

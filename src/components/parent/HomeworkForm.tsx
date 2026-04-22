@@ -86,6 +86,8 @@ export function HomeworkForm({
     required_checkpoint_type: homework?.required_checkpoint_type || "",
     platform_binding_platform: homework?.platform_binding_platform || "",
     platform_binding_source_ref: homework?.platform_binding_source_ref || "",
+    send_to_wechat: homework?.send_to_wechat || false,
+    wechat_group_id: homework?.wechat_group_id || "",
   });
 
   useEffect(() => {

@@ -9,6 +9,29 @@ const SUPPORTED_PLATFORMS = new Set([
   "khan-academy",
 ] as const);
 
+function getManualSessionGuide(platform: string) {
+  if (platform === "ixl") {
+    return {
+      manualSessionUrl: "https://www.ixl.com/signin",
+      manualSessionTemplate: {
+        cookies: [
+          { name: "PHPSESSID", value: "" },
+          { name: "ixl_user", value: "" },
+        ],
+      },
+    };
+  }
+
+  return {
+    manualSessionUrl: "https://www.khanacademy.org/login",
+    manualSessionTemplate: {
+      cookies: [
+        { name: "KAAS", value: "" },
+      ],
+    },
+  };
+}
+
 function getEncryptionKey(): string {
   const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
   if (!key) {
@@ -128,6 +151,11 @@ export async function POST(request: Request) {
               loginResult.reason === "unsupported"
                 ? "请切换到手动 Session 模式完成绑定。"
                 : undefined,
+            ...(loginResult.reason === "captcha_required" ||
+            loginResult.reason === "two_factor_required" ||
+            loginResult.reason === "unsupported"
+              ? getManualSessionGuide(platform)
+              : {}),
           },
           { status: 400 }
         );
@@ -163,6 +191,42 @@ export async function POST(request: Request) {
     }
   }
 
+  // Check if an account with the same (child_id, platform, external_account_ref) already exists
+  const { data: existingAccount } = await supabase
+    .from("platform_accounts")
+    .select("id")
+    .eq("child_id", childId)
+    .eq("platform", platform)
+    .eq("external_account_ref", externalAccountRef)
+    .single();
+
+  if (existingAccount) {
+    const { data: updatedAccount, error: updateError } = await supabase
+      .from("platform_accounts")
+      .update({
+        auth_mode: authMode,
+        status: finalStatus,
+        managed_session_payload: finalManagedSessionPayload,
+        managed_session_captured_at: finalManagedSessionCapturedAt,
+        managed_session_expires_at: managedSessionExpiresAt,
+        login_credentials_encrypted: loginCredentialsEncrypted,
+        auto_login_enabled: autoLoginEnabled,
+        last_sync_error_summary: null,
+      })
+      .eq("id", existingAccount.id)
+      .select()
+      .single();
+
+    if (updateError || !updatedAccount) {
+      return NextResponse.json(
+        { error: updateError?.message || "Failed to update platform connection" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, account: updatedAccount });
+  }
+
   const { data: account, error: insertError } = await supabase
     .from("platform_accounts")
     .insert({
@@ -182,13 +246,9 @@ export async function POST(request: Request) {
     .single();
 
   if (insertError || !account) {
-    const status = insertError?.message?.includes("platform_accounts_child_platform_account_key")
-      ? 409
-      : 500;
-
     return NextResponse.json(
       { error: insertError?.message || "Failed to create platform connection" },
-      { status }
+      { status: 500 }
     );
   }
 

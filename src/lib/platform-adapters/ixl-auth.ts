@@ -15,6 +15,14 @@ export type PlatformLoginResult =
       message: string;
     };
 
+function isIxlLoginPage(html: string) {
+  return (
+    /<title>\s*(sign in to ixl|log in to ixl|signin)\s*<\/title>/i.test(html) ||
+    /<form[^>]+action=["'][^"']*\/signin/i.test(html) ||
+    /<input[^>]+type=["']password["']/i.test(html)
+  );
+}
+
 function parseSetCookieHeader(setCookieValue: string | null | undefined): Array<{ name: string; value: string }> {
   if (!setCookieValue) return [];
 
@@ -190,7 +198,7 @@ export async function simulateIxlLogin(
 
     // Also verify by hitting the activity page
     const verifyCookieHeader = finalCookies.map((c) => `${c.name}=${c.value}`).join("; ");
-    const verifyResponse = await fetchImpl("https://www.ixl.com/membership/account/activity", {
+    const verifyResponse = await fetchImpl("https://www.ixl.com/analytics/student-usage", {
       method: "GET",
       redirect: "manual",
       signal: controller.signal,
@@ -206,7 +214,7 @@ export async function simulateIxlLogin(
 
     if (
       verifyResponse.status === 401 ||
-      /sign in to ixl|log in to ixl|signin/i.test(verifyBody)
+      isIxlLoginPage(verifyBody)
     ) {
       // If JSON said success but cookie doesn't work, something changed
       if (jsonResult && (jsonResult.authenticated === true || jsonResult.success === true)) {

@@ -14,6 +14,7 @@ type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
 type MessageRoutingRule =
   Database["public"]["Tables"]["message_routing_rules"]["Row"];
+type WeChatGroup = Database["public"]["Tables"]["wechat_groups"]["Row"];
 
 export default function SettingsIntegrationsPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -25,6 +26,7 @@ export default function SettingsIntegrationsPage() {
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [platformAccounts, setPlatformAccounts] = useState<PlatformAccount[]>([]);
   const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
+  const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [bindingForm, setBindingForm] = useState({
     childId: "",
     platform: "ixl",
@@ -39,6 +41,16 @@ export default function SettingsIntegrationsPage() {
   });
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [bindingLoading, setBindingLoading] = useState(false);
+  const [manualSessionGuide, setManualSessionGuide] = useState<{
+    platform: string;
+    url: string;
+    message: string;
+  } | null>(null);
+  const [takeoverAccountId, setTakeoverAccountId] = useState<string | null>(null);
+  const [takeoverMethod, setTakeoverMethod] = useState<"script" | "manual">("script");
+  const [takeoverPayload, setTakeoverPayload] = useState<string>("");
+  const [takeoverLoading, setTakeoverLoading] = useState(false);
+  const [copiedCommand, setCopiedCommand] = useState(false);
   const [routingForm, setRoutingForm] = useState({
     childId: "",
     homeworkId: "",
@@ -48,6 +60,10 @@ export default function SettingsIntegrationsPage() {
   });
   const [routingError, setRoutingError] = useState<string | null>(null);
   const [routingLoading, setRoutingLoading] = useState(false);
+  const [childGroupSelections, setChildGroupSelections] = useState<
+    Record<string, string>
+  >({});
+  const [savingChildGroupId, setSavingChildGroupId] = useState<string | null>(null);
 
   const refreshData = async (nextParentId: string) => {
     const { data: childrenData } = await supabase
@@ -62,12 +78,19 @@ export default function SettingsIntegrationsPage() {
       setHomeworks([]);
       setPlatformAccounts([]);
       setRoutingRules([]);
+      setWechatGroups([]);
+      setChildGroupSelections({});
       return;
     }
 
     const childIds = childRows.map((child) => child.id);
 
-    const [{ data: homeworksData }, { data: accountsData }, { data: rulesData }] =
+    const [
+      { data: homeworksData },
+      { data: accountsData },
+      { data: rulesData },
+      { data: groupsData },
+    ] =
       await Promise.all([
         supabase.from("homeworks").select("*").in("child_id", childIds),
         supabase.from("platform_accounts").select("*").in("child_id", childIds),
@@ -76,13 +99,20 @@ export default function SettingsIntegrationsPage() {
           .select("*")
           .in("child_id", childIds)
           .order("created_at", { ascending: false }),
+        supabase.from("wechat_groups").select("*").eq("parent_id", nextParentId),
       ]);
 
     setHomeworks((homeworksData ?? []) as Homework[]);
     setPlatformAccounts((accountsData ?? []) as PlatformAccount[]);
+    setWechatGroups((groupsData ?? []) as WeChatGroup[]);
     setRoutingRules(
       ((rulesData ?? []) as MessageRoutingRule[]).filter(
         (rule) => rule.channel === "wechat_group"
+      )
+    );
+    setChildGroupSelections(
+      Object.fromEntries(
+        childRows.map((child) => [child.id, child.default_wechat_group_id || ""])
       )
     );
   };
@@ -136,6 +166,7 @@ export default function SettingsIntegrationsPage() {
 
   const handleBindingSubmit = async () => {
     setBindingError(null);
+    setManualSessionGuide(null);
 
     if (!bindingForm.childId || !bindingForm.username.trim()) {
       setBindingError("请选择孩子并填写用户名或账号标识。");
@@ -193,6 +224,33 @@ export default function SettingsIntegrationsPage() {
         } else if (body.hint) {
           errorMsg += ` ${body.hint}`;
         }
+
+        if (
+          body.reason === "captcha_required" ||
+          body.reason === "two_factor_required" ||
+          body.reason === "unsupported"
+        ) {
+          setBindingForm((prev) => ({
+            ...prev,
+            authMode: "manual_session",
+            managedSessionPayloadText:
+              prev.managedSessionPayloadText ||
+              (body.manualSessionTemplate
+                ? JSON.stringify(body.manualSessionTemplate, null, 2)
+                : ""),
+          }));
+          if (body.manualSessionUrl) {
+            setManualSessionGuide({
+              platform: bindingForm.platform,
+              url: body.manualSessionUrl,
+              message:
+                body.reason === "captcha_required"
+                  ? `${bindingForm.platform.toUpperCase()} 当前要求你先手动完成验证码，再把登录成功后的 Session 粘贴回来。`
+                  : "当前平台需要你先在浏览器中手动完成登录，再把成功后的 Session 粘贴回来。",
+            });
+          }
+        }
+
         setBindingError(errorMsg);
         return;
       }
@@ -218,15 +276,31 @@ export default function SettingsIntegrationsPage() {
     }
   };
 
-  const handleRefreshSession = async (accountId: string) => {
+  const handleRefreshSession = async (accountId: string, platform: string) => {
     try {
-      const response = await fetch(`/api/platform-connections/${accountId}/refresh-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      const response = await fetch(
+        `/api/platform-connections/${accountId}/refresh-session`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        if (
+          ["captcha_required", "two_factor_required", "unsupported"].includes(
+            body.reason
+          )
+        ) {
+          setTakeoverAccountId(accountId);
+          setTakeoverPayload(
+            platform === "ixl"
+              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+              : '{"cookies":[{"name":"KAAS","value":""}]}'
+          );
+          return;
+        }
         alert(body.error || "刷新 Session 失败");
         return;
       }
@@ -237,6 +311,44 @@ export default function SettingsIntegrationsPage() {
       alert("Session 刷新成功");
     } catch {
       alert("刷新 Session 时发生网络错误");
+    }
+  };
+
+  const handleTakeoverSave = async (accountId: string) => {
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(takeoverPayload);
+    } catch {
+      alert("JSON 格式不正确");
+      return;
+    }
+
+    setTakeoverLoading(true);
+    try {
+      const response = await fetch(
+        `/api/platform-connections/${accountId}/manual-session`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ managedSessionPayload: payload }),
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        alert(body.error || "保存失败");
+        return;
+      }
+
+      setTakeoverAccountId(null);
+      setTakeoverPayload("");
+      if (parentId) {
+        await refreshData(parentId);
+      }
+    } catch {
+      alert("保存时发生网络错误");
+    } finally {
+      setTakeoverLoading(false);
     }
   };
 
@@ -374,6 +486,24 @@ export default function SettingsIntegrationsPage() {
               </>
             ) : (
               <>
+                {manualSessionGuide ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <p className="font-medium">{manualSessionGuide.message}</p>
+                    <ol className="mt-2 list-decimal space-y-1 pl-5">
+                      <li>先打开平台登录页并完成验证码或登录验证</li>
+                      <li>登录成功后，把当前浏览器里的 Cookie 按下面 JSON 结构粘贴回来</li>
+                      <li>保存后系统会优先复用这次 Session，减少后续打断</li>
+                    </ol>
+                    <a
+                      href={manualSessionGuide.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex text-sm font-medium text-primary underline"
+                    >
+                      打开 {manualSessionGuide.platform === "ixl" ? "IXL" : "Khan Academy"} 登录页
+                    </a>
+                  </div>
+                ) : null}
                 <div>
                   <label htmlFor="managed-session-payload" className="mb-1 block text-sm font-medium text-forest-700">
                     Managed Session JSON
@@ -449,13 +579,29 @@ export default function SettingsIntegrationsPage() {
                       {children.find((child) => child.id === account.child_id)?.name ?? "未命名孩子"} · {account.platform}
                     </p>
                     {account.auto_login_enabled && account.status === "attention_required" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRefreshSession(account.id)}
-                      >
-                        刷新登录
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRefreshSession(account.id, account.platform)}
+                        >
+                          刷新登录
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setTakeoverAccountId(account.id);
+                            setTakeoverPayload(
+                              account.platform === "ixl"
+                                ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                                : '{"cookies":[{"name":"KAAS","value":""}]}'
+                            );
+                          }}
+                        >
+                          手动补录
+                        </Button>
+                      </div>
                     )}
                   </div>
                   <p>账号：{account.external_account_ref}</p>
@@ -466,6 +612,148 @@ export default function SettingsIntegrationsPage() {
                   {account.last_sync_error_summary ? (
                     <p className="text-rose-600">{account.last_sync_error_summary}</p>
                   ) : null}
+
+                  {takeoverAccountId === account.id && (
+                    <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
+                      <p className="text-amber-800">
+                        自动登录不可用。请选择以下任一方式补录 Session：
+                      </p>
+
+                      {/* Method Toggle */}
+                      <div className="flex rounded-lg border border-forest-200 p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setTakeoverMethod("script")}
+                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                            takeoverMethod === "script"
+                              ? "bg-primary text-white"
+                              : "text-forest-600 hover:bg-forest-50"
+                          }`}
+                        >
+                          方式一：本地脚本（推荐）
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setTakeoverMethod("manual")}
+                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                            takeoverMethod === "manual"
+                              ? "bg-primary text-white"
+                              : "text-forest-600 hover:bg-forest-50"
+                          }`}
+                        >
+                          方式二：手动粘贴
+                        </button>
+                      </div>
+
+                      {takeoverMethod === "script" ? (
+                        <div className="space-y-3">
+                          <div className="rounded-lg bg-forest-50 px-3 py-2.5 text-xs text-forest-600">
+                            <p className="font-medium text-forest-700 mb-1">使用步骤：</p>
+                            <ol className="list-decimal space-y-0.5 pl-4">
+                              <li>在终端运行以下命令</li>
+                              <li>浏览器窗口会自动弹出</li>
+                              <li>手动完成登录（包括验证码）</li>
+                              <li>回到终端按 Enter，JSON 自动复制到剪贴板</li>
+                              <li>回到此页面，点击下方「我已获取，直接粘贴」</li>
+                            </ol>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-mono text-slate-700">
+                              npm run session:collect -- --platform={account.platform}
+                            </code>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  `npm run session:collect -- --platform=${account.platform}`
+                                );
+                                setCopiedCommand(true);
+                                setTimeout(() => setCopiedCommand(false), 2000);
+                              }}
+                            >
+                              {copiedCommand ? "已复制" : "复制命令"}
+                            </Button>
+                          </div>
+
+                          <p className="text-xs text-forest-500">
+                            首次使用需要先安装 Playwright：
+                            <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">
+                              npm install playwright && npx playwright install chromium
+                            </code>
+                          </p>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                setTakeoverMethod("manual");
+                                setTakeoverPayload(
+                                  account.platform === "ixl"
+                                    ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                                    : '{"cookies":[{"name":"KAAS","value":""}]}'
+                                );
+                              }}
+                            >
+                              我已获取，直接粘贴
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setTakeoverAccountId(null);
+                                setTakeoverPayload("");
+                              }}
+                            >
+                              取消
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <a
+                            href={
+                              account.platform === "ixl"
+                                ? "https://www.ixl.com/signin"
+                                : "https://www.khanacademy.org/login"
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex text-sm font-medium text-primary underline"
+                          >
+                            打开 {account.platform === "ixl" ? "IXL" : "Khan Academy"} 登录页
+                          </a>
+                          <textarea
+                            value={takeoverPayload}
+                            onChange={(e) => setTakeoverPayload(e.target.value)}
+                            placeholder='{"cookies":[{"name":"PHPSESSID","value":"..."}]}'
+                            className="min-h-24 w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-800 focus:border-primary focus:outline-none"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              disabled={takeoverLoading}
+                              onClick={() => handleTakeoverSave(account.id)}
+                            >
+                              {takeoverLoading ? "保存中..." : "保存 Session"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={takeoverLoading}
+                              onClick={() => {
+                                setTakeoverAccountId(null);
+                                setTakeoverPayload("");
+                              }}
+                            >
+                              取消
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -476,12 +764,80 @@ export default function SettingsIntegrationsPage() {
       <Card id="message-routing" className="scroll-mt-4">
         <div className="space-y-4">
           <div>
-            <h2 className="font-bold text-forest-700">孩子默认消息路由</h2>
+            <h2 className="font-bold text-forest-700">孩子默认提交群</h2>
             <p className="mt-1 text-sm text-forest-500">
-              这里定义孩子级默认目标；作业级的单独覆盖，应该在作业创建或编辑时确定。
+              这里定义孩子级默认目标群；作业级的单独覆盖，应该在作业创建或编辑时确定。
             </p>
+          </div>
+
+          <div className="space-y-3">
+            {children.map((child) => (
+              <div
+                key={child.id}
+                className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="flex-1">
+                    <label
+                      htmlFor={`child-default-group-${child.id}`}
+                      className="mb-1 block text-sm font-medium text-forest-700"
+                    >
+                      {child.name} 默认微信群
+                    </label>
+                    <select
+                      id={`child-default-group-${child.id}`}
+                      value={childGroupSelections[child.id] ?? ""}
+                      onChange={(e) =>
+                        setChildGroupSelections((prev) => ({
+                          ...prev,
+                          [child.id]: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
+                    >
+                      <option value="">暂不设置默认群</option>
+                      {wechatGroups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.display_name || group.recipient_ref}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    disabled={savingChildGroupId === child.id}
+                    onClick={async () => {
+                      setSavingChildGroupId(child.id);
+                      try {
+                        await supabase
+                          .from("children")
+                          .update({
+                            default_wechat_group_id:
+                              childGroupSelections[child.id] || null,
+                          })
+                          .eq("id", child.id);
+                        if (parentId) {
+                          await refreshData(parentId);
+                        }
+                      } finally {
+                        setSavingChildGroupId(null);
+                      }
+                    }}
+                  >
+                    {savingChildGroupId === child.id
+                      ? "保存中..."
+                      : `保存 ${child.name} 默认群`}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <h3 className="font-medium text-forest-700">兼容旧路由规则</h3>
             <p className="mt-1 text-sm text-forest-500">
-              选择"微信群"时，这里填写的是 bridge 使用的目标标识，不是微信授权结果。
+              下方仍保留旧路由规则作为兼容回退；后续会逐步迁移为“家庭群列表 + 孩子默认群 + 作业覆盖群”的模型。
             </p>
           </div>
 

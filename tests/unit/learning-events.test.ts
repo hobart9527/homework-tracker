@@ -111,4 +111,87 @@ describe("ingestLearningEvent", () => {
       localDateKey: "2026-04-20",
     });
   });
+
+  it("merges IXL duration for the same day, subject, and learning content", async () => {
+    const maybeSingleMock = vi.fn().mockResolvedValue({
+      data: {
+        id: "event-ixl-1",
+        duration_minutes: 12,
+        raw_payload: {
+          sessionIds: ["session-123"],
+        },
+      },
+      error: null,
+    });
+    const updateSingleMock = vi.fn().mockResolvedValue({
+      data: {
+        id: "event-ixl-1",
+        duration_minutes: 20,
+      },
+      error: null,
+    });
+
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table !== "learning_events") {
+          throw new Error(`Unexpected table ${table}`);
+        }
+
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  eq: vi.fn(() => ({
+                    eq: vi.fn(() => ({
+                      maybeSingle: maybeSingleMock,
+                    })),
+                  })),
+                })),
+              })),
+            })),
+          })),
+          update: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              select: vi.fn(() => ({
+                single: updateSingleMock,
+              })),
+            })),
+          })),
+          insert: vi.fn(),
+        };
+      }),
+    };
+
+    const result = await ingestLearningEvent({
+      supabase: supabase as any,
+      householdTimeZone: "Asia/Shanghai",
+      event: {
+        childId: "child-1",
+        platform: "ixl",
+        platformAccountId: "acct-family",
+        occurredAt: "2026-04-20T08:00:00.000Z",
+        eventType: "skill_practice",
+        title: "Add within 10",
+        subject: "math",
+        durationMinutes: 8,
+        score: 0.9,
+        completionState: "completed",
+        sourceRef: "session-456",
+        rawPayload: {
+          skillId: "A.1",
+          sessionId: "session-456",
+        },
+      },
+    });
+
+    expect(updateSingleMock).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      status: "merged",
+      localDateKey: "2026-04-20",
+      event: {
+        id: "event-ixl-1",
+      },
+    });
+  });
 });

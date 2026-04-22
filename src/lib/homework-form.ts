@@ -18,6 +18,8 @@ export type HomeworkFormState = {
   required_checkpoint_type: HomeworkProofType | "";
   platform_binding_platform: string;
   platform_binding_source_ref: string;
+  send_to_wechat: boolean;
+  wechat_group_id: string;
 };
 
 export type HomeworkAssignmentSummary = {
@@ -54,6 +56,8 @@ type SourceHomework = {
   required_checkpoint_type: HomeworkProofType;
   platform_binding_platform: string | null;
   platform_binding_source_ref: string | null;
+  send_to_wechat: boolean | null;
+  wechat_group_id: string | null;
 };
 
 type ChildRef = {
@@ -99,6 +103,8 @@ export function buildHomeworkDraftFromSource(
     required_checkpoint_type: source.required_checkpoint_type || "",
     platform_binding_platform: source.platform_binding_platform || "",
     platform_binding_source_ref: source.platform_binding_source_ref || "",
+    send_to_wechat: source.send_to_wechat || false,
+    wechat_group_id: source.wechat_group_id || "",
   };
 }
 
@@ -114,6 +120,8 @@ export function buildHomeworkInsertRows(
     title: form.title,
     description: form.description || null,
     required_checkpoint_type: form.required_checkpoint_type || null,
+    send_to_wechat: form.send_to_wechat,
+    wechat_group_id: form.wechat_group_id || null,
     repeat_type: form.repeat_type,
     repeat_days: form.repeat_type === "weekly" ? form.repeat_days : null,
     repeat_interval: form.repeat_type === "interval" ? form.repeat_interval : null,

@@ -12,6 +12,11 @@ type PlatformSyncAccountStatus = {
   lastSyncedAt: string | null;
   lastSyncErrorSummary: string | null;
   nextRetryAt: string | null;
+  recentActivities: Array<{
+    id: string;
+    title: string;
+    occurredAt: string;
+  }>;
 };
 
 interface PlatformSyncStatusPanelProps {
@@ -119,6 +124,24 @@ export function PlatformSyncStatusPanel({
                   <p className="text-rose-700">{account.lastSyncErrorSummary}</p>
                 ) : null}
               </div>
+
+              {account.recentActivities.length ? (
+                <div className="mt-4 rounded-xl bg-white/80 px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-forest-400">
+                    最近内容
+                  </p>
+                  <ul className="mt-2 space-y-2 text-sm text-forest-600">
+                    {account.recentActivities.map((activity) => (
+                      <li key={activity.id} className="flex items-start justify-between gap-3">
+                        <span className="line-clamp-2">{activity.title}</span>
+                        <span className="shrink-0 text-xs text-forest-400">
+                          {formatTimestamp(activity.occurredAt)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               {onRetry &&
               (account.status === "failed" ||

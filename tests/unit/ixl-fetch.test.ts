@@ -107,6 +107,54 @@ describe("parseIxlActivityResponse", () => {
       },
     ]);
   });
+
+  it("parses a student usage run response with session skills", () => {
+    const body = JSON.stringify({
+      table: [
+        {
+          sessionStartLocalDateStr: "2026-04-21",
+          practiceSession: "6468822248",
+          skills: [
+            {
+              skill: "2001000323",
+              skillName: "Divide by 3: quotients up to 10",
+              skillCode: "W.3",
+              score: 100,
+              secondsSpent: 549,
+            },
+            {
+              skill: "2002025867",
+              skillName: "Parallel sides in quadrilaterals",
+              permacode: "6E9",
+              score: 12,
+              secondsSpent: 24,
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parseIxlActivityResponse(body)).toEqual([
+      {
+        occurredAt: "2026-04-21T00:00:00",
+        skillId: "W.3",
+        skillName: "Divide by 3: quotients up to 10",
+        subject: null,
+        scorePercent: 100,
+        durationSeconds: 549,
+        sessionId: "6468822248:W.3",
+      },
+      {
+        occurredAt: "2026-04-21T00:00:00",
+        skillId: "6E9",
+        skillName: "Parallel sides in quadrilaterals",
+        subject: null,
+        scorePercent: 12,
+        durationSeconds: 24,
+        sessionId: "6468822248:6E9",
+      },
+    ]);
+  });
 });
 
 describe("fetchIxlManagedSessionActivities", () => {
@@ -126,7 +174,11 @@ describe("fetchIxlManagedSessionActivities", () => {
     const fetchImpl = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      text: vi.fn().mockResolvedValue("<html><title>Sign in to IXL</title></html>"),
+      text: vi
+        .fn()
+        .mockResolvedValue(
+          "<html><title>Sign in to IXL</title><form action=\"/signin\"><input type=\"password\" /></form></html>"
+        ),
     });
 
     await expect(
@@ -145,10 +197,12 @@ describe("fetchIxlManagedSessionActivities", () => {
   });
 
   it("sends the managed session cookie header and returns parsed activities", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: vi.fn().mockResolvedValue(`
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: vi.fn().mockResolvedValue(`
         <script id="__IXL_ACTIVITY_DATA__" type="application/json">
           {
             "activities": [
@@ -165,7 +219,12 @@ describe("fetchIxlManagedSessionActivities", () => {
           }
         </script>
       `),
-    });
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: vi.fn().mockResolvedValue(JSON.stringify({ table: [] })),
+      });
 
     const result = await fetchIxlManagedSessionActivities({
       managedSessionPayload: {
@@ -179,8 +238,18 @@ describe("fetchIxlManagedSessionActivities", () => {
       fetchImpl,
     });
 
-    expect(fetchImpl).toHaveBeenCalledWith(
-      "https://www.ixl.com/membership/account/activity",
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      "https://www.ixl.com/analytics/student-usage/run?subjects=0",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          cookie: "PHPSESSID=session-token",
+        }),
+      })
+    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      "https://www.ixl.com/analytics/student-usage/run?subjects=1",
       expect.objectContaining({
         headers: expect.objectContaining({
           cookie: "PHPSESSID=session-token",
@@ -191,7 +260,62 @@ describe("fetchIxlManagedSessionActivities", () => {
       expect.objectContaining({
         skillId: "A.1",
         skillName: "Add within 10",
+        subject: "math",
       }),
     ]);
+  });
+
+  it("does not classify a missing usage page as an expired session", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      text: vi
+        .fn()
+        .mockResolvedValue("<html><title>Sorry, page not found</title></html>"),
+    });
+
+    await expect(
+      fetchIxlManagedSessionActivities({
+        managedSessionPayload: {
+          cookies: [
+            {
+              name: "PHPSESSID",
+              value: "session-token",
+            },
+          ],
+        },
+        fetchImpl,
+      })
+    ).rejects.toThrow("IXL usage details page was not found");
+  });
+
+  it("does not treat usage details scripts mentioning signin as an expired session", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue(`
+        <html>
+          <head><title>IXL - Usage details</title></head>
+          <body>
+            <script src="/static/math/account/login.js"></script>
+            <script>window.__SOME_SIGNIN_HELPER__ = true;</script>
+          </body>
+        </html>
+      `),
+    });
+
+    await expect(
+      fetchIxlManagedSessionActivities({
+        managedSessionPayload: {
+          cookies: [
+            {
+              name: "PHPSESSID",
+              value: "session-token",
+            },
+          ],
+        },
+        fetchImpl,
+      })
+    ).rejects.toThrow("Unable to parse IXL activity payload");
   });
 });

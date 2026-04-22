@@ -48,6 +48,10 @@ This slice is intended to be implementable without committing to the final exter
 - [x] 5.4 Keep bridge delivery independent from the main homework completion path
 - [x] 5.5 Preserve bridge idempotency so retries cannot deliver the same audio task multiple times
 - [x] 5.6 Keep `message_routing_rules` focused on child/homework delivery targets such as WeChat bridge routing, without making household Telegram summary delivery depend on the same table
+- [ ] 5.7 Add a household-owned WeChat group directory so users choose teacher groups by friendly name rather than editing raw `recipient_ref` values
+- [ ] 5.8 Add child-level default WeChat group selection and homework-level WeChat group override with clear precedence
+- [ ] 5.9 Move WeChat setup toward an app-integrated sender experience, hiding bridge URL concepts from normal household flows while preserving the sender runtime internally
+- [ ] 5.10 Preserve multiple WeChat destination groups in Release 1 instead of collapsing delivery to one global default group
 
 ## 6. Verification And Rollout
 
@@ -56,6 +60,7 @@ This slice is intended to be implementable without committing to the final exter
 - [x] 6.3 Add smoke coverage for recording submission creating a voice push task without blocking homework completion
 - [x] 6.4 Verify acceptance criteria for sync correctness, Telegram delivery behavior, bridge idempotency, and the revised channel-ownership model before rollout
 - [x] 6.5 Pilot IXL and Khan Academy first before enabling later connectors
+- [ ] 6.6 Verify that a household can manage multiple discovered WeChat groups and route different homework items to different teacher groups without exposing raw technical identifiers in the main UI
 
 ## Execution Slice B: Connector Delivery For The First Platforms
 

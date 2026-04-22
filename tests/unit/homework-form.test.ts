@@ -213,6 +213,8 @@ function makeForm(
     required_checkpoint_type: "",
     platform_binding_platform: "",
     platform_binding_source_ref: "",
+    send_to_wechat: false,
+    wechat_group_id: "",
     ...overrides,
   };
 }
@@ -269,6 +271,19 @@ describe("buildHomeworkInsertRows", () => {
     expect(row.platform_binding_platform).toBe("khan-academy");
     expect(row.platform_binding_source_ref).toBe("lesson-123");
   });
+
+  it("persists WeChat delivery ownership fields when configured", () => {
+    const row = buildHomeworkInsertRows(
+      makeForm({
+        send_to_wechat: true,
+        wechat_group_id: "group-math",
+      }),
+      "parent-1"
+    )[0];
+
+    expect(row.send_to_wechat).toBe(true);
+    expect(row.wechat_group_id).toBe("group-math");
+  });
 });
 
 describe("buildAssignmentSummary", () => {
@@ -324,6 +339,8 @@ describe("buildHomeworkDraftFromSource", () => {
       required_checkpoint_type: "photo",
       platform_binding_platform: "khan-academy",
       platform_binding_source_ref: "lesson-123",
+      send_to_wechat: true,
+      wechat_group_id: "group-reading",
     } as any);
 
     expect(draft.child_ids).toEqual(["child-2"]);
@@ -332,6 +349,8 @@ describe("buildHomeworkDraftFromSource", () => {
     expect(draft.required_checkpoint_type).toBe("photo");
     expect(draft.platform_binding_platform).toBe("khan-academy");
     expect(draft.platform_binding_source_ref).toBe("lesson-123");
+    expect(draft.send_to_wechat).toBe(true);
+    expect(draft.wechat_group_id).toBe("group-reading");
   });
 });
 

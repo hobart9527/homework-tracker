@@ -206,6 +206,30 @@ The concrete pilot bridge strategy is:
 - duplicate acknowledgements are treated as successful sends so retries remain idempotent
 - the app remains the source of truth for retry budget, failure history, and terminal task state
 
+### Decision: Present WeChat delivery as an app-integrated capability while preserving multiple destination groups
+
+The first release should treat WeChat delivery as a built-in capability of the current product rather than as a separately managed “bridge product” in the user experience. The implementation may still use an internal sender runtime, but the product model must preserve multiple destination groups and hide raw delivery identifiers from normal household configuration.
+
+Rationale:
+
+- Matches the user expectation that WeChat delivery should feel integrated into the app rather than like a second system to deploy and reason about.
+- Preserves the real-world workflow where different assignments may need to go to different teacher groups.
+- Lets the current queue, retry, and idempotency machinery remain in place without keeping a technical bridge mental model in the main UI.
+
+Alternatives considered:
+
+- One global default WeChat group: simpler, but wrong for the multi-teacher, multi-homework workflow.
+- Exposing raw routing-rule editing as the main UX: flexible, but too technical for the household setup flow.
+- Removing the sender runtime abstraction entirely: appealing on paper, but not realistic for QR login, group discovery, and proactive media delivery.
+
+The first-release product model should therefore be:
+
+- household-owned WeChat sender status
+- household-owned list of discovered or saved WeChat groups
+- optional child-level default WeChat group
+- optional homework-level WeChat group override
+- no requirement for users to understand bridge URLs or raw `recipient_ref` values in the main flow
+
 ## Architecture
 
 ### 1. Platform Account Layer
@@ -220,6 +244,19 @@ Responsibilities:
 
 The first release may use account-password credentials together with managed session storage, but credential storage must remain isolated from ordinary learning records.
 The first release must also support multiple accounts for the same platform under a single child, for example a family account and a school account, while preserving account-level auditability.
+
+### 1B. WeChat Group Directory Layer
+
+The first release should introduce a household-owned WeChat group directory. This directory stores discovered or manually registered target groups while preserving the runtime-facing `recipient_ref` internally.
+
+Responsibilities:
+
+- keep the set of selectable WeChat teacher groups for the household
+- store a human-friendly display name or alias
+- preserve the underlying sender `recipient_ref`
+- track whether a group has been recently seen by the sender runtime
+
+This layer should become the user-facing object for WeChat target selection instead of raw message-routing rows.
 
 ### 2. Sync Orchestrator
 
@@ -298,6 +335,20 @@ For the pilot, the queue runtime is split across two responsibilities:
 - the external bridge sender owns the final WeChat-group delivery attempt
 
 This allows the sender implementation to vary by environment without changing the queue semantics in the core app.
+
+The product-facing ownership model for Release 1 should be:
+
+- household owns sender status and the available WeChat group directory
+- child may own an optional default WeChat group
+- homework may own an optional WeChat group override and the “send this homework to WeChat” decision
+
+Delivery target precedence is:
+
+1. homework-specific WeChat group
+2. child default WeChat group
+3. no WeChat delivery
+
+This preserves multi-group flexibility without forcing parents to manage raw routing records directly.
 
 ## Data Model
 

@@ -25,7 +25,17 @@ describe("Parent login flow", () => {
     authUsers: AuthUser[]
   ): { session: Session | null; error: string | null } {
     // Step 1: Query parent by passcode
-    const parent = parents.find(p => p.passcode === passcodeInput);
+    const parent = parents.find((candidateParent) => {
+      if (candidateParent.passcode !== passcodeInput) {
+        return false;
+      }
+
+      return authUsers.some(
+        (user) =>
+          user.id === candidateParent.id &&
+          user.email === `${candidateParent.id}@parent.local`
+      );
+    });
     if (!parent) {
       return { session: null, error: "密码错误，请重试" };
     }
@@ -73,6 +83,18 @@ describe("Parent login flow", () => {
     const result = simulatePasscodeLogin("0000", parents, authUsers);
     expect(result.session?.user.email).toBe("p1@parent.local");
     expect(result.session?.user.id).toBe("p1");
+  });
+
+  it("should prefer the parent record that still has a matching auth user when passcodes are duplicated", () => {
+    const duplicateParents: ParentsTable[] = [
+      { id: "legacy-parent", passcode: "0000" },
+      { id: "p1", passcode: "0000" },
+    ];
+
+    const result = simulatePasscodeLogin("0000", duplicateParents, authUsers);
+
+    expect(result.session?.user.id).toBe("p1");
+    expect(result.error).toBeNull();
   });
 });
 

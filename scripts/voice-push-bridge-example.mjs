@@ -1,3 +1,10 @@
+import { config } from "dotenv";
+import { resolve } from "node:path";
+
+// Load .env.local so environment variables are available when
+// bridge is launched via `npm run voice-push:bridge-example`
+config({ path: resolve(process.cwd(), ".env.local") });
+
 import http from "node:http";
 
 const port = Number(process.env.BRIDGE_PORT || "4010");

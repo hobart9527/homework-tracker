@@ -67,7 +67,7 @@ describe("PlatformSyncStatusPanel", () => {
     expect(screen.getByText("Managed Khan session expired")).toBeInTheDocument();
     expect(screen.getByText(/下次重试/)).toBeInTheDocument();
     expect(screen.getByText(/最近同步/)).toBeInTheDocument();
-    expect(screen.getByText("最近内容")).toBeInTheDocument();
+    expect(screen.getAllByText("最近内容")).toHaveLength(2);
     expect(screen.getByText("IXL A.1 Add within 10")).toBeInTheDocument();
     expect(screen.getByText("Khan Academy Fractions basics")).toBeInTheDocument();
   });

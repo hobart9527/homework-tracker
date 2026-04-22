@@ -2,9 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/platform-connections/route";
 
 const createClientMock = vi.hoisted(() => vi.fn());
+const simulateIxlLoginMock = vi.hoisted(() => vi.fn());
+const simulateKhanLoginMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: createClientMock,
+}));
+
+vi.mock("@/lib/platform-adapters/ixl-auth", () => ({
+  simulateIxlLogin: simulateIxlLoginMock,
+}));
+
+vi.mock("@/lib/platform-adapters/khan-auth", () => ({
+  simulateKhanLogin: simulateKhanLoginMock,
 }));
 
 function makeSupabaseClient(options?: {
@@ -79,6 +89,18 @@ function makeSupabaseClient(options?: {
 
       if (table === "platform_accounts") {
         return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                eq: vi.fn(() => ({
+                  single: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: { message: "No rows found" },
+                  }),
+                })),
+              })),
+            })),
+          })),
           insert: platformAccountsInsertMock,
         };
       }
@@ -94,6 +116,8 @@ function makeSupabaseClient(options?: {
 describe("platform connections route", () => {
   beforeEach(() => {
     createClientMock.mockReset();
+    simulateIxlLoginMock.mockReset();
+    simulateKhanLoginMock.mockReset();
   });
 
   it("rejects unauthenticated requests", async () => {
@@ -307,5 +331,39 @@ describe("platform connections route", () => {
     );
 
     expect(response.status).toBe(404);
+  });
+
+  it("returns manual-session guidance when IXL auto login hits a captcha challenge", async () => {
+    createClientMock.mockResolvedValue(makeSupabaseClient());
+    simulateIxlLoginMock.mockResolvedValue({
+      success: false,
+      reason: "captcha_required",
+      message:
+        "IXL is requiring a CAPTCHA challenge. Automatic login is not possible at this time.",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-connections", {
+        method: "POST",
+        body: JSON.stringify({
+          childId: "child-1",
+          platform: "ixl",
+          username: "demo@ixl.test",
+          authMode: "auto_login",
+          loginPassword: "secret123",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.reason).toBe("captcha_required");
+    expect(body.manualSessionUrl).toBe("https://www.ixl.com/signin");
+    expect(body.manualSessionTemplate).toEqual({
+      cookies: [
+        { name: "PHPSESSID", value: "" },
+        { name: "ixl_user", value: "" },
+      ],
+    });
   });
 });

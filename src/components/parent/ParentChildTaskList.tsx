@@ -55,6 +55,8 @@ function buildHomework(task: Task, index: number): Homework {
     platform_binding_source_ref: null,
     created_by: "",
     created_at: "1970-01-01T00:00:00.000Z",
+    send_to_wechat: false,
+    wechat_group_id: null,
   };
 }
 

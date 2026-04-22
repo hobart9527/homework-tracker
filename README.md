@@ -158,6 +158,31 @@ npm run supabase:generate-types
 - 定时入口为 `GET /api/platform-sync/run`
 - 手动排障入口为 `POST /api/platform-sync/import`
 
+#### Session 收集辅助脚本
+
+当自动登录触发 CAPTCHA 时，应用内模拟登录无法继续。此时需要手动在真实浏览器中完成登录，然后提取 Session Cookie。
+
+仓库提供本地 Playwright 脚本，一键完成：
+
+```bash
+# 1. 安装 Playwright（首次使用）
+npm install playwright
+npx playwright install chromium
+
+# 2. 运行脚本
+npm run session:collect -- --platform=ixl
+# 或带凭据自动填充：
+npm run session:collect -- --platform=ixl --username=xxx --password=xxx
+```
+
+脚本流程：
+1. 启动有头 Chromium 浏览器窗口
+2. 导航到平台登录页（如有凭据则自动填充）
+3. 用户手动完成登录（包括 CAPTCHA）
+4. 回到终端按 Enter，脚本自动提取所有 Cookie
+5. JSON 格式化的 Session 自动复制到剪贴板
+6. 回到应用「孩子集成」页面，点击「手动补录」粘贴保存
+
 ### 语音桥接 Voice Push Bridge
 
 - 录音作业提交成功后会创建 `voice_push_tasks`
@@ -172,10 +197,10 @@ npm run supabase:generate-types
 
 仓库提供两种 Bridge 实现：
 
-1. **示例 Bridge（mock，无真实微信）**：`npm run voice-push:bridge-example`  
+1. **示例 Bridge（mock，无真实微信）**：`npm run voice-push:bridge-example`
    只验证应用到 Bridge 的 HTTP 契约，不真正发微信。用于本地开发和 CI。
 
-2. **iLink Bot Bridge（真实微信）**：`npm run voice-push:bridge-ilink`  
+2. **iLink Bot Bridge（真实微信）**：`npm run voice-push:bridge-ilink`
    基于微信官方 iLink Bot 协议，通过 QR 扫码登录后，可以把录音文件真正发送到微信群。需要先安装依赖：
    ```bash
    npm install @pawastation/ilink-bot-sdk
@@ -183,7 +208,25 @@ npm run supabase:generate-types
 
 ### 微信通道本地联调步骤 WeChat Channel Local Test Flow
 
-#### 方式一：示例 Bridge（验证链路，不真发微信）
+#### 方式一：一键启动（推荐）
+
+应用和 Bridge 现在可以一键同时启动，无需另开终端：
+
+1. 确保已安装依赖：
+   ```bash
+   npm install @pawastation/ilink-bot-sdk
+   ```
+2. 配置 `.env.local`（复制 `.env.example` 并按需修改）
+3. 运行统一启动命令：
+   ```bash
+   npm run dev:with-bridge
+   ```
+   这会同时启动 Next.js（:3000）和 iLink Bridge（:4010），共享环境变量。
+4. 首次启动 Bridge 会输出 QR Code URL，用微信扫码授权登录
+5. 登录成功后，在目标微信群中发一条消息（让 Bridge 获取群的 `context_token`）
+6. Bridge 日志会打印：`Discovered new recipient: recipientRef=xxx`。把这个 `xxx` 记下来
+
+#### 方式二：示例 Bridge（验证链路，不真发微信）
 
 1. 配置 `.env.local`：
    ```bash
@@ -192,47 +235,38 @@ npm run supabase:generate-types
    ```
 2. 启动应用：`npm run dev`
 3. 另开终端启动示例 Bridge：`VOICE_PUSH_BRIDGE_TOKEN=dev-bridge-token npm run voice-push:bridge-example`
-4. 按下方通用步骤 4-7 验证
-
-#### 方式二：iLink Bot Bridge（真实发微信）
-
-1. 安装依赖：
-   ```bash
-   npm install @pawastation/ilink-bot-sdk
-   ```
-2. 配置 `.env.local`：
-   ```bash
-   VOICE_PUSH_BRIDGE_URL=http://127.0.0.1:4010/send
-   VOICE_PUSH_BRIDGE_TOKEN=dev-bridge-token
-   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-   ```
-3. 启动应用：`npm run dev`
-4. 另开终端启动 iLink Bridge：
-   ```bash
-   VOICE_PUSH_BRIDGE_TOKEN=dev-bridge-token npm run voice-push:bridge-ilink
-   ```
-5. 首次启动会输出 QR Code URL，用微信扫码授权登录
-6. 登录成功后，在目标微信群中发一条消息（让 Bridge 获取群的 `context_token`）
-7. Bridge 日志会打印：`Discovered new recipient: recipientRef=xxx`。把这个 `xxx` 记下来
+4. 按下方通用配置步骤验证
 
 #### 通用配置和验证步骤
 
-8. 打开”设置 → 孩子集成”，给一个孩子新增默认消息路由：
+7. 打开”设置 → 孩子集成”，给一个孩子新增默认消息路由：
    - 通道选”微信群”
    - “微信群标识”填 Bridge 日志中打印的 `recipientRef`（如 `wxid_xxxx@chatroom`）
 
-9. 提交一条带录音附件的作业打卡，确认系统里已经生成 `voice_push_tasks`
+8. 提交一条带录音附件的作业打卡，确认系统里已经生成 `voice_push_tasks`
 
-10. 打开”设置 → 系统运行”，点击”处理发送队列”，或手动请求：
-    ```bash
-    curl -s http://127.0.0.1:3000/api/voice-push/run
-    ```
+9. 打开”设置 → 系统运行”，点击”处理发送队列”，或手动请求：
+   ```bash
+   curl -s http://127.0.0.1:3000/api/voice-push/run
+   ```
 
-11. 验证结果：
+10. 验证结果：
     - iLink Bridge 终端出现发送成功日志，微信群收到录音文件
     - 或示例 Bridge 终端出现 `accepted task=...` 日志
     - “系统运行”页里该任务状态变为”已发送”
     - 访问 `http://127.0.0.1:4010/health` 可查看 Bridge 状态
+
+### 云端部署注意事项
+
+当把项目部署到云服务器时，iLink Bridge 的登录态需要持久化，否则每次部署后都需要重新扫码：
+
+1. **设置 `CREDENTIALS_PATH` 环境变量**，指向一个持久化卷路径：
+   ```bash
+   CREDENTIALS_PATH=/data/voice-push-bridge/credentials.json
+   ```
+2. **首次部署时**：在本地扫码授权，将生成的 `credentials.json` 上传到服务器的持久化路径；或者直接在服务器上通过 SSH 扫码
+3. **后续部署**：只要 `CREDENTIALS_PATH` 指向的路径不变，Bridge 会自动复用缓存的登录态，无需再次扫码
+4. **使用 `npm run start:with-bridge` 一键同时启动 Next.js 生产服务器和 Bridge**
 
 ### 当前微信方案的责任边界
 

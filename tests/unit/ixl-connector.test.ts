@@ -62,7 +62,7 @@ describe("runIxlManagedSessionSync", () => {
     expect(result.events).toEqual([
       expect.objectContaining({
         occurredAt: "2026-04-20T10:00:00.000Z",
-        title: "IXL A.1 Add within 10",
+        title: "Add within 10",
         sourceRef: "session-123",
       }),
     ]);

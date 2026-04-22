@@ -17,6 +17,11 @@ export type IxlFetchedActivity = {
   sessionId: string | null;
 };
 
+const IXL_SUBJECTS = [
+  { queryValue: "0", label: "math" },
+  { queryValue: "1", label: "ela" },
+] as const;
+
 export class IxlManagedSessionError extends Error {
   constructor(message: string) {
     super(message);
@@ -152,6 +157,124 @@ function toFetchedActivity(activity: Record<string, unknown>): IxlFetchedActivit
   };
 }
 
+function parseStudentUsageRunResponse(value: unknown): IxlFetchedActivity[] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const report = value as Record<string, unknown>;
+  if (!Array.isArray(report.table)) {
+    return null;
+  }
+
+  const activities: IxlFetchedActivity[] = [];
+
+  for (const session of report.table) {
+    if (!session || typeof session !== "object" || Array.isArray(session)) {
+      continue;
+    }
+
+    const sessionRecord = session as Record<string, unknown>;
+    const occurredAt =
+      typeof sessionRecord.sessionStartLocalDateStr === "string"
+        ? `${sessionRecord.sessionStartLocalDateStr}T00:00:00`
+        : typeof sessionRecord.sessionEndLocalDateStr === "string"
+          ? `${sessionRecord.sessionEndLocalDateStr}T00:00:00`
+          : null;
+    const practiceSession =
+      typeof sessionRecord.practiceSession === "string"
+        ? sessionRecord.practiceSession
+        : null;
+    const skills = Array.isArray(sessionRecord.skills)
+      ? sessionRecord.skills
+      : [];
+
+    for (const skill of skills) {
+      if (!skill || typeof skill !== "object" || Array.isArray(skill) || !occurredAt) {
+        continue;
+      }
+
+      const skillRecord = skill as Record<string, unknown>;
+      const skillId =
+        typeof skillRecord.skillCode === "string"
+          ? skillRecord.skillCode
+          : typeof skillRecord.permacode === "string"
+            ? skillRecord.permacode
+            : typeof skillRecord.skill === "string"
+              ? skillRecord.skill
+              : null;
+      const skillName =
+        typeof skillRecord.skillName === "string" ? skillRecord.skillName : null;
+
+      if (!skillId || !skillName) {
+        continue;
+      }
+
+      activities.push({
+        occurredAt,
+        skillId,
+        skillName,
+        subject: null,
+        scorePercent:
+          typeof skillRecord.score === "number" ? skillRecord.score : null,
+        durationSeconds:
+          typeof skillRecord.secondsSpent === "number"
+            ? skillRecord.secondsSpent
+            : null,
+        sessionId:
+          practiceSession || skillId
+            ? `${practiceSession ?? "session"}:${skillId}`
+            : null,
+      });
+    }
+  }
+
+  return activities;
+}
+
+function buildIxlUsageRunUrl(
+  activityUrl: string | null | undefined,
+  subjectQueryValue: string
+) {
+  const url = new URL(
+    activityUrl ?? "https://www.ixl.com/analytics/student-usage/run"
+  );
+  url.searchParams.set("subjects", subjectQueryValue);
+  return url.toString();
+}
+
+function aggregateIxlActivities(
+  activities: IxlFetchedActivity[]
+): IxlFetchedActivity[] {
+  const aggregated = new Map<string, IxlFetchedActivity>();
+
+  for (const activity of activities) {
+    const key = [
+      activity.occurredAt.slice(0, 10),
+      activity.subject ?? "",
+      activity.skillId,
+      activity.skillName,
+    ].join("::");
+    const existing = aggregated.get(key);
+
+    if (!existing) {
+      aggregated.set(key, activity);
+      continue;
+    }
+
+    aggregated.set(key, {
+      ...existing,
+      durationSeconds:
+        (existing.durationSeconds ?? 0) + (activity.durationSeconds ?? 0),
+      scorePercent: activity.scorePercent ?? existing.scorePercent ?? null,
+    });
+  }
+
+  return Array.from(aggregated.values()).sort((left, right) =>
+    right.occurredAt.localeCompare(left.occurredAt)
+  );
+}
+
 function buildCookieHeader(
   cookies: IxlManagedSessionPayload["cookies"] | null | undefined
 ) {
@@ -170,9 +293,23 @@ function buildCookieHeader(
     .join("; ");
 }
 
+function isIxlLoginPage(html: string) {
+  return (
+    /<title>\s*(sign in to ixl|log in to ixl|signin)\s*<\/title>/i.test(html) ||
+    /<form[^>]+action=["'][^"']*\/signin/i.test(html) ||
+    /<input[^>]+type=["']password["']/i.test(html)
+  );
+}
+
 export function parseIxlActivityResponse(html: string): IxlFetchedActivity[] {
   const extractedPayload = extractBootstrapJson(html);
   const parsed = tryParseJson(extractedPayload);
+  const studentUsageActivities = parseStudentUsageRunResponse(parsed);
+
+  if (studentUsageActivities) {
+    return studentUsageActivities;
+  }
+
   const activities = findActivityArray(parsed);
 
   if (!activities) {
@@ -193,25 +330,39 @@ export async function fetchIxlManagedSessionActivities(input: {
   }
 
   const fetchImpl = input.fetchImpl ?? fetch;
-  const response = await fetchImpl(
-    input.managedSessionPayload?.activityUrl ??
-      "https://www.ixl.com/membership/account/activity",
-    {
-      headers: {
-        cookie: cookieHeader,
-        ...(input.managedSessionPayload?.headers ?? {}),
-      },
+  const activities: IxlFetchedActivity[] = [];
+
+  for (const subject of IXL_SUBJECTS) {
+    const response = await fetchImpl(
+      buildIxlUsageRunUrl(
+        input.managedSessionPayload?.activityUrl,
+        subject.queryValue
+      ),
+      {
+        headers: {
+          cookie: cookieHeader,
+          ...(input.managedSessionPayload?.headers ?? {}),
+        },
+      }
+    );
+
+    const body = await response.text();
+
+    if (response.status === 401 || isIxlLoginPage(body)) {
+      throw new IxlManagedSessionError("Managed IXL session expired");
     }
-  );
 
-  const body = await response.text();
+    if (response.status === 404) {
+      throw new Error("IXL usage details page was not found");
+    }
 
-  if (
-    response.status === 401 ||
-    /sign in to ixl|log in to ixl|signin/i.test(body)
-  ) {
-    throw new IxlManagedSessionError("Managed IXL session expired");
+    const subjectActivities = parseIxlActivityResponse(body).map((activity) => ({
+      ...activity,
+      subject: subject.label,
+    }));
+
+    activities.push(...subjectActivities);
   }
 
-  return parseIxlActivityResponse(body);
+  return aggregateIxlActivities(activities);
 }

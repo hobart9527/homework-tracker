@@ -7,6 +7,7 @@ import SettingsSystemPage from "@/app/(parent)/settings/system/page";
 
 const fetchMock = vi.fn();
 const searchParamsState = new URLSearchParams();
+const updateChildEq = vi.fn().mockResolvedValue({ error: null });
 
 const sessionResponse = {
   data: {
@@ -84,10 +85,14 @@ function createSupabaseClient() {
                   points: 12,
                   streak_days: 3,
                   avatar: "🦊",
+                  default_wechat_group_id: "group-1",
                 },
               ],
             }),
           }),
+          update: vi.fn(() => ({
+            eq: updateChildEq,
+          })),
         };
       }
 
@@ -153,6 +158,49 @@ function createSupabaseClient() {
         };
       }
 
+      if (table === "wechat_groups") {
+        const groupsData = {
+          data: [
+            {
+              id: "group-1",
+              parent_id: "parent-1",
+              recipient_ref: "wxid_math@chatroom",
+              display_name: "Mia 数学老师群",
+              source: "discovered",
+              is_active: true,
+              last_seen_at: "2026-04-21T10:00:00.000Z",
+              created_at: "2026-04-20T09:00:00.000Z",
+            },
+            {
+              id: "group-2",
+              parent_id: "parent-1",
+              recipient_ref: "wxid_reading@chatroom",
+              display_name: "Mia 阅读老师群",
+              source: "manual",
+              is_active: true,
+              last_seen_at: null,
+              created_at: "2026-04-20T09:10:00.000Z",
+            },
+          ],
+        };
+        return {
+          select: () => ({
+            eq: vi.fn(() => {
+              const result = Promise.resolve(groupsData);
+              (result as any).order = vi.fn().mockResolvedValue(groupsData);
+              return result;
+            }),
+          }),
+          insert: vi.fn().mockResolvedValue({ error: null }),
+          update: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          })),
+          delete: vi.fn(() => ({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          })),
+        };
+      }
+
       if (table === "voice_push_tasks") {
         return {
           select: () => ({
@@ -199,6 +247,27 @@ function createSupabaseClient() {
         };
       }
 
+      if (table === "learning_events") {
+        return {
+          select: () => ({
+            in: vi.fn(() => ({
+              order: vi.fn(() => ({
+                limit: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "evt-1",
+                      platform_account_id: "acct-1",
+                      title: "IXL A.1 Add within 10",
+                      occurred_at: "2026-04-21T10:10:00.000Z",
+                    },
+                  ],
+                }),
+              })),
+            })),
+          }),
+        };
+      }
+
       return {
         select: vi.fn(),
         insert: vi.fn(),
@@ -234,6 +303,7 @@ global.fetch = fetchMock as typeof fetch;
 describe("Settings IA pages", () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    updateChildEq.mockClear();
     searchParamsState.forEach((_, key) => searchParamsState.delete(key));
   });
 
@@ -259,19 +329,17 @@ describe("Settings IA pages", () => {
     render(<SettingsChannelsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("微信 Bridge 说明")).toBeInTheDocument();
+      expect(screen.getByText("微信群管理")).toBeInTheDocument();
       expect(screen.getByText("提醒与 Telegram 通道")).toBeInTheDocument();
     });
 
     expect(
-      screen.getByText(/这里是家长角色管理通道能力和接收方式的统一入口/)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/本地测试步骤/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/VOICE_PUSH_BRIDGE_URL=http:\/\/127\.0\.0\.1:4010\/send/)
+      screen.getByText(/管理微信群、Telegram 等家庭级通知通道/)
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Telegram Chat ID")).toHaveValue("123456789");
     expect(screen.queryByLabelText("Telegram Bot Token")).not.toBeInTheDocument();
+    expect(screen.getByText("Mia 数学老师群")).toBeInTheDocument();
+    expect(screen.getByText("Mia 阅读老师群")).toBeInTheDocument();
   });
 
   it("checks bridge health from the channels page", async () => {
@@ -288,11 +356,11 @@ describe("Settings IA pages", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "一键自检微信 Bridge" })
+        screen.getByRole("button", { name: "检查发送服务状态" })
       ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "一键自检微信 Bridge" }));
+    fireEvent.click(screen.getByRole("button", { name: "检查发送服务状态" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith("/api/voice-push/bridge-health", {
@@ -300,7 +368,7 @@ describe("Settings IA pages", () => {
       });
       expect(
         screen.getByText(
-          "Bridge 可访问：http://127.0.0.1:4010/health，当前已接收 2 条任务。"
+          "发送服务可访问：http://127.0.0.1:4010/health，已发送 2 条任务。"
         )
       ).toBeInTheDocument();
     });
@@ -319,7 +387,7 @@ describe("Settings IA pages", () => {
 
     await waitFor(() => {
       expect(screen.getByText("学习平台账号")).toBeInTheDocument();
-      expect(screen.getByText("孩子默认消息路由")).toBeInTheDocument();
+      expect(screen.getByText("孩子默认提交群")).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getAllByLabelText("孩子")[0], {
@@ -345,6 +413,62 @@ describe("Settings IA pages", () => {
     ).toBeInTheDocument();
   });
 
+  it("switches to manual session guidance when IXL auto login hits a captcha challenge", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      json: vi.fn().mockResolvedValue({
+        error: "IXL is requiring a CAPTCHA challenge. Automatic login is not possible at this time.",
+        reason: "captcha_required",
+        manualSessionUrl: "https://www.ixl.com/signin",
+        manualSessionTemplate: {
+          cookies: [
+            { name: "PHPSESSID", value: "" },
+            { name: "ixl_user", value: "" },
+          ],
+        },
+      }),
+    });
+
+    render(<SettingsIntegrationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("学习平台账号")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getAllByLabelText("孩子")[0], {
+      target: { value: "child-1" },
+    });
+    fireEvent.change(screen.getByLabelText("用户名或账号标识"), {
+      target: { value: "mia@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("登录密码"), {
+      target: { value: "secret123" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "测试登录并绑定" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/IXL 当前要求你先手动完成验证码/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "打开 IXL 登录页" })).toHaveAttribute(
+        "href",
+        "https://www.ixl.com/signin"
+      );
+      expect(screen.getByLabelText("Managed Session JSON")).toBeInTheDocument();
+      expect(screen.getByLabelText("Managed Session JSON")).toHaveValue(
+        JSON.stringify(
+          {
+            cookies: [
+              { name: "PHPSESSID", value: "" },
+              { name: "ixl_user", value: "" },
+            ],
+          },
+          null,
+          2
+        )
+      );
+    });
+  });
+
   it("keeps child routing focused on wechat bridge targets", async () => {
     render(<SettingsIntegrationsPage />);
 
@@ -357,6 +481,28 @@ describe("Settings IA pages", () => {
       screen.queryByRole("option", { name: "Telegram Chat" })
     ).not.toBeInTheDocument();
     expect(screen.getByLabelText("微信群标识")).toBeInTheDocument();
+  });
+
+  it("lets parents choose a child default WeChat group from the household group directory", async () => {
+    render(<SettingsIntegrationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("孩子默认提交群")).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Mia 默认微信群")).toHaveValue("group-1");
+    });
+
+    fireEvent.change(screen.getByLabelText("Mia 默认微信群"), {
+      target: { value: "group-2" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "保存 Mia 默认群" }));
+
+    await waitFor(() => {
+      expect(updateChildEq).toHaveBeenCalledWith("id", "child-1");
+    });
   });
 
   it("shows runtime status and supports retry actions on the system page", async () => {

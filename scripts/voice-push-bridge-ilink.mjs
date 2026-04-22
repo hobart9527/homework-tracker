@@ -22,6 +22,13 @@
  *   CREDENTIALS_PATH      — Where to save iLink credentials (default: ~/.voice-push-bridge/credentials.json)
  */
 
+import { config } from "dotenv";
+import { resolve } from "node:path";
+
+// Load .env.local so environment variables are available when
+// bridge is launched via `npm run voice-push:bridge-ilink`
+config({ path: resolve(process.cwd(), ".env.local") });
+
 import http from "node:http";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -35,6 +42,62 @@ import {
   getContextToken,
   memorySyncStorage,
 } from "@pawastation/ilink-bot-sdk";
+import { createClient } from "@supabase/supabase-js";
+
+// ─── Optional Supabase sync for discovered groups ────────────────────
+
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const BRIDGE_PARENT_ID = process.env.BRIDGE_PARENT_ID || "";
+
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+async function syncDiscoveredGroup(recipientRef, groupId, displayName) {
+  if (!supabase || !BRIDGE_PARENT_ID) return;
+
+  try {
+    const { error } = await supabase
+      .from("wechat_groups")
+      .upsert(
+        {
+          parent_id: BRIDGE_PARENT_ID,
+          recipient_ref: recipientRef,
+          display_name: displayName || null,
+          source: "discovered",
+          is_active: true,
+          last_seen_at: new Date().toISOString(),
+        },
+        { onConflict: "parent_id,recipient_ref" }
+      );
+
+    if (error) {
+      log("[supabase] Failed to sync group:", error.message);
+    } else {
+      log("[supabase] Synced group to database:", recipientRef);
+    }
+  } catch (err) {
+    log("[supabase] Sync error:", err.message);
+  }
+}
+
+async function refreshGroupLastSeen(recipientRef) {
+  if (!supabase || !BRIDGE_PARENT_ID) return;
+
+  try {
+    await supabase
+      .from("wechat_groups")
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq("parent_id", BRIDGE_PARENT_ID)
+      .eq("recipient_ref", recipientRef);
+  } catch {
+    // Silent refresh failure — not critical
+  }
+}
 
 // ─── Config ──────────────────────────────────────────────────────────
 
@@ -176,8 +239,11 @@ async function startPoller() {
         if (!existing) {
           log(`[poller] Discovered new recipient: recipientRef=${recipientRef} groupId=${groupId || "(DM)"} text="${textPreview}"`);
           log(`[poller] ^ You can now use recipient_ref="${recipientRef}" in message routing rules`);
+          // Auto-sync to database if Supabase is configured
+          syncDiscoveredGroup(recipientRef, groupId || null, textPreview || null);
         } else {
           log(`[poller] Refreshed context token for recipient=${recipientRef} text="${textPreview}"`);
+          refreshGroupLastSeen(recipientRef);
         }
       } else {
         log(`[poller] Message from ${recipientRef} has no context_token (cannot send proactively)`);
