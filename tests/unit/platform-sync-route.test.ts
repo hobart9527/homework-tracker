@@ -387,38 +387,6 @@ describe("platform sync run route", () => {
     );
   });
 
-  it("marks an IXL account attention_required before fetch when the managed session is already expired", async () => {
-    const client = makeSyncRouteClient({
-      activeManagedSessionExpiresAt: "2026-04-19T10:30:00.000Z",
-    });
-    createClientMock.mockResolvedValue(client);
-
-    const response = await GET(
-      new Request(
-        "http://localhost/api/platform-sync/run?platforms=ixl&scheduleWindow=after-school&now=2026-04-20T10:30:00.000Z"
-      )
-    );
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body.results).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          platformAccountId: "acct-active",
-          status: "attention_required",
-          error: "Managed IXL session expired",
-        }),
-      ])
-    );
-    expect(runIxlManagedSessionSyncMock).not.toHaveBeenCalled();
-    expect(client._mocks.platformSyncJobsUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "attention_required",
-        error_summary: "Managed IXL session expired",
-      })
-    );
-  });
-
   it("records retryable scheduled sync failures without forcing attention_required", async () => {
     const client = makeSyncRouteClient();
     createClientMock.mockResolvedValue(client);

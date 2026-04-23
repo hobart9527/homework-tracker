@@ -20,6 +20,7 @@ type Child = Database["public"]["Tables"]["children"]["Row"];
 type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
 type MessageRoutingRule =
   Database["public"]["Tables"]["message_routing_rules"]["Row"];
+type WeChatGroup = Database["public"]["Tables"]["wechat_groups"]["Row"];
 
 const DEFAULT_TYPES = [
   { id: "piano", name: "钢琴", icon: "🎹", default_points: 6 },
@@ -54,6 +55,7 @@ export function HomeworkForm({
   const [children, setChildren] = useState<Child[]>([]);
   const [platformAccounts, setPlatformAccounts] = useState<PlatformAccount[]>([]);
   const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
+  const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
@@ -106,7 +108,11 @@ export function HomeworkForm({
 
       if (childrenData?.length) {
         const childIds = childrenData.map((child) => child.id);
-        const [{ data: platformAccountsData }, { data: routingRulesData }] =
+        const [
+          { data: platformAccountsData },
+          { data: routingRulesData },
+          { data: wechatGroupsData },
+        ] =
           await Promise.all([
             supabase
               .from("platform_accounts")
@@ -117,6 +123,7 @@ export function HomeworkForm({
               .select("*")
               .in("child_id", childIds)
               .order("created_at", { ascending: false }),
+            supabase.from("wechat_groups").select("*").eq("parent_id", session.user.id),
           ]);
 
         if (platformAccountsData) {
@@ -124,6 +131,9 @@ export function HomeworkForm({
         }
         if (routingRulesData) {
           setRoutingRules(routingRulesData as MessageRoutingRule[]);
+        }
+        if (wechatGroupsData) {
+          setWechatGroups(wechatGroupsData as WeChatGroup[]);
         }
       }
 
@@ -214,6 +224,10 @@ export function HomeworkForm({
   const selectedChildPlatformAccounts = platformAccounts.filter(
     (account) => account.child_id === selectedChildId
   );
+  const selectedChild = children.find((child) => child.id === selectedChildId) ?? null;
+  const selectedChildDefaultGroup = selectedChild?.default_wechat_group_id
+    ? wechatGroups.find((group) => group.id === selectedChild.default_wechat_group_id) ?? null
+    : null;
   const matchedPlatformAccount = selectedChildPlatformAccounts.find(
     (account) => account.platform === formData.platform_binding_platform
   );
@@ -726,117 +740,84 @@ export function HomeworkForm({
           <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
             <div>
               <label className="block text-sm font-medium text-forest-700">
-                作业消息路由
+                作业提交群
               </label>
               <p className="mt-1 text-sm text-forest-500">
-                这条作业发到哪个微信群或 Telegram 目标，应该在创建或编辑作业时确定。只有留空时，才回退到孩子默认路由。
+                这条作业是否自动发到微信群，以及发到哪个老师群，应该在创建或编辑作业时确定。留空时会继承孩子默认群。
               </p>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={!canConfigurePlatformBinding}
-                onClick={() => setHomeworkRoutingMode("child_default")}
-                className={`rounded-xl border-2 px-4 py-2 text-sm transition-all ${
-                  homeworkRoutingMode === "child_default"
-                    ? "border-primary bg-primary/10"
-                    : "border-forest-200 bg-white"
-                }`}
-              >
-                使用孩子默认路由
-              </button>
-              <button
-                type="button"
-                disabled={!canConfigurePlatformBinding}
-                onClick={() => setHomeworkRoutingMode("homework_override")}
-                className={`rounded-xl border-2 px-4 py-2 text-sm transition-all ${
-                  homeworkRoutingMode === "homework_override"
-                    ? "border-primary bg-primary/10"
-                    : "border-forest-200 bg-white"
-                }`}
-              >
-                为这条作业单独指定
-              </button>
             </div>
 
             {canConfigurePlatformBinding ? (
               <>
-                {routeSuggestions.length ? (
-                  <div className="mt-4">
-                    <p className="mb-2 text-sm font-medium text-forest-700">
-                      快速套用已有目标
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {routeSuggestions.map((rule) => (
-                        <button
-                          key={rule.id}
-                          type="button"
-                          onClick={() => {
-                            setHomeworkRoutingMode("homework_override");
-                            setHomeworkRoutingForm({
-                              channel: rule.channel,
-                              recipientRef: rule.recipient_ref,
-                              recipientLabel: rule.recipient_label || "",
-                            });
-                          }}
-                          className="rounded-full border border-forest-200 bg-white px-3 py-1.5 text-xs text-forest-600 transition-all hover:border-primary"
-                        >
-                          {rule.recipient_label || rule.recipient_ref}
-                        </button>
-                      ))}
+                <label className="mt-4 flex items-center gap-3 text-sm text-forest-700">
+                  <input
+                    type="checkbox"
+                    checked={formData.send_to_wechat}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        send_to_wechat: e.target.checked,
+                        wechat_group_id: e.target.checked ? prev.wechat_group_id : "",
+                      }))
+                    }
+                  />
+                  提交完成后自动发到微信群
+                </label>
+
+                {formData.send_to_wechat ? (
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="homework-wechat-group"
+                        className="mb-1 block text-sm font-medium text-forest-700"
+                      >
+                        提交到哪个微信群
+                      </label>
+                      <select
+                        id="homework-wechat-group"
+                        aria-label="提交到哪个微信群"
+                        value={formData.wechat_group_id}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            wechat_group_id: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary"
+                      >
+                        <option value="">继承孩子默认群</option>
+                        {wechatGroups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.display_name || group.recipient_ref}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 ) : null}
 
-                {homeworkRoutingMode === "homework_override" ? (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-forest-700">
-                        通道
-                      </label>
-                      <select
-                        value={homeworkRoutingForm.channel}
-                        onChange={() => undefined}
-                        className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary"
-                      >
-                        <option value="wechat_group">微信群</option>
-                      </select>
-                    </div>
-
-                    <Input
-                      label="微信群标识"
-                      value={homeworkRoutingForm.recipientRef}
-                      onChange={(e) =>
-                        setHomeworkRoutingForm((prev) => ({
-                          ...prev,
-                          recipientRef: e.target.value,
-                        }))
-                      }
-                      placeholder="例如 wechat-group-math"
-                    />
-
-                    <Input
-                      label="目标备注（可选）"
-                      value={homeworkRoutingForm.recipientLabel}
-                      onChange={(e) =>
-                        setHomeworkRoutingForm((prev) => ({
-                          ...prev,
-                          recipientLabel: e.target.value,
-                        }))
-                      }
-                      placeholder="例如 Mia 数学群"
-                    />
-                  </div>
+                {formData.send_to_wechat ? (
+                  formData.wechat_group_id ? (
+                    <p className="mt-4 text-sm text-forest-500">
+                      当前这条作业会使用单独指定的提交群。
+                    </p>
+                  ) : (
+                    <p className="mt-4 text-sm text-forest-500">
+                      当前会继承孩子默认提交群
+                      {selectedChildDefaultGroup
+                        ? `：${selectedChildDefaultGroup.display_name || selectedChildDefaultGroup.recipient_ref}`
+                        : "，但这个孩子暂时还没有设置默认群。"}
+                    </p>
+                  )
                 ) : (
                   <p className="mt-4 text-sm text-forest-500">
-                    当前这条作业不单独覆盖消息目标，运行时会回退到孩子默认消息路由。
+                    当前这条作业不会自动发送到微信群。
                   </p>
                 )}
               </>
             ) : (
               <p className="mt-4 text-sm text-forest-500">
-                当前是多人批量创建。作业级消息路由只在单个孩子的作业上配置，避免把同一目标误绑给多个孩子。
+                当前是多人批量创建。作业级提交群只在单个孩子的作业上配置，避免把同一目标误绑给多个孩子。
               </p>
             )}
           </div>

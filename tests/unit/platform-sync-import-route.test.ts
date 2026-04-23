@@ -894,47 +894,6 @@ describe("platform sync import route", () => {
     );
   });
 
-  it("marks the account attention_required before fetch when the managed session is already expired", async () => {
-    const client = makeSupabaseClient({
-      managedSessionPayload: {
-        cookies: [{ name: "PHPSESSID", value: "expired-token" }],
-      },
-      managedSessionExpiresAt: "2026-04-19T10:30:00.000Z",
-    });
-    createClientMock.mockResolvedValue(client);
-
-    const response = await POST(
-      new Request("http://localhost/api/platform-sync/import", {
-        method: "POST",
-        body: JSON.stringify({
-          platformAccountId: "acct-1",
-          fetchMode: "managed_session",
-        }),
-      })
-    );
-    const body = await response.json();
-
-    expect(response.status).toBe(200);
-    expect(body).toMatchObject({
-      jobStatus: "attention_required",
-      status: "attention_required",
-      error: "Managed IXL session expired",
-    });
-    expect(runIxlManagedSessionSyncMock).not.toHaveBeenCalled();
-    expect(client._mocks.platformSyncJobsUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "attention_required",
-        error_summary: "Managed IXL session expired",
-      })
-    );
-    expect(client._mocks.platformAccountsUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "attention_required",
-        last_sync_error_summary: "Managed IXL session expired",
-      })
-    );
-  });
-
   it("marks the sync job failed with retry metadata for retryable IXL fetch errors", async () => {
     const client = makeSupabaseClient({
       managedSessionPayload: {
@@ -1084,6 +1043,33 @@ describe("platform sync import route", () => {
     expect(response.status).toBe(400);
     expect(body).toEqual({
       error: "Raw event import not supported for platform raz-kids",
+    });
+  });
+
+  it("rejects Epic managed-session import when activityUrl is missing", async () => {
+    createClientMock.mockResolvedValue(
+      makeSupabaseClient({
+        platform: "epic" as any,
+        managedSessionPayload: {
+          cookies: [{ name: "epic_session", value: "session-token" }],
+        },
+      })
+    );
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-sync/import", {
+        method: "POST",
+        body: JSON.stringify({
+          platformAccountId: "acct-1",
+          fetchMode: "managed_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toEqual({
+      error: "epic managed session requires activityUrl in managed_session_payload",
     });
   });
 });

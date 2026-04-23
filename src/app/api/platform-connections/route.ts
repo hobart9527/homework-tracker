@@ -7,6 +7,8 @@ import { NextResponse } from "next/server";
 const SUPPORTED_PLATFORMS = new Set([
   "ixl",
   "khan-academy",
+  "raz-kids",
+  "epic",
 ] as const);
 
 function getManualSessionGuide(platform: string) {
@@ -18,6 +20,26 @@ function getManualSessionGuide(platform: string) {
           { name: "PHPSESSID", value: "" },
           { name: "ixl_user", value: "" },
         ],
+      },
+    };
+  }
+
+  if (platform === "epic") {
+    return {
+      manualSessionUrl: "https://www.getepic.com/sign-in/parent",
+      manualSessionTemplate: {
+        activityUrl: "",
+        cookies: [],
+      },
+    };
+  }
+
+  if (platform === "raz-kids") {
+    return {
+      manualSessionUrl: "https://www.raz-kids.com/",
+      manualSessionTemplate: {
+        activityUrl: "",
+        cookies: [],
       },
     };
   }
@@ -71,10 +93,6 @@ export async function POST(request: Request) {
     typeof payload.managedSessionCapturedAt === "string"
       ? payload.managedSessionCapturedAt
       : null;
-  const managedSessionExpiresAt =
-    typeof payload.managedSessionExpiresAt === "string"
-      ? payload.managedSessionExpiresAt
-      : null;
 
   if (!childId || !platform || !username) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -84,7 +102,24 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "Unsupported platform. The current pilot only supports IXL and Khan Academy.",
+          "Unsupported platform. Supported platforms are IXL, Khan Academy, Raz-Kids, and Epic.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (
+    authMode === "auto_login" &&
+    platform !== "ixl" &&
+    platform !== "khan-academy"
+  ) {
+    const guide = getManualSessionGuide(platform);
+    return NextResponse.json(
+      {
+        error: `${platform} 目前只支持手动 Session 绑定。`,
+        reason: "unsupported",
+        hint: "请切换到手动 Session 模式完成绑定。",
+        ...guide,
       },
       { status: 400 }
     );
@@ -208,7 +243,6 @@ export async function POST(request: Request) {
         status: finalStatus,
         managed_session_payload: finalManagedSessionPayload,
         managed_session_captured_at: finalManagedSessionCapturedAt,
-        managed_session_expires_at: managedSessionExpiresAt,
         login_credentials_encrypted: loginCredentialsEncrypted,
         auto_login_enabled: autoLoginEnabled,
         last_sync_error_summary: null,
@@ -237,7 +271,6 @@ export async function POST(request: Request) {
       status: finalStatus,
       managed_session_payload: finalManagedSessionPayload,
       managed_session_captured_at: finalManagedSessionCapturedAt,
-      managed_session_expires_at: managedSessionExpiresAt,
       login_credentials_encrypted: loginCredentialsEncrypted,
       auto_login_enabled: autoLoginEnabled,
       last_sync_error_summary: null,

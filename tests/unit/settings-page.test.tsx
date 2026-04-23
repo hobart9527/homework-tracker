@@ -8,6 +8,29 @@ import SettingsSystemPage from "@/app/(parent)/settings/system/page";
 const fetchMock = vi.fn();
 const searchParamsState = new URLSearchParams();
 const updateChildEq = vi.fn().mockResolvedValue({ error: null });
+const updateWeChatGroupEq = vi.fn().mockResolvedValue({ error: null });
+const wechatGroupsState = [
+  {
+    id: "group-1",
+    parent_id: "parent-1",
+    recipient_ref: "wxid_math@chatroom",
+    display_name: "Mia 数学老师群",
+    source: "discovered",
+    is_active: true,
+    last_seen_at: "2026-04-21T10:00:00.000Z",
+    created_at: "2026-04-20T09:00:00.000Z",
+  },
+  {
+    id: "group-2",
+    parent_id: "parent-1",
+    recipient_ref: "wxid_reading@chatroom",
+    display_name: "Mia 阅读老师群",
+    source: "manual",
+    is_active: true,
+    last_seen_at: null,
+    created_at: "2026-04-20T09:10:00.000Z",
+  },
+];
 
 const sessionResponse = {
   data: {
@@ -159,41 +182,26 @@ function createSupabaseClient() {
       }
 
       if (table === "wechat_groups") {
-        const groupsData = {
-          data: [
-            {
-              id: "group-1",
-              parent_id: "parent-1",
-              recipient_ref: "wxid_math@chatroom",
-              display_name: "Mia 数学老师群",
-              source: "discovered",
-              is_active: true,
-              last_seen_at: "2026-04-21T10:00:00.000Z",
-              created_at: "2026-04-20T09:00:00.000Z",
-            },
-            {
-              id: "group-2",
-              parent_id: "parent-1",
-              recipient_ref: "wxid_reading@chatroom",
-              display_name: "Mia 阅读老师群",
-              source: "manual",
-              is_active: true,
-              last_seen_at: null,
-              created_at: "2026-04-20T09:10:00.000Z",
-            },
-          ],
-        };
         return {
           select: () => ({
             eq: vi.fn(() => {
+              const groupsData = {
+                data: wechatGroupsState.map((group) => ({ ...group })),
+              };
               const result = Promise.resolve(groupsData);
               (result as any).order = vi.fn().mockResolvedValue(groupsData);
               return result;
             }),
           }),
           insert: vi.fn().mockResolvedValue({ error: null }),
-          update: vi.fn(() => ({
-            eq: vi.fn().mockResolvedValue({ error: null }),
+          update: vi.fn((payload: { display_name: string | null }) => ({
+            eq: vi.fn((field: string, id: string) => {
+              const group = wechatGroupsState.find((item) => item.id === id);
+              if (group) {
+                group.display_name = payload.display_name;
+              }
+              return updateWeChatGroupEq(field, id);
+            }),
           })),
           delete: vi.fn(() => ({
             eq: vi.fn().mockResolvedValue({ error: null }),
@@ -304,7 +312,10 @@ describe("Settings IA pages", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     updateChildEq.mockClear();
+    updateWeChatGroupEq.mockClear();
     searchParamsState.forEach((_, key) => searchParamsState.delete(key));
+    wechatGroupsState[0].display_name = "Mia 数学老师群";
+    wechatGroupsState[1].display_name = "Mia 阅读老师群";
   });
 
   it("renders the root settings page as a navigation hub", async () => {
@@ -374,6 +385,25 @@ describe("Settings IA pages", () => {
     });
   });
 
+  it("lets parents rename a discovered WeChat group from the channels page", async () => {
+    render(<SettingsChannelsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Mia 数学老师群")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "编辑" })[0]);
+    fireEvent.change(screen.getByPlaceholderText("群显示名称"), {
+      target: { value: "Mia 数学打卡群" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    await waitFor(() => {
+      expect(updateWeChatGroupEq).toHaveBeenCalledWith("id", "group-1");
+      expect(screen.getByText("Mia 数学打卡群")).toBeInTheDocument();
+    });
+  });
+
   it("submits a child platform binding from the integrations page", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
@@ -411,6 +441,24 @@ describe("Settings IA pages", () => {
     expect(
       screen.getByText((content) => content.includes("Mia 家庭群 (wechat-group-mia)"))
     ).toBeInTheDocument();
+  });
+
+  it("supports Raz-Kids and Epic as manual-session binding options", async () => {
+    render(<SettingsIntegrationsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("学习平台账号")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("option", { name: "Raz-Kids" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Epic" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("平台"), {
+      target: { value: "raz-kids" },
+    });
+
+    expect(screen.getByText(/Raz-Kids 目前先接入手动 Session 绑定/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "自动登录（IXL / Khan）" })).toBeDisabled();
   });
 
   it("switches to manual session guidance when IXL auto login hits a captcha challenge", async () => {

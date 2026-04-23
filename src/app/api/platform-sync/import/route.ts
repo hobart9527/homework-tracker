@@ -10,6 +10,7 @@ import {
 import {
   executeManagedSessionSync,
   importNormalizedEvent,
+  supportsManagedSessionSync,
 } from "@/lib/platform-sync-execution";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
@@ -82,7 +83,20 @@ export async function POST(request: Request) {
 
   const usingManagedSessionFetch =
     fetchMode === "managed_session" &&
-    (account.platform === "ixl" || account.platform === "khan-academy");
+    supportsManagedSessionSync(account as any);
+
+  if (
+    fetchMode === "managed_session" &&
+    !usingManagedSessionFetch &&
+    (account.platform === "epic" || account.platform === "raz-kids")
+  ) {
+    return NextResponse.json(
+      {
+        error: `${account.platform} managed session requires activityUrl in managed_session_payload`,
+      },
+      { status: 400 }
+    );
+  }
 
   if (rawEventPayload && !eventPayload && !supportsRawPlatformImport(account.platform)) {
     return NextResponse.json(

@@ -385,7 +385,7 @@ export default function SettingsChannelsPage() {
       <Card id="reminder-settings" className="scroll-mt-4">
         <h2 className="mb-4 font-bold text-forest-700">提醒与 Telegram 通道</h2>
         <p className="mb-4 text-sm text-forest-500">
-          Telegram 通道现在需要同时配置 Bot Token 和 Chat ID，才能进行真实发送与测试消息验证。
+          Telegram 通道在这里保存家庭级 Chat ID 和接收人备注；Bot Token 由服务端运行环境统一提供。
         </p>
         <ReminderSettings
           settings={parent}

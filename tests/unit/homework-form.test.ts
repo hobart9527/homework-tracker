@@ -48,6 +48,8 @@ const selectSourceHomework = vi.fn(() =>
       required_checkpoint_type: "photo",
       platform_binding_platform: "khan-academy",
       platform_binding_source_ref: "lesson-123",
+      send_to_wechat: true,
+      wechat_group_id: "",
       created_by: "parent-1",
       created_at: "2026-04-11T08:00:00.000Z",
     },
@@ -62,12 +64,14 @@ const selectChildren = vi.fn(() =>
         parent_id: "parent-1",
         name: "Ivy",
         avatar: "🦊",
+        default_wechat_group_id: "group-math",
       },
       {
         id: "child-2",
         parent_id: "parent-1",
         name: "Albert",
         avatar: "🐼",
+        default_wechat_group_id: null,
       },
     ],
   })
@@ -104,6 +108,24 @@ const selectRoutingRules = vi.fn(() =>
         recipient_ref: "wechat-group-math",
         recipient_label: "Ivy 数学群",
         created_at: "2026-04-20T10:00:00.000Z",
+      },
+    ],
+  })
+);
+const selectWechatGroups = vi.fn(() =>
+  Promise.resolve({
+    data: [
+      {
+        id: "group-math",
+        parent_id: "parent-1",
+        recipient_ref: "wxid_math@chatroom",
+        display_name: "Ivy 数学群",
+      },
+      {
+        id: "group-reading",
+        parent_id: "parent-1",
+        recipient_ref: "wxid_reading@chatroom",
+        display_name: "Ivy 阅读群",
       },
     ],
   })
@@ -159,6 +181,14 @@ const supabaseClient = {
       return {
         select: () => ({
           in: selectPlatformAccounts,
+        }),
+      };
+    }
+
+    if (table === "wechat_groups") {
+      return {
+        select: () => ({
+          eq: selectWechatGroups,
         }),
       };
     }
@@ -415,35 +445,36 @@ describe("HomeworkForm workbench", () => {
     expect(screen.getByText(/已匹配 ixl 账号：ivy-ixl/i)).toBeInTheDocument();
   });
 
-  it("lets homework editing own the per-homework message route", async () => {
+  it("lets homework editing choose a per-homework WeChat group", async () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("作业消息路由")).toBeInTheDocument();
+      expect(screen.getByText("作业提交群")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "为这条作业单独指定" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ivy 数学群" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })
+    );
+    fireEvent.change(screen.getByLabelText("提交到哪个微信群"), {
+      target: { value: "group-reading" },
+    });
 
-    expect(screen.getByDisplayValue("wechat-group-math")).toBeInTheDocument();
+    expect(screen.getByLabelText("提交到哪个微信群")).toHaveValue("group-reading");
   });
 
-  it("keeps homework message routing focused on wechat bridge targets", async () => {
+  it("keeps homework inheriting the child default group until overridden", async () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("作业消息路由")).toBeInTheDocument();
+      expect(screen.getByText("作业提交群")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "为这条作业单独指定" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })
+    );
 
-    expect(
-      screen.getByRole("option", { name: "微信群" })
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("option", { name: "Telegram Chat" })
-    ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("微信群标识")).toBeInTheDocument();
+    expect(screen.getByText(/当前会继承孩子默认提交群/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Ivy 数学群/).length).toBeGreaterThan(0);
   });
 
   it("shows the photo proof explanation in the preview", async () => {
@@ -472,6 +503,9 @@ describe("HomeworkForm workbench", () => {
       "khan-academy"
     );
     expect(screen.getByDisplayValue("lesson-123")).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })
+    ).toBeChecked();
     expect(screen.getByText("将创建 1 份独立作业")).toBeInTheDocument();
     expect(screen.getByText(/会分别分配给 Albert/)).toBeInTheDocument();
   });

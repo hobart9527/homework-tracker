@@ -5,12 +5,15 @@ import {
   resolvePlatformSyncWindow,
 } from "@/lib/platform-sync-schedule";
 import { claimPlatformSyncJob, restartPlatformSyncJob } from "@/lib/platform-sync";
-import { executeManagedSessionSync } from "@/lib/platform-sync-execution";
+import {
+  executeManagedSessionSync,
+  supportsManagedSessionSync,
+} from "@/lib/platform-sync-execution";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
-const DEFAULT_PLATFORMS = ["ixl", "khan-academy"] as const;
+const DEFAULT_PLATFORMS = ["ixl", "khan-academy", "raz-kids", "epic"] as const;
 const DEFAULT_HOUSEHOLD_TIME_ZONE = "Asia/Shanghai";
 
 export async function GET(request: Request) {
@@ -109,11 +112,7 @@ export async function GET(request: Request) {
       continue;
     }
 
-    if (
-      (account.platform === "ixl" || account.platform === "khan-academy") &&
-      account.status === "active" &&
-      account.managed_session_payload
-    ) {
+    if (account.status === "active" && supportsManagedSessionSync(account as any)) {
       const executionResult = await executeManagedSessionSync({
         supabase: supabase as any,
         account: account as any,
@@ -171,9 +170,7 @@ export async function GET(request: Request) {
     }
 
     if (
-      (retryAccount.platform !== "ixl" &&
-        retryAccount.platform !== "khan-academy") ||
-      !retryAccount.managed_session_payload ||
+      !supportsManagedSessionSync(retryAccount as any) ||
       retryAccount.status === "attention_required"
     ) {
       results.push({

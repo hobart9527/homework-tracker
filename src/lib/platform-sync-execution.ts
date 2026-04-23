@@ -1,3 +1,5 @@
+import { runEpicManagedSessionSync } from "@/lib/platform-adapters/epic-connector";
+import { EpicManagedSessionError } from "@/lib/platform-adapters/epic-fetch";
 import {
   loadAutoCheckinContext,
   syncLearningEventAutoCheckins,
@@ -6,6 +8,8 @@ import { runIxlManagedSessionSync } from "@/lib/platform-adapters/ixl-connector"
 import { IxlManagedSessionError } from "@/lib/platform-adapters/ixl-fetch";
 import { runKhanManagedSessionSync } from "@/lib/platform-adapters/khan-connector";
 import { KhanManagedSessionError } from "@/lib/platform-adapters/khan-fetch";
+import { runRazKidsManagedSessionSync } from "@/lib/platform-adapters/raz-kids-connector";
+import { RazKidsManagedSessionError } from "@/lib/platform-adapters/raz-kids-fetch";
 import {
   completePlatformSyncJob,
   markPlatformSyncJobFailed,
@@ -14,6 +18,7 @@ import {
 import { decryptCredential } from "@/lib/crypto";
 import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
 import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
+import { sendTelegramTextMessage } from "@/lib/telegram";
 import type { LearningEventInput } from "@/lib/learning-events";
 import type { Json } from "@/lib/supabase/types";
 
@@ -51,8 +56,8 @@ type PlatformAccount = {
   id: string;
   child_id: string;
   platform: LearningEventInput["platform"];
+  external_account_ref?: string | null;
   managed_session_payload?: Record<string, unknown> | null;
-  managed_session_expires_at?: string | null;
   auto_login_enabled?: boolean | null;
   login_credentials_encrypted?: string | null;
 };
@@ -69,28 +74,39 @@ type NormalizedEvent = {
   rawPayload?: Json;
 };
 
-function getManagedSessionExpiredError(
-  platform: PlatformAccount["platform"]
-) {
-  if (platform === "ixl") {
-    return new IxlManagedSessionError("Managed IXL session expired");
-  }
-
-  return new KhanManagedSessionError("Managed Khan session expired");
+function isSessionExpiredError(error: unknown): boolean {
+  return (
+    error instanceof IxlManagedSessionError ||
+    error instanceof KhanManagedSessionError ||
+    error instanceof EpicManagedSessionError ||
+    error instanceof RazKidsManagedSessionError
+  );
 }
 
-function isManagedSessionExpired(account: PlatformAccount) {
-  if (!account.managed_session_expires_at) {
+function hasManagedSessionActivityUrl(
+  payload: PlatformAccount["managed_session_payload"]
+) {
+  return (
+    !!payload &&
+    typeof payload.activityUrl === "string" &&
+    payload.activityUrl.trim().length > 0
+  );
+}
+
+export function supportsManagedSessionSync(account: PlatformAccount) {
+  if (!account.managed_session_payload) {
     return false;
   }
 
-  const expiresAt = Date.parse(account.managed_session_expires_at);
-
-  if (Number.isNaN(expiresAt)) {
-    return false;
+  if (account.platform === "ixl" || account.platform === "khan-academy") {
+    return true;
   }
 
-  return expiresAt <= Date.now();
+  if (account.platform === "epic" || account.platform === "raz-kids") {
+    return hasManagedSessionActivityUrl(account.managed_session_payload);
+  }
+
+  return false;
 }
 
 export async function importNormalizedEvent(input: {
@@ -179,9 +195,70 @@ async function tryAutoLoginRefresh(
 
   // Mutate the local account object so downstream sync uses the new payload
   account.managed_session_payload = { cookies: loginResult.cookies };
-  account.managed_session_expires_at = null;
 
   return true;
+}
+
+async function notifyParentSessionExpired(
+  supabase: SupabaseLike,
+  account: PlatformAccount
+): Promise<void> {
+  try {
+    // Fetch child and parent info
+    const { data: child } = await (supabase as any)
+      .from("children")
+      .select("name, parent_id")
+      .eq("id", account.child_id)
+      .single();
+
+    if (!child) return;
+
+    const { data: parent } = await (supabase as any)
+      .from("parents")
+      .select("telegram_bot_token, telegram_chat_id")
+      .eq("id", child.parent_id)
+      .single();
+
+    if (!parent?.telegram_bot_token || !parent?.telegram_chat_id) {
+      return;
+    }
+
+    const platformNames: Record<string, string> = {
+      ixl: "IXL",
+      "khan-academy": "Khan Academy",
+      epic: "Epic",
+      "raz-kids": "Raz-Kids",
+    };
+
+    const text =
+      `⚠️ <b>Session 过期提醒</b>\n\n` +
+      `孩子：<b>${child.name}</b>\n` +
+      `平台：<b>${platformNames[account.platform] ?? account.platform}</b>\n` +
+      `账号：${account.external_account_ref ?? "未知"}\n\n` +
+      `自动登录刷新失败，Session 已过期。\n` +
+      `请打开应用「设置 → 孩子集成」，点击「刷新登录」或「手动补录」更新 Session。`;
+
+    await sendTelegramTextMessage({
+      botToken: parent.telegram_bot_token,
+      chatId: parent.telegram_chat_id,
+      text,
+    });
+  } catch {
+    // Silently fail notification — don't block the sync flow
+  }
+}
+
+async function runConnectorSync(account: PlatformAccount) {
+  if (account.platform === "ixl") {
+    return await runIxlManagedSessionSync({ account: account as any });
+  }
+  if (account.platform === "khan-academy") {
+    return await runKhanManagedSessionSync({ account: account as any });
+  }
+  if (account.platform === "epic") {
+    return await runEpicManagedSessionSync({ account: account as any });
+  }
+  return await runRazKidsManagedSessionSync({ account: account as any });
 }
 
 export async function executeManagedSessionSync(input: {
@@ -190,23 +267,10 @@ export async function executeManagedSessionSync(input: {
   householdTimeZone: string;
   jobId: string;
 }) {
-  try {
-    if (isManagedSessionExpired(input.account)) {
-      const refreshed = await tryAutoLoginRefresh(input.supabase, input.account);
-      if (!refreshed) {
-        throw getManagedSessionExpiredError(input.account.platform);
-      }
-    }
-
-    const connectorResult =
-      input.account.platform === "ixl"
-        ? await runIxlManagedSessionSync({
-            account: input.account as any,
-          })
-        : await runKhanManagedSessionSync({
-            account: input.account as any,
-          });
-
+  async function handleSuccess(connectorResult: {
+    summary: { fetchedCount: number };
+    events: ReturnType<typeof importNormalizedEvent> extends Promise<infer T> ? T[] : never;
+  }) {
     if (!connectorResult.events[0]) {
       await completePlatformSyncJob({
         supabase: input.supabase as any,
@@ -239,7 +303,7 @@ export async function executeManagedSessionSync(input: {
           supabase: input.supabase,
           account: input.account,
           householdTimeZone: input.householdTimeZone,
-          normalizedEvent,
+          normalizedEvent: normalizedEvent as any,
         })
       );
     }
@@ -284,25 +348,60 @@ export async function executeManagedSessionSync(input: {
       importedEventCount: importedResults.length,
       fetchSummary: connectorResult.summary,
     };
-  } catch (error) {
-    const errorSummary =
-      error instanceof Error ? error.message : "Managed session sync failed";
+  }
 
-    if (
-      error instanceof IxlManagedSessionError ||
-      error instanceof KhanManagedSessionError
-    ) {
+  async function handleSessionExpired(error: Error) {
+    // Try to refresh session automatically
+    const refreshed = await tryAutoLoginRefresh(input.supabase, input.account);
+    if (!refreshed) {
+      // Notify parent via Telegram
+      await notifyParentSessionExpired(input.supabase, input.account);
+
       await markPlatformAccountAttentionRequired({
         supabase: input.supabase as any,
         jobId: input.jobId,
         platformAccountId: input.account.id,
-        errorSummary,
+        errorSummary: error.message,
       });
 
       return {
         status: "attention_required" as const,
-        error: errorSummary,
+        error: error.message,
       };
+    }
+
+    // Refresh succeeded — retry sync
+    try {
+      const connectorResult = await runConnectorSync(input.account);
+      return await handleSuccess(connectorResult as any);
+    } catch (retryError) {
+      const retrySummary =
+        retryError instanceof Error ? retryError.message : "Retry sync failed";
+
+      await notifyParentSessionExpired(input.supabase, input.account);
+      await markPlatformAccountAttentionRequired({
+        supabase: input.supabase as any,
+        jobId: input.jobId,
+        platformAccountId: input.account.id,
+        errorSummary: retrySummary,
+      });
+
+      return {
+        status: "attention_required" as const,
+        error: retrySummary,
+      };
+    }
+  }
+
+  try {
+    const connectorResult = await runConnectorSync(input.account);
+    return await handleSuccess(connectorResult as any);
+  } catch (error) {
+    const errorSummary =
+      error instanceof Error ? error.message : "Managed session sync failed";
+
+    if (isSessionExpiredError(error)) {
+      return await handleSessionExpired(error as Error);
     }
 
     const retryCount = 1;

@@ -43,6 +43,27 @@ const PLATFORM_CONFIG = {
     },
     cookieNames: ["KAAS", "fkey", "ka_session"],
   },
+  epic: {
+    name: "Epic",
+    loginUrl: "https://www.getepic.com/sign-in/parent",
+    autoFill: {
+      usernameSelector:
+        'input[type="email"], input[name="email"], input[name="username"]',
+      passwordSelector:
+        'input[type="password"], input[name="password"]',
+      submitSelector:
+        'button[type="submit"], button:has-text("Log In"), input[type="submit"]',
+    },
+    cookieNames: ["epic", "_epic", "connect.sid", "session"],
+    requiresActivityUrl: true,
+  },
+  "raz-kids": {
+    name: "Raz-Kids",
+    loginUrl: "https://www.raz-kids.com/",
+    autoFill: null,
+    cookieNames: ["raz", "kidsa-z", "JSESSIONID", "session"],
+    requiresActivityUrl: true,
+  },
 };
 
 function parseArgs() {
@@ -212,8 +233,13 @@ async function main() {
   console.log("📝  Steps:");
   console.log("   1. Complete login in the browser window");
   console.log("   2. Solve any CAPTCHA manually if it appears");
-  console.log("   3. Wait until the logged-in dashboard loads");
-  console.log("   4. Return here and press ENTER");
+  if (config.requiresActivityUrl) {
+    console.log("   3. After login, open the learning activity/progress page");
+    console.log("   4. Wait until that activity page fully loads");
+  } else {
+    console.log("   3. Wait until the logged-in dashboard loads");
+  }
+  console.log("   5. Return here and press ENTER");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   await waitForEnter();
@@ -245,6 +271,11 @@ async function main() {
   }
 
   const payload = {
+    ...(config.requiresActivityUrl
+      ? {
+          activityUrl: page.url(),
+        }
+      : {}),
     cookies: cookies.map((c) => ({
       name: c.name,
       value: c.value,
@@ -257,6 +288,10 @@ async function main() {
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(json);
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+  if (config.requiresActivityUrl) {
+    console.log(`\n🔗 Captured activity URL: ${page.url()}`);
+  }
 
   const copied = await copyToClipboard(json);
   if (copied) {

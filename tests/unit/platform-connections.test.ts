@@ -211,7 +211,6 @@ describe("platform connections route", () => {
           ],
         },
         managed_session_captured_at: "2026-04-20T12:00:00.000Z",
-        managed_session_expires_at: "2026-04-21T12:00:00.000Z",
       })
     );
     expect(body.account).toMatchObject({
@@ -272,7 +271,6 @@ describe("platform connections route", () => {
           ],
         },
         managed_session_captured_at: "2026-04-20T12:00:00.000Z",
-        managed_session_expires_at: "2026-04-21T12:00:00.000Z",
       })
     );
     expect(body.account).toMatchObject({
@@ -290,7 +288,7 @@ describe("platform connections route", () => {
     });
   });
 
-  it("rejects platforms that are staged for a later rollout", async () => {
+  it("allows a Raz-Kids account to be created in manual-session mode", async () => {
     createClientMock.mockResolvedValue(makeSupabaseClient());
 
     const response = await POST(
@@ -300,6 +298,30 @@ describe("platform connections route", () => {
           childId: "child-1",
           platform: "raz-kids",
           username: "demo@raz.test",
+          authMode: "manual_session",
+        }),
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.account).toMatchObject({
+      platform: "raz-kids",
+      auth_mode: "manual_session",
+      status: "attention_required",
+    });
+  });
+
+  it("rejects unsupported platforms outside the supported list", async () => {
+    createClientMock.mockResolvedValue(makeSupabaseClient());
+
+    const response = await POST(
+      new Request("http://localhost/api/platform-connections", {
+        method: "POST",
+        body: JSON.stringify({
+          childId: "child-1",
+          platform: "mystery-platform",
+          username: "demo@test",
         }),
       })
     );
@@ -308,7 +330,7 @@ describe("platform connections route", () => {
     expect(response.status).toBe(400);
     expect(body).toEqual({
       error:
-        "Unsupported platform. The current pilot only supports IXL and Khan Academy.",
+        "Unsupported platform. Supported platforms are IXL, Khan Academy, Raz-Kids, and Epic.",
     });
   });
 

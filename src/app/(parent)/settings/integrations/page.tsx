@@ -15,6 +15,27 @@ type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
 type MessageRoutingRule =
   Database["public"]["Tables"]["message_routing_rules"]["Row"];
 type WeChatGroup = Database["public"]["Tables"]["wechat_groups"]["Row"];
+type SupportedPlatform = "ixl" | "khan-academy" | "raz-kids" | "epic";
+
+const AUTO_LOGIN_PLATFORMS = new Set<SupportedPlatform>([
+  "ixl",
+  "khan-academy",
+]);
+
+function getPlatformDisplayName(platform: string) {
+  if (platform === "ixl") return "IXL";
+  if (platform === "khan-academy") return "Khan Academy";
+  if (platform === "raz-kids") return "Raz-Kids";
+  if (platform === "epic") return "Epic";
+  return platform;
+}
+
+function getManualSessionLoginUrl(platform: string) {
+  if (platform === "ixl") return "https://www.ixl.com/signin";
+  if (platform === "khan-academy") return "https://www.khanacademy.org/login";
+  if (platform === "epic") return "https://www.getepic.com/sign-in/parent";
+  return "https://www.raz-kids.com/";
+}
 
 export default function SettingsIntegrationsPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -29,7 +50,7 @@ export default function SettingsIntegrationsPage() {
   const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [bindingForm, setBindingForm] = useState({
     childId: "",
-    platform: "ixl",
+    platform: "ixl" as SupportedPlatform,
     username: "",
     externalAccountRef: "",
     authMode: "auto_login" as "auto_login" | "manual_session",
@@ -37,7 +58,6 @@ export default function SettingsIntegrationsPage() {
     loginPassword: "",
     managedSessionPayloadText: "",
     managedSessionCapturedAt: "",
-    managedSessionExpiresAt: "",
   });
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [bindingLoading, setBindingLoading] = useState(false);
@@ -208,8 +228,6 @@ export default function SettingsIntegrationsPage() {
           managedSessionPayload,
           managedSessionCapturedAt:
             bindingForm.managedSessionCapturedAt || null,
-          managedSessionExpiresAt:
-            bindingForm.managedSessionExpiresAt || null,
         }),
       });
 
@@ -265,7 +283,6 @@ export default function SettingsIntegrationsPage() {
         loginPassword: "",
         managedSessionPayloadText: "",
         managedSessionCapturedAt: "",
-        managedSessionExpiresAt: "",
       });
 
       if (parentId) {
@@ -380,15 +397,20 @@ export default function SettingsIntegrationsPage() {
               <button
                 type="button"
                 onClick={() =>
-                  setBindingForm((prev) => ({ ...prev, authMode: "auto_login" }))
+                  setBindingForm((prev) =>
+                    AUTO_LOGIN_PLATFORMS.has(prev.platform)
+                      ? { ...prev, authMode: "auto_login" }
+                      : prev
+                  )
                 }
+                disabled={!AUTO_LOGIN_PLATFORMS.has(bindingForm.platform)}
                 className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   bindingForm.authMode === "auto_login"
                     ? "bg-primary text-white"
                     : "text-forest-600 hover:bg-forest-50"
                 }`}
               >
-                自动登录（推荐）
+                自动登录（IXL / Khan）
               </button>
               <button
                 type="button"
@@ -434,12 +456,23 @@ export default function SettingsIntegrationsPage() {
                 id="platform-name"
                 value={bindingForm.platform}
                 onChange={(e) =>
-                  setBindingForm((prev) => ({ ...prev, platform: e.target.value }))
+                  setBindingForm((prev) => {
+                    const platform = e.target.value as SupportedPlatform;
+                    return {
+                      ...prev,
+                      platform,
+                      authMode: AUTO_LOGIN_PLATFORMS.has(platform)
+                        ? prev.authMode
+                        : "manual_session",
+                    };
+                  })
                 }
                 className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
               >
                 <option value="ixl">IXL</option>
                 <option value="khan-academy">Khan Academy</option>
+                <option value="raz-kids">Raz-Kids</option>
+                <option value="epic">Epic</option>
               </select>
             </div>
 
@@ -486,12 +519,20 @@ export default function SettingsIntegrationsPage() {
               </>
             ) : (
               <>
+                {!AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? (
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                    {getPlatformDisplayName(bindingForm.platform)} 目前先接入手动
+                    Session 绑定，自动登录后续再补。请在 JSON 里同时提供活动页
+                    `activityUrl` 和登录后的 `cookies`。
+                  </div>
+                ) : null}
                 {manualSessionGuide ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                     <p className="font-medium">{manualSessionGuide.message}</p>
                     <ol className="mt-2 list-decimal space-y-1 pl-5">
                       <li>先打开平台登录页并完成验证码或登录验证</li>
-                      <li>登录成功后，把当前浏览器里的 Cookie 按下面 JSON 结构粘贴回来</li>
+                      <li>登录成功后，进入学习记录/活动页，并复制该页面 URL</li>
+                      <li>把活动页 URL 和当前浏览器里的 Cookie 按下面 JSON 结构粘贴回来</li>
                       <li>保存后系统会优先复用这次 Session，减少后续打断</li>
                     </ol>
                     <a
@@ -500,7 +541,7 @@ export default function SettingsIntegrationsPage() {
                       rel="noreferrer"
                       className="mt-3 inline-flex text-sm font-medium text-primary underline"
                     >
-                      打开 {manualSessionGuide.platform === "ixl" ? "IXL" : "Khan Academy"} 登录页
+                      打开 {getPlatformDisplayName(manualSessionGuide.platform)} 登录页
                     </a>
                   </div>
                 ) : null}
@@ -517,14 +558,22 @@ export default function SettingsIntegrationsPage() {
                         managedSessionPayloadText: e.target.value,
                       }))
                     }
-                    placeholder='例如 {"cookies":[{"name":"PHPSESSID","value":"..."}]}'
+                    placeholder={
+                      bindingForm.platform === "epic" ||
+                      bindingForm.platform === "raz-kids"
+                        ? '例如 {"activityUrl":"https://...","cookies":[{"name":"session","value":"..."}]}'
+                        : '例如 {"cookies":[{"name":"PHPSESSID","value":"..."}]}'
+                    }
                     className="min-h-28 w-full rounded-xl border-2 border-forest-200 px-4 py-3 focus:border-primary focus:outline-none"
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Input
-                    label="Session 捕获时间（可选）"
+                <div>
+                  <label htmlFor="managed-session-captured-at" className="mb-1 block text-sm font-medium text-forest-700">
+                    Session 捕获时间（可选）
+                  </label>
+                  <input
+                    id="managed-session-captured-at"
                     type="datetime-local"
                     value={bindingForm.managedSessionCapturedAt}
                     onChange={(e) =>
@@ -533,18 +582,7 @@ export default function SettingsIntegrationsPage() {
                         managedSessionCapturedAt: e.target.value,
                       }))
                     }
-                  />
-
-                  <Input
-                    label="Session 过期时间（可选）"
-                    type="datetime-local"
-                    value={bindingForm.managedSessionExpiresAt}
-                    onChange={(e) =>
-                      setBindingForm((prev) => ({
-                        ...prev,
-                        managedSessionExpiresAt: e.target.value,
-                      }))
-                    }
+                    className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
                   />
                 </div>
               </>
@@ -595,7 +633,9 @@ export default function SettingsIntegrationsPage() {
                             setTakeoverPayload(
                               account.platform === "ixl"
                                 ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                                : '{"cookies":[{"name":"KAAS","value":""}]}'
+                                : account.platform === "khan-academy"
+                                  ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                                  : '{"activityUrl":"","cookies":[]}'
                             );
                           }}
                         >
@@ -692,7 +732,9 @@ export default function SettingsIntegrationsPage() {
                                 setTakeoverPayload(
                                   account.platform === "ixl"
                                     ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                                    : '{"cookies":[{"name":"KAAS","value":""}]}'
+                                    : account.platform === "khan-academy"
+                                      ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                                      : '{"activityUrl":"","cookies":[]}'
                                 );
                               }}
                             >
@@ -713,16 +755,12 @@ export default function SettingsIntegrationsPage() {
                       ) : (
                         <div className="space-y-3">
                           <a
-                            href={
-                              account.platform === "ixl"
-                                ? "https://www.ixl.com/signin"
-                                : "https://www.khanacademy.org/login"
-                            }
+                            href={getManualSessionLoginUrl(account.platform)}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex text-sm font-medium text-primary underline"
                           >
-                            打开 {account.platform === "ixl" ? "IXL" : "Khan Academy"} 登录页
+                            打开 {getPlatformDisplayName(account.platform)} 登录页
                           </a>
                           <textarea
                             value={takeoverPayload}
