@@ -5,19 +5,21 @@ import Link from "next/link";
 type SettingsShellProps = {
   title: string;
   description?: string;
+  backHref?: string;
   children: React.ReactNode;
 };
 
 export function SettingsShell({
   title,
   description,
+  backHref = "/settings",
   children,
 }: SettingsShellProps) {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-primary p-4 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-4">
-          <Link href="/settings">
+          <Link href={backHref}>
             <span className="text-xl">←</span>
           </Link>
           <div>

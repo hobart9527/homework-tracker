@@ -83,7 +83,7 @@ export function HomeworkForm({
     repeat_start_date: homework?.repeat_start_date || "",
     point_value: homework?.point_value || 3,
     point_deduction: homework?.point_deduction ?? 3,
-    estimated_minutes: homework?.estimated_minutes || 30,
+    estimated_minutes: homework?.estimated_minutes ?? null,
     daily_cutoff_time: homework?.daily_cutoff_time || "23:30",
     required_checkpoint_type: homework?.required_checkpoint_type || "",
     platform_binding_platform: homework?.platform_binding_platform || "",
@@ -605,11 +605,14 @@ export function HomeworkForm({
             type="number"
             min={5}
             max={180}
-            value={formData.estimated_minutes}
+            value={formData.estimated_minutes ?? ""}
             onChange={(e) =>
               setFormData((prev) => ({
                 ...prev,
-                estimated_minutes: parseInt(e.target.value),
+                estimated_minutes:
+                  e.target.value.trim() === ""
+                    ? null
+                    : parseInt(e.target.value, 10),
               }))
             }
           />

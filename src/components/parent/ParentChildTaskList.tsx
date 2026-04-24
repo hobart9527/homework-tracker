@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { HomeworkCard } from "@/components/parent/HomeworkCard";
 import { ReminderActionButton } from "@/components/parent/ReminderActionButton";
 import { createClient } from "@/lib/supabase/client";
-import { getLocalDayBounds } from "@/lib/homework-utils";
 import type { Database } from "@/lib/supabase/types";
 import type {
   ParentChildDashboardDetail,
@@ -15,9 +15,7 @@ import type {
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type Attachment = Database["public"]["Tables"]["attachments"]["Row"];
-type Task = ParentChildDashboardDetail["tasks"][number] & {
-  homeworkId?: string;
-};
+type Task = ParentChildDashboardDetail["tasks"][number];
 
 interface ParentChildTaskListProps {
   tasks: Task[];
@@ -60,12 +58,11 @@ function buildHomework(task: Task, index: number): Homework {
   };
 }
 
-function buildDayRange(date: string) {
-  return getLocalDayBounds(new Date(`${date}T00:00:00`));
-}
-
 function isAttachmentVisible(task: Task) {
-  return Boolean(task.proofType) && (task.statusText === "已完成" || task.statusText === "逾期完成");
+  const isCompleted = task.statusText === "已完成" || task.statusText === "逾期完成";
+  const hasProofType = Boolean(task.proofType ?? task.latestProofType);
+  const hasCheckIn = Boolean(task.latestCheckInId);
+  return isCompleted && (hasProofType || hasCheckIn);
 }
 
 export function ParentChildTaskList({
@@ -88,7 +85,7 @@ export function ParentChildTaskList({
     setPreviewLoading(false);
   };
 
-  const handleAttachmentPreview = async (task: Task, taskHomeworkId: string) => {
+  const handleAttachmentPreview = async (task: Task) => {
     setPreviewTaskTitle(task.title);
     setPreviewAttachments([]);
     setPreviewError(null);
@@ -105,19 +102,8 @@ export function ParentChildTaskList({
         return;
       }
 
-      const { start, end } = buildDayRange(selectedDate);
-      const { data: checkInsData } = await supabase
-        .from("check_ins")
-        .select("id, homework_id, child_id, completed_at, proof_type")
-        .eq("homework_id", taskHomeworkId)
-        .eq("child_id", childId)
-        .gte("completed_at", start)
-        .lt("completed_at", end)
-        .order("completed_at", { ascending: false })
-        .limit(1);
-
-      const checkIn = checkInsData?.[0];
-      if (!checkIn) {
+      const checkInId = task.latestCheckInId;
+      if (!checkInId) {
         setPreviewError("这条作业还没有找到可预览的打卡记录");
         return;
       }
@@ -125,7 +111,7 @@ export function ParentChildTaskList({
       const { data: attachmentsData } = await supabase
         .from("attachments")
         .select("id, check_in_id, type, storage_path, created_at")
-        .eq("check_in_id", checkIn.id);
+        .eq("check_in_id", checkInId);
 
       if (!attachmentsData || attachmentsData.length === 0) {
         setPreviewError("这条作业暂时没有可预览的附件");
@@ -188,7 +174,7 @@ export function ParentChildTaskList({
                         variant="ghost"
                         size="sm"
                         className="text-xs h-7 px-2"
-                        onClick={() => handleAttachmentPreview(task, taskHomeworkId)}
+                        onClick={() => handleAttachmentPreview(task)}
                       >
                         📎 附件
                       </Button>
@@ -240,7 +226,7 @@ export function ParentChildTaskList({
               暂时没有可预览的附件
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className={previewAttachments.length > 1 ? "grid gap-4 sm:grid-cols-2" : "space-y-4"}>
               {previewAttachments.map((attachment, index) => (
                 <div
                   key={attachment.id}
@@ -258,8 +244,7 @@ export function ParentChildTaskList({
                       className="h-64 w-full rounded-2xl object-cover"
                     />
                   ) : (
-                    <audio
-                      controls
+                    <AudioPlayer
                       src={attachment.previewUrl}
                       className="w-full"
                     />

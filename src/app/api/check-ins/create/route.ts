@@ -24,8 +24,19 @@ export async function POST(request: Request) {
 
   const payload = await request.json();
   const homework_id = payload.homework_id || payload.homeworkId;
+  const targetDate =
+    typeof payload.targetDate === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(payload.targetDate)
+      ? payload.targetDate
+      : null;
   const note = payload.note;
   const proofType = payload.proofType;
+  const audioDurationSeconds =
+    typeof payload.audioDurationSeconds === "number" &&
+    Number.isFinite(payload.audioDurationSeconds) &&
+    payload.audioDurationSeconds > 0
+      ? Math.floor(payload.audioDurationSeconds)
+      : null;
 
   if (!homework_id) {
     return NextResponse.json({ error: "Missing homework_id" }, { status: 400 });
@@ -47,7 +58,14 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
-  const { start: dayStart, end: dayEnd } = getLocalDayBounds(now);
+  const submittedAt = now.toISOString();
+  const completedAt =
+    targetDate != null
+      ? new Date(`${targetDate}T12:00:00`).toISOString()
+      : submittedAt;
+  const { start: dayStart, end: dayEnd } = getLocalDayBounds(
+    targetDate != null ? new Date(`${targetDate}T12:00:00`) : now
+  );
 
   const { data: existingSameDay, error: existingError } = await supabase
     .from("check_ins")
@@ -91,13 +109,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
-  const completedAt = now.toISOString();
   const primaryPayload = buildCheckInInsertPayload({
     homeworkId: homework.id,
     childId: session.user.id,
     completedAt,
+    submittedAt,
     note,
     proofType: (proofType ?? null) as ProofType,
+    audioDurationSeconds,
     result: decision,
   });
 

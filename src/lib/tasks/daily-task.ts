@@ -25,6 +25,7 @@ export type DailyTaskStatus = {
   awardedPoints: number;
   submissionCount: number;
   latestCheckInId: string | null;
+  latestProofType: ProofType;
 };
 
 function isCheckInOnDate(checkIn: Pick<CheckIn, "completed_at">, date: string) {
@@ -68,6 +69,7 @@ export function buildDailyTaskStatuses(
       awardedPoints: firstScored?.awarded_points ?? 0,
       submissionCount: sameDay.length,
       latestCheckInId: latestCheckIn?.id ?? null,
+      latestProofType: latestCheckIn?.proof_type ?? null,
     };
   });
 }

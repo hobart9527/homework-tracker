@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { AudioPlayer } from "@/components/ui/AudioPlayer";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type Attachment = Database["public"]["Tables"]["attachments"]["Row"];
+type AttachmentPreview = { type: "photo" | "audio"; url: string };
 
 interface ChildHomeworkCardProps {
   homework: Homework;
@@ -16,6 +18,13 @@ interface ChildHomeworkCardProps {
   isOverdue: boolean;
   isRepeatSubmission?: boolean;
   latestCheckInId?: string | null;
+  latestProofType?: "photo" | "audio" | null;
+  attachmentUploadStatus?: {
+    checkInId: string;
+    state: "uploading" | "uploaded" | "failed";
+    progress: number;
+    message?: string;
+  };
   statusText?: string;
   onComplete: () => void;
 }
@@ -26,6 +35,8 @@ export function ChildHomeworkCard({
   isOverdue,
   isRepeatSubmission = false,
   latestCheckInId = null,
+  latestProofType = null,
+  attachmentUploadStatus,
   statusText,
   onComplete,
 }: ChildHomeworkCardProps) {
@@ -35,7 +46,7 @@ export function ChildHomeworkCard({
   } as const;
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<Array<{ type: "photo" | "audio"; url: string }>>([]);
+  const [previewUrls, setPreviewUrls] = useState<AttachmentPreview[]>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const getSupabase = () => {
@@ -46,11 +57,18 @@ export function ChildHomeworkCard({
     return supabaseRef.current;
   };
 
+  const attachmentCheckInId = latestCheckInId ?? attachmentUploadStatus?.checkInId ?? null;
+  const storedProofType = homework.required_checkpoint_type ?? latestProofType;
+  const shouldLoadAttachments =
+    Boolean(storedProofType) ||
+    Boolean(attachmentCheckInId) ||
+    attachmentUploadStatus?.state === "uploaded";
+
   useEffect(() => {
     let ignore = false;
 
     async function loadAttachments() {
-      if (!latestCheckInId || !homework.required_checkpoint_type || !isCompleted) {
+      if (!attachmentCheckInId || !isCompleted || !shouldLoadAttachments) {
         if (!ignore) {
           setAttachments([]);
         }
@@ -60,7 +78,7 @@ export function ChildHomeworkCard({
       const { data } = await getSupabase()
         .from("attachments")
         .select("*")
-        .eq("check_in_id", latestCheckInId);
+        .eq("check_in_id", attachmentCheckInId);
 
       if (!ignore) {
         setAttachments(data || []);
@@ -72,11 +90,40 @@ export function ChildHomeworkCard({
     return () => {
       ignore = true;
     };
-  }, [homework.required_checkpoint_type, isCompleted, latestCheckInId]);
+  }, [
+    attachmentCheckInId,
+    attachmentUploadStatus?.state,
+    homework.required_checkpoint_type,
+    isCompleted,
+    latestProofType,
+    shouldLoadAttachments,
+  ]);
+
+  const loadAttachments = async () => {
+    if (!attachmentCheckInId) {
+      return [];
+    }
+
+    const { data } = await getSupabase()
+      .from("attachments")
+      .select("*")
+      .eq("check_in_id", attachmentCheckInId);
+
+    const nextAttachments = data || [];
+    setAttachments(nextAttachments);
+    return nextAttachments;
+  };
 
   const handleViewAttachments = async () => {
+    const attachmentList =
+      attachments.length > 0 ? attachments : await loadAttachments();
+
+    if (attachmentList.length === 0) {
+      return;
+    }
+
     const results = await Promise.all(
-      attachments.map(async (attachment) => {
+      attachmentList.map(async (attachment) => {
         const { data } = await getSupabase().storage
           .from("attachments")
           .createSignedUrl(attachment.storage_path, 60 * 10);
@@ -89,7 +136,7 @@ export function ChildHomeworkCard({
 
     setPreviewUrls(
       results.filter(
-        (result): result is { type: "photo" | "audio"; url: string } => Boolean(result)
+        (result): result is AttachmentPreview => Boolean(result)
       )
     );
     setIsPreviewOpen(true);
@@ -97,7 +144,12 @@ export function ChildHomeworkCard({
 
   const shouldShowStatusText =
     Boolean(statusText) && !(isCompleted && statusText === "已完成");
-
+  const shouldShowAttachmentEntry =
+    isCompleted &&
+    Boolean(attachmentCheckInId) &&
+    (Boolean(storedProofType) ||
+      attachments.length > 0 ||
+      attachmentUploadStatus?.state === "uploaded");
   return (
     <>
       <Card
@@ -122,7 +174,11 @@ export function ChildHomeworkCard({
                 ) : null}
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-forest-500">
-                <span className="rounded-full bg-forest-50 px-3 py-1">⏱️ {homework.estimated_minutes || 30}分钟</span>
+                {homework.estimated_minutes != null ? (
+                  <span className="rounded-full bg-forest-50 px-3 py-1">
+                    ⏱️ {homework.estimated_minutes}分钟
+                  </span>
+                ) : null}
                 <span className="rounded-full bg-forest-50 px-3 py-1">⭐ {homework.point_value}积分</span>
               </div>
               {homework.daily_cutoff_time && (
@@ -131,7 +187,7 @@ export function ChildHomeworkCard({
               {homework.required_checkpoint_type && attachments.length === 0 && (
                 <p className="mt-1 text-xs text-forest-400">需要{proofLabel[homework.required_checkpoint_type]}</p>
               )}
-              {attachments.length > 0 && (
+              {shouldShowAttachmentEntry && (
                 <button
                   type="button"
                   onClick={() => void handleViewAttachments()}
@@ -141,9 +197,42 @@ export function ChildHomeworkCard({
                   查看已提交附件
                 </button>
               )}
-              {isRepeatSubmission && (
-                <p className="mt-1 text-xs text-forest-400">再次提交不加分</p>
-              )}
+              {attachmentUploadStatus && attachmentUploadStatus.state !== "uploaded" ? (
+                <div className="mt-3 rounded-2xl bg-forest-50 p-3">
+                  <div className="flex items-center justify-between gap-3 text-xs font-medium">
+                    <span
+                      className={
+                        attachmentUploadStatus.state === "failed"
+                          ? "text-rose-600"
+                          : "text-forest-600"
+                      }
+                    >
+                      {attachmentUploadStatus.message ||
+                        (attachmentUploadStatus.state === "failed"
+                          ? "录音上传失败"
+                          : "录音上传中")}
+                    </span>
+                    <span className="text-forest-500">
+                      {Math.round(attachmentUploadStatus.progress)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        attachmentUploadStatus.state === "failed"
+                          ? "bg-rose-400"
+                          : "bg-primary"
+                      }`}
+                      style={{
+                        width: `${Math.max(
+                          0,
+                          Math.min(100, attachmentUploadStatus.progress)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : null}
               {shouldShowStatusText && (
                 <p className="mt-1 text-xs font-medium text-forest-500">{statusText}</p>
               )}
@@ -181,10 +270,9 @@ export function ChildHomeworkCard({
                 className="w-full rounded-2xl object-cover"
               />
             ) : (
-              <audio
+              <AudioPlayer
                 key={attachment.url}
                 src={attachment.url}
-                controls
                 className="w-full"
               />
             )

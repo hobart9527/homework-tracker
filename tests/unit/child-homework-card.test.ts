@@ -15,8 +15,16 @@ describe("ChildHomeworkCard contract", () => {
   });
 
   it("shows an attachment entry point after proof has been submitted", () => {
-    expect(source).toMatch(/attachments\.length > 0/);
+    expect(source).toMatch(/Boolean\(attachmentCheckInId\)/);
     expect(source).toMatch(/查看已提交附件/);
-    expect(source).toMatch(/required_checkpoint_type && attachments\.length === 0/);
+    expect(source).toMatch(/attachments\.length > 0/);
+    expect(source).toMatch(/attachmentUploadStatus\?\.state === "uploaded"/);
+  });
+
+  it("shows audio attachment upload progress on the task card", () => {
+    expect(source).toMatch(/attachmentUploadStatus/);
+    expect(source).toMatch(/attachmentUploadStatus\?\.checkInId/);
+    expect(source).toMatch(/录音上传中/);
+    expect(source).toMatch(/Math\.round\(attachmentUploadStatus\.progress\)/);
   });
 });

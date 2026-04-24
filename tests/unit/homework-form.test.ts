@@ -314,6 +314,17 @@ describe("buildHomeworkInsertRows", () => {
     expect(row.send_to_wechat).toBe(true);
     expect(row.wechat_group_id).toBe("group-math");
   });
+
+  it("stores a null estimated duration when parents leave the time blank", () => {
+    const row = buildHomeworkInsertRows(
+      makeForm({
+        estimated_minutes: null,
+      }),
+      "parent-1"
+    )[0];
+
+    expect(row.estimated_minutes).toBeNull();
+  });
 });
 
 describe("buildAssignmentSummary", () => {
@@ -489,6 +500,16 @@ describe("HomeworkForm workbench", () => {
     expect(
       screen.getByText(/可以拍照或上传已有图片/)
     ).toBeInTheDocument();
+  });
+
+  it("treats estimated minutes as optional for new homework", async () => {
+    render(createElement(HomeworkForm));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("预计时长（分钟）")).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText("预计时长（分钟）")).toHaveValue(null);
   });
 
   it("prefills the form from a copied homework source", async () => {

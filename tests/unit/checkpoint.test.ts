@@ -357,7 +357,8 @@ describe("Child check-in UI strings", () => {
     expect(
       screen.getByText("录音已保存，可以试听后再提交")
     ).toBeInTheDocument();
-    expect(screen.getByText("preview-reading.webm")).toBeInTheDocument();
+    expect(screen.queryByText("preview-reading.webm")).not.toBeInTheDocument();
+    expect(screen.getByText("已添加录音")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "删除重录" })).toBeInTheDocument();
     expect(container.querySelector("audio")).not.toBeNull();
   });
@@ -393,7 +394,6 @@ describe("Child check-in UI strings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "删除重录" }));
 
-    expect(screen.queryByText("retry-reading.webm")).not.toBeInTheDocument();
     expect(
       screen.getAllByText("请先添加录音，再提交本次作业").length
     ).toBeGreaterThan(0);

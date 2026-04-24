@@ -12,6 +12,12 @@ import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
+type AttachmentUploadStatus = {
+  checkInId: string;
+  state: "uploading" | "uploaded" | "failed";
+  progress: number;
+  message?: string;
+};
 
 interface ChildLandingContentProps {
   homeworks: Homework[];
@@ -30,6 +36,9 @@ export function ChildLandingContent({
     initialDate || new Date().toISOString().split("T")[0]
   );
   const [selectedHomework, setSelectedHomework] = useState<Homework | null>(null);
+  const [attachmentUploadStatuses, setAttachmentUploadStatuses] = useState<
+    Record<string, AttachmentUploadStatus>
+  >({});
   const weekDays = getWeekDays(new Date(`${selectedDate}T00:00:00`));
   const dailyCompletion = getDailyCompletion(homeworks, checkIns, weekDays);
   const weeklyCheckIns = getWeekCheckIns(checkIns, weekDays[0]);
@@ -88,16 +97,29 @@ export function ChildLandingContent({
           homeworks={homeworks}
           checkIns={checkIns}
           onSelectHomework={setSelectedHomework}
+          attachmentUploadStatuses={attachmentUploadStatuses}
         />
       </section>
       {selectedHomework && (
         <CheckInModal
           homework={selectedHomework}
+          targetDate={selectedDate}
           isOpen={Boolean(selectedHomework)}
           onClose={() => setSelectedHomework(null)}
           onSuccess={() => {
             setSelectedHomework(null);
             onRefresh?.();
+          }}
+          onAttachmentUploadStatusChange={(status) => {
+            setAttachmentUploadStatuses((prev) => ({
+              ...prev,
+              [status.homeworkId]: {
+                checkInId: status.checkInId,
+                state: status.state,
+                progress: status.progress,
+                message: status.message,
+              },
+            }));
           }}
         />
       )}

@@ -95,6 +95,17 @@ describe("resolveAutoCheckinDecision", () => {
     ).toBe("auto_completed");
   });
 
+  it("returns partially completed from completion state alone when no minutes are required but an audio proof is still required", () => {
+    expect(
+      resolveAutoCheckinDecision({
+        requiredMinutes: null,
+        requiredCheckpointType: "audio",
+        durationMinutes: 0,
+        completionState: "completed",
+      })
+    ).toBe("partially_completed");
+  });
+
   it("does not auto complete from completion state alone when the homework still requires minutes", () => {
     expect(
       resolveAutoCheckinDecision({

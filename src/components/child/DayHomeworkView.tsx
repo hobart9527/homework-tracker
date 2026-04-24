@@ -5,12 +5,19 @@ import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
+type AttachmentUploadStatus = {
+  checkInId: string;
+  state: "uploading" | "uploaded" | "failed";
+  progress: number;
+  message?: string;
+};
 
 interface DayHomeworkViewProps {
   date: string;
   homeworks: Homework[];
   checkIns: CheckIn[];
   onSelectHomework: (homework: Homework) => void;
+  attachmentUploadStatuses?: Record<string, AttachmentUploadStatus>;
 }
 
 export function DayHomeworkView({
@@ -18,6 +25,7 @@ export function DayHomeworkView({
   homeworks,
   checkIns,
   onSelectHomework,
+  attachmentUploadStatuses = {},
 }: DayHomeworkViewProps) {
   const taskStatuses = buildDailyTaskStatuses(homeworks, checkIns, date);
 
@@ -56,6 +64,8 @@ export function DayHomeworkView({
                 isOverdue={!task.completed && isAfterCutoff(homework.daily_cutoff_time, new Date())}
                 isRepeatSubmission={task.submissionCount > 1}
                 latestCheckInId={task.latestCheckInId}
+                latestProofType={task.latestProofType}
+                attachmentUploadStatus={attachmentUploadStatuses[homework.id]}
                 statusText={
                   task.completed
                     ? task.late

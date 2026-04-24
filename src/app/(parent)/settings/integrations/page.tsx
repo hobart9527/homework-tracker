@@ -71,6 +71,8 @@ export default function SettingsIntegrationsPage() {
   const [takeoverPayload, setTakeoverPayload] = useState<string>("");
   const [takeoverLoading, setTakeoverLoading] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
+  const hasChildContext = Boolean(selectedChildIdFromQuery);
+
   const [routingForm, setRoutingForm] = useState({
     childId: "",
     homeworkId: "",
@@ -381,6 +383,7 @@ export default function SettingsIntegrationsPage() {
     <SettingsShell
       title="孩子集成"
       description="这里管理孩子自己的学习平台账号和默认消息路由，不处理家庭级通知通道。"
+      backHref={hasChildContext ? "/children" : "/settings"}
     >
       <Card id="platform-binding" className="scroll-mt-4">
         <div className="space-y-4">
@@ -427,26 +430,34 @@ export default function SettingsIntegrationsPage() {
               </button>
             </div>
 
-            <div>
-              <label htmlFor="platform-child-id" className="mb-1 block text-sm font-medium text-forest-700">
-                孩子
-              </label>
-              <select
-                id="platform-child-id"
-                value={bindingForm.childId}
-                onChange={(e) =>
-                  setBindingForm((prev) => ({ ...prev, childId: e.target.value }))
-                }
-                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-              >
-                <option value="">请选择孩子</option>
-                {children.map((child) => (
-                  <option key={child.id} value={child.id}>
-                    {child.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {hasChildContext ? (
+              <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3">
+                <p className="text-sm font-medium text-forest-700">
+                  孩子：{children.find((c) => c.id === bindingForm.childId)?.name ?? "未选择"}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="platform-child-id" className="mb-1 block text-sm font-medium text-forest-700">
+                  孩子
+                </label>
+                <select
+                  id="platform-child-id"
+                  value={bindingForm.childId}
+                  onChange={(e) =>
+                    setBindingForm((prev) => ({ ...prev, childId: e.target.value }))
+                  }
+                  className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
+                >
+                  <option value="">请选择孩子</option>
+                  {children.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {child.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label htmlFor="platform-name" className="mb-1 block text-sm font-medium text-forest-700">
@@ -602,12 +613,20 @@ export default function SettingsIntegrationsPage() {
           </div>
 
           <div className="space-y-2">
-            {platformAccounts.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                还没有孩子级平台账号绑定。
-              </div>
-            ) : (
-              platformAccounts.map((account) => (
+            {(() => {
+              const filteredAccounts = hasChildContext
+                ? platformAccounts.filter((a) => a.child_id === selectedChildIdFromQuery)
+                : platformAccounts;
+              if (filteredAccounts.length === 0) {
+                return (
+                  <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
+                    {hasChildContext
+                      ? "这个孩子还没有绑定学习平台账号。"
+                      : "还没有孩子级平台账号绑定。"}
+                  </div>
+                );
+              }
+              return filteredAccounts.map((account) => (
                 <div
                   key={account.id}
                   className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
@@ -793,8 +812,8 @@ export default function SettingsIntegrationsPage() {
                     </div>
                   )}
                 </div>
-              ))
-            )}
+              ));
+            })()}
           </div>
         </div>
       </Card>
@@ -809,251 +828,112 @@ export default function SettingsIntegrationsPage() {
           </div>
 
           <div className="space-y-3">
-            {children.map((child) => (
-              <div
-                key={child.id}
-                className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="flex-1">
-                    <label
-                      htmlFor={`child-default-group-${child.id}`}
-                      className="mb-1 block text-sm font-medium text-forest-700"
-                    >
-                      {child.name} 默认微信群
-                    </label>
-                    <select
-                      id={`child-default-group-${child.id}`}
-                      value={childGroupSelections[child.id] ?? ""}
-                      onChange={(e) =>
-                        setChildGroupSelections((prev) => ({
-                          ...prev,
-                          [child.id]: e.target.value,
-                        }))
-                      }
-                      className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-                    >
-                      <option value="">暂不设置默认群</option>
-                      {wechatGroups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.display_name || group.recipient_ref}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <Button
-                    size="sm"
-                    disabled={savingChildGroupId === child.id}
-                    onClick={async () => {
-                      setSavingChildGroupId(child.id);
-                      try {
-                        await supabase
-                          .from("children")
-                          .update({
-                            default_wechat_group_id:
-                              childGroupSelections[child.id] || null,
-                          })
-                          .eq("id", child.id);
-                        if (parentId) {
-                          await refreshData(parentId);
-                        }
-                      } finally {
-                        setSavingChildGroupId(null);
-                      }
-                    }}
-                  >
-                    {savingChildGroupId === child.id
-                      ? "保存中..."
-                      : `保存 ${child.name} 默认群`}
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div>
-            <h3 className="font-medium text-forest-700">兼容旧路由规则</h3>
-            <p className="mt-1 text-sm text-forest-500">
-              下方仍保留旧路由规则作为兼容回退；后续会逐步迁移为“家庭群列表 + 孩子默认群 + 作业覆盖群”的模型。
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="routing-child-id" className="mb-1 block text-sm font-medium text-forest-700">
-                孩子
-              </label>
-              <select
-                id="routing-child-id"
-                value={routingForm.childId}
-                onChange={(e) =>
-                  setRoutingForm((prev) => ({
-                    ...prev,
-                    childId: e.target.value,
-                    homeworkId: "",
-                  }))
-                }
-                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-              >
-                <option value="">请选择孩子</option>
-                {children.map((child) => (
-                  <option key={child.id} value={child.id}>
-                    {child.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="routing-homework-id" className="mb-1 block text-sm font-medium text-forest-700">
-                指定作业（可选）
-              </label>
-              <select
-                id="routing-homework-id"
-                value={routingForm.homeworkId}
-                onChange={(e) =>
-                  setRoutingForm((prev) => ({ ...prev, homeworkId: e.target.value }))
-                }
-                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-              >
-                <option value="">作为该孩子的默认路由</option>
-                {routingHomeworkOptions.map((homework) => (
-                  <option key={homework.id} value={homework.id}>
-                    {homework.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="routing-channel" className="mb-1 block text-sm font-medium text-forest-700">
-                通道
-              </label>
-              <select
-                id="routing-channel"
-                value={routingForm.channel}
-                onChange={() => undefined}
-                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-              >
-                <option value="wechat_group">微信群</option>
-              </select>
-            </div>
-
-            <Input
-              label="微信群标识"
-              value={routingForm.recipientRef}
-              onChange={(e) =>
-                setRoutingForm((prev) => ({ ...prev, recipientRef: e.target.value }))
-              }
-              placeholder="例如 wechat-group-math（由 bridge 映射到具体微信群）"
-            />
-          </div>
-
-          <Input
-            label="目标备注（可选）"
-            value={routingForm.recipientLabel}
-            onChange={(e) =>
-              setRoutingForm((prev) => ({ ...prev, recipientLabel: e.target.value }))
-            }
-            placeholder="例如 Mia 数学群 / 家长提醒群"
-          />
-
-          {routingError ? <p className="text-sm text-rose-700">{routingError}</p> : null}
-
-          <div className="flex justify-end">
-            <Button
-              disabled={routingLoading}
-              onClick={async () => {
-                setRoutingError(null);
-
-                if (!routingForm.childId || !routingForm.recipientRef.trim()) {
-                  setRoutingError("请选择孩子并填写目标群或 Chat ID。");
-                  return;
-                }
-
-                setRoutingLoading(true);
-
-                try {
-                  const { error } = await supabase.from("message_routing_rules").insert({
-                    child_id: routingForm.childId,
-                    homework_id: routingForm.homeworkId || null,
-                    channel: "wechat_group",
-                    recipient_ref: routingForm.recipientRef.trim(),
-                    recipient_label: routingForm.recipientLabel.trim() || null,
-                  });
-
-                  if (error) {
-                    setRoutingError(error.message);
-                    return;
-                  }
-
-                  setRoutingForm((prev) => ({
-                    ...prev,
-                    homeworkId: "",
-                    recipientRef: "",
-                    recipientLabel: "",
-                  }));
-
-                  if (parentId) {
-                    await refreshData(parentId);
-                  }
-                } finally {
-                  setRoutingLoading(false);
-                }
-              }}
-            >
-              {routingLoading ? "保存中..." : "保存路由规则"}
-            </Button>
-          </div>
-
-          <div className="space-y-2">
-            {routingRules.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                还没有路由规则。建议先给每个孩子配置一个默认目标，再为特殊作业补单独覆盖规则。
-              </div>
-            ) : (
-              routingRules.map((rule) => (
+            {(() => {
+              const filteredChildren = hasChildContext
+                ? children.filter((c) => c.id === selectedChildIdFromQuery)
+                : children;
+              return filteredChildren.map((child) => (
                 <div
-                  key={rule.id}
-                  className="flex flex-col gap-3 rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  key={child.id}
+                  className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4"
                 >
-                  <div className="text-sm text-forest-600">
-                    <p className="font-medium text-forest-700">
-                      {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}
-                      {rule.channel === "telegram_chat" ? "Telegram" : "微信群"}
-                    </p>
-                    <p>
-                      {rule.homework_id
-                        ? `作业：${homeworkTitleById[rule.homework_id] ?? "未找到作业"}`
-                        : "作业：该孩子默认路由"}
-                    </p>
-                    <p>
-                      目标：{rule.recipient_label || rule.recipient_ref}
-                      {rule.recipient_label ? ` (${rule.recipient_ref})` : ""}
-                    </p>
-                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="flex-1">
+                      <label
+                        htmlFor={`child-default-group-${child.id}`}
+                        className="mb-1 block text-sm font-medium text-forest-700"
+                      >
+                        {child.name} 默认微信群
+                      </label>
+                      <select
+                        id={`child-default-group-${child.id}`}
+                        value={childGroupSelections[child.id] ?? ""}
+                        onChange={(e) =>
+                          setChildGroupSelections((prev) => ({
+                            ...prev,
+                            [child.id]: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
+                      >
+                        <option value="">暂不设置默认群</option>
+                        {wechatGroups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.display_name || group.recipient_ref}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-500"
-                    onClick={async () => {
-                      await supabase
-                        .from("message_routing_rules")
-                        .delete()
-                        .eq("id", rule.id);
-                      if (parentId) {
-                        await refreshData(parentId);
-                      }
-                    }}
-                  >
-                    删除
-                  </Button>
+                    <Button
+                      size="sm"
+                      disabled={savingChildGroupId === child.id}
+                      onClick={async () => {
+                        setSavingChildGroupId(child.id);
+                        try {
+                          await supabase
+                            .from("children")
+                            .update({
+                              default_wechat_group_id:
+                                childGroupSelections[child.id] || null,
+                            })
+                            .eq("id", child.id);
+                          if (parentId) {
+                            await refreshData(parentId);
+                          }
+                        } finally {
+                          setSavingChildGroupId(null);
+                        }
+                      }}
+                    >
+                      {savingChildGroupId === child.id
+                        ? "保存中..."
+                        : `保存 ${child.name} 默认群`}
+                    </Button>
+                  </div>
                 </div>
-              ))
-            )}
+              ));
+            })()}
           </div>
+
+          {(() => {
+            const filteredRules = hasChildContext
+              ? routingRules.filter((r) => r.child_id === selectedChildIdFromQuery)
+              : routingRules;
+            if (filteredRules.length === 0) return null;
+            return (
+              <>
+                <div>
+                  <h3 className="font-medium text-forest-700">遗留路由规则</h3>
+                  <p className="mt-1 text-sm text-forest-500">
+                    以下规则来自旧版系统，仅做展示参考，不再支持新增和编辑。
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {filteredRules.map((rule) => (
+                    <div
+                      key={rule.id}
+                      className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
+                    >
+                      <p className="font-medium text-forest-700">
+                        {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}
+                        {rule.channel === "telegram_chat" ? "Telegram" : "微信群"}
+                      </p>
+                      <p>
+                        {rule.homework_id
+                          ? `作业：${homeworkTitleById[rule.homework_id] ?? "未找到作业"}`
+                          : "作业：该孩子默认路由"}
+                      </p>
+                      <p>
+                        目标：{rule.recipient_label || rule.recipient_ref}
+                        {rule.recipient_label ? ` (${rule.recipient_ref})` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </div>
       </Card>
     </SettingsShell>

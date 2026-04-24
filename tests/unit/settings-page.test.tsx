@@ -521,14 +521,13 @@ describe("Settings IA pages", () => {
     render(<SettingsIntegrationsPage />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText("通道")).toBeInTheDocument();
+      expect(screen.getByText("孩子默认提交群")).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("option", { name: "微信群" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Mia 默认微信群")).toBeInTheDocument();
     expect(
-      screen.queryByRole("option", { name: "Telegram Chat" })
+      screen.queryByLabelText("通道")
     ).not.toBeInTheDocument();
-    expect(screen.getByLabelText("微信群标识")).toBeInTheDocument();
   });
 
   it("lets parents choose a child default WeChat group from the household group directory", async () => {

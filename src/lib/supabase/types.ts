@@ -212,6 +212,7 @@ export interface Database {
           is_scored: boolean;
           is_late: boolean;
           proof_type: "photo" | "audio" | null;
+          audio_duration_seconds: number | null;
           note: string | null;
           created_at: string | null;
         };
@@ -226,6 +227,7 @@ export interface Database {
           is_scored?: boolean;
           is_late?: boolean;
           proof_type?: "photo" | "audio" | null;
+          audio_duration_seconds?: number | null;
           note?: string | null;
           created_at?: string | null;
         };
@@ -240,6 +242,7 @@ export interface Database {
           is_scored?: boolean;
           is_late?: boolean;
           proof_type?: "photo" | "audio" | null;
+          audio_duration_seconds?: number | null;
           note?: string | null;
           created_at?: string | null;
         };

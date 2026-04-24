@@ -13,7 +13,7 @@ export type HomeworkFormState = {
   repeat_start_date: string;
   point_value: number;
   point_deduction: number;
-  estimated_minutes: number;
+  estimated_minutes: number | null;
   daily_cutoff_time: string;
   required_checkpoint_type: HomeworkProofType | "";
   platform_binding_platform: string;
@@ -51,7 +51,7 @@ type SourceHomework = {
   repeat_start_date: string | null;
   point_value: number;
   point_deduction: number;
-  estimated_minutes: number;
+  estimated_minutes: number | null;
   daily_cutoff_time: string | null;
   required_checkpoint_type: HomeworkProofType;
   platform_binding_platform: string | null;

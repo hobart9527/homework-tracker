@@ -38,6 +38,30 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
   - Inspect one child's task details for a selected day
   - 查看当月完成率较低的作业类型
   - Review weaker homework categories for the month
+- 学习平台同步 / Platform sync
+  - 绑定 IXL、Khan Academy、Epic、Raz-Kids 等学习平台账号
+  - Bind external learning platform accounts per child
+  - 定时自动同步学习记录并生成统一学习事件
+  - Scheduled sync imports learning activity into normalized events
+  - 支持 managed session 和账号密码两种绑定方式
+  - Supports managed-session and password-based authentication
+- 自动打卡 / Auto check-ins
+  - 根据同步的学习记录自动完成对应作业
+  - Automatically complete homework when same-day learning evidence matches
+  - 保留每次自动完成的平台来源和学习内容依据
+  - Preserve exact learning evidence for every automatic completion
+- Telegram 通知 / Telegram notifications
+  - 每晚发送家庭日报，汇总所有孩子当天完成情况
+  - Daily household summary delivered every evening
+  - 作业自动完成时发送即时通知
+  - Instant factual notifications on auto-completion events
+  - 每周发送完成率和学习活跃度周报
+  - Weekly progress digest with completion rates
+- 微信群录音推送 / WeChat voice push (Beta)
+  - 录音类作业提交后自动进入发送队列
+  - Recording homework queued for WeChat group delivery
+  - 通过独立桥接服务发送到指定微信群
+  - Delivered via independent bridge service to teacher groups
 
 ### 孩子端 Child Experience
 
@@ -50,6 +74,8 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
 - 打卡提交 / Check-in submission
   - 支持完成打卡、逾期打卡和带证明的提交流程
   - Supports standard check-ins, late check-ins, and proof-based submissions
+  - 支持录音和照片作为完成证明附件
+  - Supports audio recordings and photos as completion proof attachments
 
 ## 技术栈 Tech Stack
 
@@ -323,17 +349,19 @@ This project is a good fit for families that want one simple workflow for assign
 
 项目正在持续迭代中，当前重点包括：
 
-- 统一孩子端首页体验
-- 简化家长端作业管理流程
-- 强化月度总览和打卡数据一致性
+- 首发平台同步（IXL、Khan Academy）的定时抓取与自动打卡
+- Telegram 家庭日报和即时通知的稳定性
+- 录音类作业微信群推送桥接的试点运行
+- 学习记录去重、凭据过期处理和自动打卡依据的可解释性
 
 ### English
 
 The project is under active iteration. Current focus areas include:
 
-- unifying the child home experience
-- simplifying the parent homework workflow
-- improving monthly dashboard clarity and check-in data consistency
+- first-release platform sync (IXL, Khan Academy) with scheduled sync and auto-checkins
+- Telegram household daily summaries and instant notification reliability
+- pilot operation of WeChat voice-push bridge for recording homework
+- learning-event deduplication, credential expiry handling, and auto-completion auditability
 
 ## 贡献与协作 Contributing
 
