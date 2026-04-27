@@ -12,6 +12,11 @@ config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
 
+const KHAN_CREDENTIALS = {
+  username: "albertultraman",
+  password: "0531",
+};
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -55,10 +60,22 @@ async function syncKhanAccount(account) {
   const page = await context.newPage();
 
   try {
-    await page.goto("https://www.khanacademy.org/profile/me/progress", {
+    const resp = await page.goto("https://www.khanacademy.org/profile/me/progress", {
       waitUntil: "networkidle",
       timeout: 30000,
     });
+
+    // Detect session expired (redirected to login)
+    const currentUrl = page.url();
+    if (currentUrl.includes("/login")) {
+      throw new Error("Session expired");
+    }
+
+    // Detect Cloudflare block
+    const bodyCheck = await page.textContent("body").catch(() => "");
+    if (bodyCheck.includes("trouble loading external resources")) {
+      throw new Error("Session expired");
+    }
 
     // Wait for the activity table to render
     await page.waitForTimeout(5000);
@@ -259,6 +276,66 @@ async function syncKhanAccount(account) {
     };
   } catch (err) {
     await browser.close();
+    const isSessionExpired =
+      err.message === "Session expired" || err.message?.includes("Session expired");
+
+    if (isSessionExpired) {
+      const failCount = account._loginFailCount || 0;
+      if (failCount >= 3) {
+        console.error(`  ❌ 连续 ${failCount} 次登录失败，已停止重试以避免风控`);
+        await supabase
+          .from("platform_accounts")
+          .update({
+            status: "attention_required",
+            last_sync_error_summary: `Too many login failures (${failCount}), blocked for safety`,
+          })
+          .eq("id", account.id);
+        return { status: "error", error: "Login rate-limited for safety" };
+      }
+
+      const backoff = [60, 300, 900][failCount];
+      console.log(`  🔄 Session 过期，${backoff}s 退避后尝试自动重新登录...`);
+      await new Promise((r) => setTimeout(r, backoff * 1000));
+
+      try {
+        const { autoLoginKhan } = await import(
+          "../src/lib/khan-auto-login.mjs"
+        );
+        const newPayload = await autoLoginKhan(
+          KHAN_CREDENTIALS.username,
+          KHAN_CREDENTIALS.password
+        );
+        await supabase
+          .from("platform_accounts")
+          .update({
+            managed_session_payload: newPayload,
+            managed_session_captured_at: new Date().toISOString(),
+          })
+          .eq("id", account.id);
+
+        account.managed_session_payload = newPayload;
+        account._loginFailCount = 0;
+        console.log(`  ✅ 重新登录成功，重试同步...`);
+        return syncKhanAccount(account);
+      } catch (reloginErr) {
+        account._loginFailCount = failCount + 1;
+        console.error(
+          `  ❌ 自动登录失败 (${account._loginFailCount}/3): ${reloginErr.message}`
+        );
+        console.log(
+          `  💡 请手动运行: npm run session:collect -- --platform=khan-academy --username=${KHAN_CREDENTIALS.username} --password=${KHAN_CREDENTIALS.password}`
+        );
+        await supabase
+          .from("platform_accounts")
+          .update({
+            status: "attention_required",
+            last_sync_error_summary: `Auto-relogin failed (#${account._loginFailCount}): ${reloginErr.message}. Try: npm run session:collect -- --platform=khan-academy`,
+          })
+          .eq("id", account.id);
+        return { status: "error", error: reloginErr.message };
+      }
+    }
+
     console.error(`  ❌ ${account.external_account_ref}: ${err.message}`);
 
     await supabase

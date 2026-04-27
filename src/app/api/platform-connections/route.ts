@@ -229,13 +229,23 @@ export async function POST(request: Request) {
   // Check if an account with the same (child_id, platform, external_account_ref) already exists
   const { data: existingAccount } = await supabase
     .from("platform_accounts")
-    .select("id")
+    .select("id, login_credentials_encrypted, auto_login_enabled")
     .eq("child_id", childId)
     .eq("platform", platform)
     .eq("external_account_ref", externalAccountRef)
     .single();
 
   if (existingAccount) {
+    // Preserve existing credentials when updating in manual session mode
+    const effectiveCredentials =
+      authMode === "auto_login"
+        ? loginCredentialsEncrypted
+        : existingAccount.login_credentials_encrypted;
+    const effectiveAutoLogin =
+      authMode === "auto_login"
+        ? autoLoginEnabled
+        : existingAccount.auto_login_enabled;
+
     const { data: updatedAccount, error: updateError } = await supabase
       .from("platform_accounts")
       .update({
@@ -243,8 +253,8 @@ export async function POST(request: Request) {
         status: finalStatus,
         managed_session_payload: finalManagedSessionPayload,
         managed_session_captured_at: finalManagedSessionCapturedAt,
-        login_credentials_encrypted: loginCredentialsEncrypted,
-        auto_login_enabled: autoLoginEnabled,
+        login_credentials_encrypted: effectiveCredentials,
+        auto_login_enabled: effectiveAutoLogin,
         last_sync_error_summary: null,
       })
       .eq("id", existingAccount.id)

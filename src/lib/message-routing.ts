@@ -38,37 +38,23 @@ type SupabaseLike = {
   from: (table: string) => {
     select: (
       columns?: string
-    ) =>
-      | {
-          eq: (column: string, value: string) => {
-            maybeSingle?: () => Promise<{
-              data: Record<string, unknown> | null;
-              error: { message: string } | null;
-            }>;
-            eq?: (column: string, value: string) => {
-              order: (
-                column: string,
-                options?: { ascending?: boolean }
-              ) => Promise<{
-                data: Record<string, unknown>[] | null;
-                error: { message: string } | null;
-              }>;
-            };
-          };
-        }
-      | {
-          eq: (column: string, value: string) => {
-            eq: (column: string, value: string) => {
-              order: (
-                column: string,
-                options?: { ascending?: boolean }
-              ) => Promise<{
-                data: Record<string, unknown>[] | null;
-                error: { message: string } | null;
-              }>;
-            };
-          };
+    ) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => Promise<{
+          data: Record<string, unknown> | null;
+          error: { message: string } | null;
+        }>;
+        eq: (column: string, value: string) => {
+          order: (
+            column: string,
+            options?: { ascending?: boolean }
+          ) => Promise<{
+            data: Record<string, unknown>[] | null;
+            error: { message: string } | null;
+          }>;
         };
+      };
+    };
   };
 };
 
@@ -80,7 +66,7 @@ async function loadWeChatGroupById(input: {
     .from("wechat_groups")
     .select("id, recipient_ref, display_name")
     .eq("id", input.groupId)
-    .maybeSingle!();
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
@@ -122,7 +108,7 @@ export async function resolveMessageDeliveryTarget(input: {
       .from("homeworks")
       .select("id, child_id, send_to_wechat, wechat_group_id")
       .eq("id", input.homeworkId)
-      .maybeSingle!();
+      .maybeSingle();
 
     if (homeworkError) {
       throw new Error(homeworkError.message);
@@ -149,7 +135,7 @@ export async function resolveMessageDeliveryTarget(input: {
       .from("children")
       .select("id, default_wechat_group_id")
       .eq("id", input.childId)
-      .maybeSingle!();
+      .maybeSingle();
 
     if (childError) {
       throw new Error(childError.message);

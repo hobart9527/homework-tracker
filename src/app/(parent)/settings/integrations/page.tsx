@@ -71,6 +71,13 @@ export default function SettingsIntegrationsPage() {
   const [takeoverPayload, setTakeoverPayload] = useState<string>("");
   const [takeoverLoading, setTakeoverLoading] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [editCredentialId, setEditCredentialId] = useState<string | null>(null);
+  const [editCredentialUsername, setEditCredentialUsername] = useState("");
+  const [editCredentialPassword, setEditCredentialPassword] = useState("");
+  const [editCredentialLoading, setEditCredentialLoading] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const hasChildContext = Boolean(selectedChildIdFromQuery);
 
   const [routingForm, setRoutingForm] = useState({
@@ -371,6 +378,108 @@ export default function SettingsIntegrationsPage() {
     }
   };
 
+  const handleDeleteAccount = async (accountId: string) => {
+    setDeleteLoading(true);
+    try {
+      const response = await fetch(`/api/platform-connections/${accountId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        alert(body.error || "删除账号失败");
+        return;
+      }
+
+      setDeleteConfirmId(null);
+      if (parentId) {
+        await refreshData(parentId);
+      }
+    } catch {
+      alert("删除时发生网络错误");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const handleEditCredentialSave = async (accountId: string) => {
+    if (!editCredentialPassword) {
+      alert("请输入新密码");
+      return;
+    }
+    setEditCredentialLoading(true);
+    try {
+      const response = await fetch("/api/platform-connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          childId: platformAccounts.find((a) => a.id === accountId)?.child_id,
+          platform: platformAccounts.find((a) => a.id === accountId)?.platform,
+          username: platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
+          externalAccountRef: platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
+          authMode: "auto_login",
+          loginUsername: editCredentialUsername || platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
+          loginPassword: editCredentialPassword,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        alert(body.error || "更新凭据失败");
+        return;
+      }
+
+      setEditCredentialId(null);
+      setEditCredentialUsername("");
+      setEditCredentialPassword("");
+      if (parentId) {
+        await refreshData(parentId);
+      }
+    } catch {
+      alert("更新凭据时发生网络错误");
+    } finally {
+      setEditCredentialLoading(false);
+    }
+  };
+
+  const populateForm = (account: PlatformAccount) => {
+    setBindingForm({
+      childId: account.child_id,
+      platform: account.platform as SupportedPlatform,
+      username: account.external_account_ref,
+      externalAccountRef: account.external_account_ref,
+      authMode: (account.auth_mode as "auto_login" | "manual_session") ?? "manual_session",
+      loginUsername: "",
+      loginPassword: "",
+      managedSessionPayloadText: "",
+      managedSessionCapturedAt: "",
+    });
+    setManualSessionGuide(null);
+    setBindingError(null);
+  };
+
+  const toggleExpand = (accountId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(accountId)) {
+        next.delete(accountId);
+      } else {
+        next.add(accountId);
+      }
+      return next;
+    });
+  };
+
+  const formatDateTime = (iso: string | null) => {
+    if (!iso) return "—";
+    return new Date(iso).toLocaleString("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const statusLabel = (status: string, autoLogin?: boolean | null) => {
     if (status === "active") return "正常";
     if (status === "attention_required") return autoLogin ? "需重新登录" : "需补录 Session";
@@ -626,17 +735,86 @@ export default function SettingsIntegrationsPage() {
                   </div>
                 );
               }
-              return filteredAccounts.map((account) => (
+              return filteredAccounts.map((account) => {
+                const isExpanded = expandedIds.has(account.id);
+                const childName = children.find((child) => child.id === account.child_id)?.name ?? "未命名孩子";
+                const hasCredentials = Boolean(account.login_credentials_encrypted);
+
+                return (
                 <div
                   key={account.id}
                   className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
                 >
+                  {/* Header */}
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-forest-700">
-                      {children.find((child) => child.id === account.child_id)?.name ?? "未命名孩子"} · {account.platform}
+                      {childName} · {getPlatformDisplayName(account.platform)}
                     </p>
-                    {account.auto_login_enabled && account.status === "attention_required" && (
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => populateForm(account)}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleExpand(account.id)}
+                      >
+                        {isExpanded ? "收起" : "详情"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDeleteConfirmId(account.id)}
+                      >
+                        删除
+                      </Button>
+                    </div>
+                  </div>
+
+                  <p>账号：{account.external_account_ref}</p>
+                  <p>
+                    状态：{statusLabel(account.status, account.auto_login_enabled)}
+                    {account.auth_mode === "auto_login" ? " · 自动登录" : " · 手动 Session"}
+                    {hasCredentials ? " · 凭据已存储" : ""}
+                  </p>
+
+                  {/* Expandable details */}
+                  {isExpanded && (
+                    <div className="mt-2 space-y-1 border-t border-forest-200 pt-2 text-xs text-forest-500">
+                      <p>上次同步：{formatDateTime(account.last_synced_at)}</p>
+                      <p>Session 捕获：{formatDateTime(account.managed_session_captured_at)}</p>
+                      {account.managed_session_expires_at && (
+                        <p>Session 过期：{formatDateTime(account.managed_session_expires_at)}</p>
+                      )}
+                      <p>凭据存储：{hasCredentials ? "已加密存储" : "未存储"}</p>
+                      {account.auto_login_enabled && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditCredentialId(account.id);
+                            setEditCredentialUsername("");
+                            setEditCredentialPassword("");
+                          }}
+                        >
+                          编辑凭据
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {account.last_sync_error_summary ? (
+                    <p className="mt-1 text-rose-600">{account.last_sync_error_summary}</p>
+                  ) : null}
+
+                  {/* Action buttons for attention_required accounts */}
+                  {account.status === "attention_required" && (
+                    <div className="mt-2 flex items-center gap-1 border-t border-forest-200 pt-2">
+                      {account.auto_login_enabled && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -644,41 +822,33 @@ export default function SettingsIntegrationsPage() {
                         >
                           刷新登录
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setTakeoverAccountId(account.id);
-                            setTakeoverPayload(
-                              account.platform === "ixl"
-                                ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                                : account.platform === "khan-academy"
-                                  ? '{"cookies":[{"name":"KAAS","value":""}]}'
-                                  : '{"activityUrl":"","cookies":[]}'
-                            );
-                          }}
-                        >
-                          手动补录
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <p>账号：{account.external_account_ref}</p>
-                  <p>
-                    状态：{statusLabel(account.status, account.auto_login_enabled)}
-                    {account.auth_mode === "auto_login" ? " · 自动登录" : " · 手动 Session"}
-                  </p>
-                  {account.last_sync_error_summary ? (
-                    <p className="text-rose-600">{account.last_sync_error_summary}</p>
-                  ) : null}
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setTakeoverAccountId(account.id);
+                          setTakeoverPayload(
+                            account.platform === "ixl"
+                              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                              : account.platform === "khan-academy"
+                                ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                                : '{"activityUrl":"","cookies":[]}'
+                          );
+                        }}
+                      >
+                        手动补录
+                      </Button>
+                    </div>
+                  )}
 
+                  {/* Takeover panel */}
                   {takeoverAccountId === account.id && (
                     <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
                       <p className="text-amber-800">
                         自动登录不可用。请选择以下任一方式补录 Session：
                       </p>
 
-                      {/* Method Toggle */}
                       <div className="flex rounded-lg border border-forest-200 p-0.5">
                         <button
                           type="button"
@@ -811,8 +981,74 @@ export default function SettingsIntegrationsPage() {
                       )}
                     </div>
                   )}
+
+                  {/* Edit credentials panel */}
+                  {editCredentialId === account.id && (
+                    <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
+                      <p className="font-medium text-forest-700">更新登录凭据</p>
+                      <Input
+                        label="登录用户名"
+                        value={editCredentialUsername}
+                        onChange={(e) => setEditCredentialUsername(e.target.value)}
+                        placeholder={account.external_account_ref}
+                      />
+                      <Input
+                        label="新密码"
+                        type="password"
+                        value={editCredentialPassword}
+                        onChange={(e) => setEditCredentialPassword(e.target.value)}
+                        placeholder="输入新密码"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={editCredentialLoading}
+                          onClick={() => handleEditCredentialSave(account.id)}
+                        >
+                          {editCredentialLoading ? "验证并保存..." : "验证并保存"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditCredentialId(null);
+                            setEditCredentialUsername("");
+                            setEditCredentialPassword("");
+                          }}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delete confirmation */}
+                  {deleteConfirmId === account.id && (
+                    <div className="mt-3 space-y-3 border-t border-rose-200 pt-3">
+                      <p className="text-rose-700">
+                        确定要删除 {childName} 的 {getPlatformDisplayName(account.platform)} 账号绑定吗？该操作不可撤销。
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={deleteLoading}
+                          onClick={() => handleDeleteAccount(account.id)}
+                        >
+                          {deleteLoading ? "删除中..." : "确认删除"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={deleteLoading}
+                          onClick={() => setDeleteConfirmId(null)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ));
+              );});
             })()}
           </div>
         </div>

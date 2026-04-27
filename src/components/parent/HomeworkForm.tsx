@@ -283,64 +283,88 @@ export function HomeworkForm({
     e.preventDefault();
     setLoading(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) return;
-
-    const rows = buildHomeworkInsertRows(formData, session.user.id);
-    let savedHomeworkId = homework?.id ?? null;
-
-    if (homework) {
-      await supabase.from("homeworks").update(rows[0]).eq("id", homework.id);
-    } else {
-      const { data } = await supabase.from("homeworks").insert(rows).select("id");
-      if (data?.length === 1) {
-        savedHomeworkId = data[0].id;
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setLoading(false);
+        return;
       }
-    }
 
-    if (savedHomeworkId && selectedChildId && canConfigurePlatformBinding) {
-      const existingHomeworkRoutes = routingRules.filter(
-        (rule) => rule.homework_id === savedHomeworkId
-      );
+      const rows = buildHomeworkInsertRows(formData, session.user.id);
+      let savedHomeworkId = homework?.id ?? null;
 
-      if (homeworkRoutingMode === "child_default") {
-        for (const rule of existingHomeworkRoutes) {
-          await supabase.from("message_routing_rules").delete().eq("id", rule.id);
+      if (homework) {
+        const { error } = await supabase
+          .from("homeworks")
+          .update(rows[0])
+          .eq("id", homework.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from("homeworks")
+          .insert(rows)
+          .select("id");
+        if (error) throw error;
+        if (data?.length) {
+          savedHomeworkId = data[0].id;
         }
-      } else if (homeworkRoutingForm.recipientRef.trim()) {
-        if (existingHomeworkRoutes.length) {
-          await supabase
-            .from("message_routing_rules")
-            .update({
-              channel: homeworkRoutingForm.channel,
-              recipient_ref: homeworkRoutingForm.recipientRef.trim(),
-              recipient_label: homeworkRoutingForm.recipientLabel.trim() || null,
-            })
-            .eq("id", existingHomeworkRoutes[0].id);
+      }
 
-          for (const redundantRule of existingHomeworkRoutes.slice(1)) {
+      if (savedHomeworkId && selectedChildId && canConfigurePlatformBinding) {
+        const existingHomeworkRoutes = routingRules.filter(
+          (rule) => rule.homework_id === savedHomeworkId
+        );
+
+        if (homeworkRoutingMode === "child_default") {
+          for (const rule of existingHomeworkRoutes) {
             await supabase
               .from("message_routing_rules")
               .delete()
-              .eq("id", redundantRule.id);
+              .eq("id", rule.id);
           }
-        } else {
-          await supabase.from("message_routing_rules").insert({
-            child_id: selectedChildId,
-            homework_id: savedHomeworkId,
-            channel: homeworkRoutingForm.channel,
-            recipient_ref: homeworkRoutingForm.recipientRef.trim(),
-            recipient_label: homeworkRoutingForm.recipientLabel.trim() || null,
-          });
+        } else if (homeworkRoutingForm.recipientRef.trim()) {
+          if (existingHomeworkRoutes.length) {
+            await supabase
+              .from("message_routing_rules")
+              .update({
+                channel: homeworkRoutingForm.channel,
+                recipient_ref: homeworkRoutingForm.recipientRef.trim(),
+                recipient_label:
+                  homeworkRoutingForm.recipientLabel.trim() || null,
+              })
+              .eq("id", existingHomeworkRoutes[0].id);
+
+            for (const redundantRule of existingHomeworkRoutes.slice(1)) {
+              await supabase
+                .from("message_routing_rules")
+                .delete()
+                .eq("id", redundantRule.id);
+            }
+          } else {
+            await supabase.from("message_routing_rules").insert({
+              child_id: selectedChildId,
+              homework_id: savedHomeworkId,
+              channel: homeworkRoutingForm.channel,
+              recipient_ref: homeworkRoutingForm.recipientRef.trim(),
+              recipient_label:
+                homeworkRoutingForm.recipientLabel.trim() || null,
+            });
+          }
         }
       }
-    }
 
-    setLoading(false);
-    onSuccess?.();
-    router.push("/homework");
+      setLoading(false);
+      onSuccess?.();
+      router.push("/homework");
+    } catch (err: any) {
+      setLoading(false);
+      console.error("Failed to save homework:", err);
+      const msg =
+        err?.message || err?.error_description || JSON.stringify(err);
+      alert(`保存作业失败: ${msg}`);
+    }
   };
 
   const handleToggleChild = (childId: string) => {

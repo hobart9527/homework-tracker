@@ -129,7 +129,7 @@ export function AudioPlayer({ src, className = "" }: AudioPlayerProps) {
               />
             </div>
             <span className="text-sm font-medium text-forest-500 tabular-nums">
-              {formatTime(duration)}
+              {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
 

@@ -4,6 +4,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
+import { autoLoginIxl } from "../src/lib/ixl-auto-login.mjs";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -51,7 +52,7 @@ async function fetchIxlActivities(payload) {
 
     const body = await response.text();
 
-    if (response.status === 401 || isIxlLoginPage(body)) {
+    if (response.status === 403 || response.status === 401 || isIxlLoginPage(body)) {
       throw new Error("Session expired");
     }
     if (response.status === 404) {
@@ -200,6 +201,59 @@ async function syncIxlAccount(account) {
       duplicateCount: duplicates,
     };
   } catch (err) {
+    const isSessionExpired =
+      err.message === "Session expired" || err.message?.includes("Session expired");
+
+    if (isSessionExpired) {
+      const failCount = account._loginFailCount || 0;
+      if (failCount >= 3) {
+        console.error(`  ❌ 连续 ${failCount} 次登录失败，已停止重试以避免风控`);
+        await supabase
+          .from("platform_accounts")
+          .update({
+            status: "attention_required",
+            last_sync_error_summary: `Too many login failures (${failCount}), blocked for safety`,
+          })
+          .eq("id", account.id);
+        return { status: "error", error: "Login rate-limited for safety" };
+      }
+
+      const backoff = [60, 300, 900][failCount]; // 1min → 5min → 15min
+      console.log(`  🔄 Session 过期，${backoff}s 退避后自动重新登录...`);
+      await new Promise((r) => setTimeout(r, backoff * 1000));
+
+      try {
+        const newPayload = await autoLoginIxl();
+        await supabase
+          .from("platform_accounts")
+          .update({
+            managed_session_payload: newPayload,
+            managed_session_captured_at: new Date().toISOString(),
+          })
+          .eq("id", account.id);
+
+        account.managed_session_payload = newPayload;
+        account._loginFailCount = 0;
+        console.log(`  ✅ 重新登录成功，重试同步...`);
+        return syncIxlAccount(account);
+      } catch (reloginErr) {
+        account._loginFailCount = failCount + 1;
+        console.error(`  ❌ 自动登录失败 (${account._loginFailCount}/3): ${reloginErr.message}`);
+        await supabase
+          .from("platform_accounts")
+          .update({
+            status: "attention_required",
+            last_sync_error_summary: `Auto-relogin failed (#${account._loginFailCount}): ${reloginErr.message}`,
+          })
+          .eq("id", account.id);
+        return { status: "error", error: reloginErr.message };
+      }
+    }
+          .eq("id", account.id);
+        return { status: "error", error: reloginErr.message };
+      }
+    }
+
     console.error(`  ❌ ${account.external_account_ref}: ${err.message}`);
 
     await supabase

@@ -21,7 +21,7 @@ type SupabaseLike = {
         };
       };
     };
-    update?: (
+    update: (
       payload: Record<string, unknown>
     ) => {
       eq: (column: string, value: string) => {
@@ -152,7 +152,7 @@ export async function ingestLearningEvent(input: {
 
       const { data, error } = await input.supabase
         .from("learning_events")
-        .update?.({
+        .update({
           duration_minutes:
             (Number(existingLookup.data.duration_minutes ?? 0) || 0) +
             (input.event.durationMinutes ?? 0),

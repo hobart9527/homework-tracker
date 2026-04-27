@@ -583,7 +583,7 @@ export function CheckInModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="完成作业">
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="text-center">
           <span className="text-5xl">{homework.type_icon}</span>
           <h3 className="text-lg font-bold text-forest-700 mt-2">
@@ -652,11 +652,11 @@ export function CheckInModal({
 
         {/* Attachment preview */}
         {attachments.length > 0 && (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-2 gap-2">
             {attachments.map((att, index) => (
               <div
                 key={`${att.file.name}-${index}`}
-                className={`rounded-2xl border border-forest-100 bg-forest-50/70 p-3 ${att.type === "audio" ? "md:col-span-2" : ""}`}
+                className={`rounded-xl border border-forest-100 bg-forest-50/70 p-2 ${att.type === "audio" ? "col-span-2" : ""}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -695,17 +695,17 @@ export function CheckInModal({
                 </div>
 
                 {att.type === "photo" ? (
-                  <div className="mt-3 flex justify-center">
+                  <div className="mt-2 aspect-square w-full overflow-hidden rounded-lg bg-forest-100">
                     <img
                       src={att.previewUrl}
                       alt={att.file.name}
-                      className="max-h-48 w-auto max-w-full rounded-xl object-contain"
+                      className="h-full w-full object-cover"
                     />
                   </div>
                 ) : (
                   <AudioPlayer
                     src={att.previewUrl}
-                    className="mt-3 w-full"
+                    className="mt-2 w-full"
                   />
                 )}
               </div>
@@ -730,7 +730,7 @@ export function CheckInModal({
 
         {feedback && (
           <p
-            className={`rounded-xl px-4 py-3 text-sm ${
+            className={`rounded-xl px-3 py-2 text-sm ${
               submissionState === "submitting"
                 ? "bg-sky-50 text-sky-700"
                 : submissionState === "error"
@@ -745,7 +745,7 @@ export function CheckInModal({
         )}
 
         {uploadStatus ? (
-          <div className="rounded-2xl bg-forest-50 p-3">
+          <div className="rounded-xl bg-forest-50 p-2.5">
             <div className="flex items-center justify-between gap-3 text-xs font-medium">
               <span
                 className={

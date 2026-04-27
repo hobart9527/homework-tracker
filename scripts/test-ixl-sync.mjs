@@ -64,9 +64,16 @@ async function fetchIxlActivities(payload) {
         "User-Agent":
           "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       },
+      redirect: "manual",
     });
 
+    console.log(`   HTTP ${response.status} ${response.statusText}`);
+
     const body = await response.text();
+
+    if (response.status >= 300 && response.status < 400) {
+      console.log(`   Location: ${response.headers.get("location")}`);
+    }
 
     if (response.status === 401 || isIxlLoginPage(body)) {
       throw new Error("Session expired or invalid — IXL returned login page");
@@ -80,6 +87,7 @@ async function fetchIxlActivities(payload) {
     try {
       parsed = JSON.parse(body);
     } catch {
+      console.log("\n📄 Raw response (first 500 chars):", body.slice(0, 500));
       throw new Error("Could not parse IXL response as JSON");
     }
 
