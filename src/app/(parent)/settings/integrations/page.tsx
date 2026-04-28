@@ -592,34 +592,11 @@ export default function SettingsIntegrationsPage() {
               </button>
             </div>
 
-            {hasChildContext ? (
-              <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3">
-                <p className="text-sm font-medium text-forest-700">
-                  孩子：{children.find((c) => c.id === bindingForm.childId)?.name ?? "未选择"}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <label htmlFor="platform-child-id" className="mb-1 block text-sm font-medium text-forest-700">
-                  孩子
-                </label>
-                <select
-                  id="platform-child-id"
-                  value={bindingForm.childId}
-                  onChange={(e) =>
-                    setBindingForm((prev) => ({ ...prev, childId: e.target.value }))
-                  }
-                  className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-                >
-                  <option value="">请选择孩子</option>
-                  {children.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      {child.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3">
+              <p className="text-sm font-medium text-forest-700">
+                孩子：{children.find((c) => c.id === selectedChildId)?.name ?? "未选择"}
+              </p>
+            </div>
 
             <div>
               <label htmlFor="platform-name" className="mb-1 block text-sm font-medium text-forest-700">
@@ -776,15 +753,11 @@ export default function SettingsIntegrationsPage() {
 
           <div className="space-y-2">
             {(() => {
-              const filteredAccounts = hasChildContext
-                ? platformAccounts.filter((a) => a.child_id === selectedChildIdFromQuery)
-                : platformAccounts;
+              const filteredAccounts = platformAccounts.filter((a) => a.child_id === selectedChildId);
               if (filteredAccounts.length === 0) {
                 return (
                   <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                    {hasChildContext
-                      ? "这个孩子还没有绑定学习平台账号。"
-                      : "还没有孩子级平台账号绑定。"}
+                    {"这个孩子还没有绑定学习平台账号。"}
                   </div>
                 );
               }
