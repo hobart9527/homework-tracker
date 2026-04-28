@@ -1080,35 +1080,31 @@ export default function SettingsIntegrationsPage() {
         </div>
       </Card>
 
-      <Card id="message-routing" className="scroll-mt-4">
-        <div className="space-y-4">
-          <div>
-            <h2 className="font-bold text-forest-700">孩子默认提交群</h2>
-            <p className="mt-1 text-sm text-forest-500">
-              这里定义孩子级默认目标群；作业级的单独覆盖，应该在作业创建或编辑时确定。
-            </p>
-          </div>
+      {selectedChildId && (
+        <Card id="default-group" className="scroll-mt-4">
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-bold text-forest-700">默认微信群</h2>
+              <p className="mt-1 text-sm text-forest-500">
+                孩子提交作业的默认目标微信群；作业级覆盖在作业编辑时确定。
+              </p>
+            </div>
 
-          <div className="space-y-3">
             {(() => {
-              const filteredChildren = hasChildContext
-                ? children.filter((c) => c.id === selectedChildIdFromQuery)
-                : children;
-              return filteredChildren.map((child) => (
-                <div
-                  key={child.id}
-                  className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4"
-                >
+              const child = children.find((c) => c.id === selectedChildId);
+              if (!child) return null;
+              return (
+                <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div className="flex-1">
                       <label
-                        htmlFor={`child-default-group-${child.id}`}
+                        htmlFor="default-group-select"
                         className="mb-1 block text-sm font-medium text-forest-700"
                       >
-                        {child.name} 默认微信群
+                        {child.name} 默认群
                       </label>
                       <select
-                        id={`child-default-group-${child.id}`}
+                        id="default-group-select"
                         value={childGroupSelections[child.id] ?? ""}
                         onChange={(e) =>
                           setChildGroupSelections((prev) => ({
@@ -1148,56 +1144,60 @@ export default function SettingsIntegrationsPage() {
                         }
                       }}
                     >
-                      {savingChildGroupId === child.id
-                        ? "保存中..."
-                        : `保存 ${child.name} 默认群`}
+                      {savingChildGroupId === child.id ? "保存中..." : "保存"}
                     </Button>
                   </div>
                 </div>
-              ));
+              );
             })()}
           </div>
+        </Card>
+      )}
 
-          {(() => {
-            const filteredRules = hasChildContext
-              ? routingRules.filter((r) => r.child_id === selectedChildIdFromQuery)
-              : routingRules;
-            if (filteredRules.length === 0) return null;
-            return (
-              <>
-                <div>
-                  <h3 className="font-medium text-forest-700">遗留路由规则</h3>
-                  <p className="mt-1 text-sm text-forest-500">
-                    以下规则来自旧版系统，仅做展示参考，不再支持新增和编辑。
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {filteredRules.map((rule) => (
-                    <div
-                      key={rule.id}
-                      className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
-                    >
-                      <p className="font-medium text-forest-700">
-                        {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}
-                        {rule.channel === "telegram_chat" ? "Telegram" : "微信群"}
-                      </p>
-                      <p>
-                        {rule.homework_id
-                          ? `作业：${homeworkTitleById[rule.homework_id] ?? "未找到作业"}`
-                          : "作业：该孩子默认路由"}
-                      </p>
-                      <p>
-                        目标：{rule.recipient_label || rule.recipient_ref}
-                        {rule.recipient_label ? ` (${rule.recipient_ref})` : ""}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      </Card>
+      {selectedChildId && (
+        <Card id="message-routing" className="scroll-mt-4">
+          <div className="space-y-4">
+            {(() => {
+              const filteredRules = hasChildContext
+                ? routingRules.filter((r) => r.child_id === selectedChildIdFromQuery)
+                : routingRules;
+              if (filteredRules.length === 0) return null;
+              return (
+                <>
+                  <div>
+                    <h3 className="font-medium text-forest-700">遗留路由规则</h3>
+                    <p className="mt-1 text-sm text-forest-500">
+                      以下规则来自旧版系统，仅做展示参考，不再支持新增和编辑。
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {filteredRules.map((rule) => (
+                      <div
+                        key={rule.id}
+                        className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
+                      >
+                        <p className="font-medium text-forest-700">
+                          {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}
+                          {rule.channel === "telegram_chat" ? "Telegram" : "微信群"}
+                        </p>
+                        <p>
+                          {rule.homework_id
+                            ? `作业：${homeworkTitleById[rule.homework_id] ?? "未找到作业"}`
+                            : "作业：该孩子默认路由"}
+                        </p>
+                        <p>
+                          目标：{rule.recipient_label || rule.recipient_ref}
+                          {rule.recipient_label ? ` (${rule.recipient_ref})` : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </Card>
+      )}
     </SettingsShell>
   );
 }
