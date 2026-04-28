@@ -62,11 +62,6 @@ export default function SettingsIntegrationsPage() {
   });
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [bindingLoading, setBindingLoading] = useState(false);
-  const [manualSessionGuide, setManualSessionGuide] = useState<{
-    platform: string;
-    url: string;
-    message: string;
-  } | null>(null);
   const [takeoverAccountId, setTakeoverAccountId] = useState<string | null>(null);
   const [takeoverMethod, setTakeoverMethod] = useState<"script" | "manual">("script");
   const [takeoverPayload, setTakeoverPayload] = useState<string>("");
@@ -200,7 +195,6 @@ export default function SettingsIntegrationsPage() {
 
   const handleBindingSubmit = async () => {
     setBindingError(null);
-    setManualSessionGuide(null);
 
     if (!bindingForm.childId || !bindingForm.username.trim()) {
       setBindingError("请选择孩子并填写账号标识。");
@@ -248,43 +242,11 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         let errorMsg = body.error || "绑定学习平台账号失败，请稍后重试。";
-        if (body.reason === "captcha_required") {
-          errorMsg += " 该平台当前需要验证码，请切换到手动 Session 模式。";
-        } else if (body.reason === "two_factor_required") {
-          errorMsg += " 该平台开启了双重验证，请使用手动 Session 模式。";
-        } else if (body.hint) {
-          errorMsg += ` ${body.hint}`;
-        }
-
-        if (
-          body.reason === "captcha_required" ||
-          body.reason === "two_factor_required" ||
-          body.reason === "unsupported"
-        ) {
-          setBindingForm((prev) => ({
-            ...prev,
-            authMode: "manual_session",
-            managedSessionPayloadText:
-              prev.managedSessionPayloadText ||
-              (body.manualSessionTemplate
-                ? JSON.stringify(body.manualSessionTemplate, null, 2)
-                : ""),
-          }));
-          if (body.manualSessionUrl) {
-            setManualSessionGuide({
-              platform: bindingForm.platform,
-              url: body.manualSessionUrl,
-              message:
-                body.reason === "captcha_required"
-                  ? `${bindingForm.platform.toUpperCase()} 当前要求你先手动完成验证码，再把登录成功后的 Session 粘贴回来。`
-                  : "当前平台需要你先在浏览器中手动完成登录，再把成功后的 Session 粘贴回来。",
-            });
-          }
-        }
-
         setBindingError(errorMsg);
         return;
       }
+
+      const account = body.account;
 
       setBindingForm({
         childId: "",
@@ -299,6 +261,18 @@ export default function SettingsIntegrationsPage() {
 
       if (parentId) {
         await refreshData(parentId);
+      }
+
+      // Auto-login blocked by captcha/2FA: saved credentials, now offer manual session
+      if (account?.status === "attention_required") {
+        setTakeoverAccountId(account.id);
+        setTakeoverPayload(
+          account.platform === "ixl"
+            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+            : account.platform === "khan-academy"
+              ? '{"cookies":[{"name":"KAAS","value":""}]}'
+              : '{"activityUrl":"","cookies":[]}'
+        );
       }
     } finally {
       setBindingLoading(false);
@@ -455,7 +429,6 @@ export default function SettingsIntegrationsPage() {
       managedSessionPayloadText: "",
       managedSessionCapturedAt: "",
     });
-    setManualSessionGuide(null);
     setBindingError(null);
   };
 
@@ -567,7 +540,6 @@ export default function SettingsIntegrationsPage() {
                     managedSessionCapturedAt: "",
                   }));
                   setBindingError(null);
-                  setManualSessionGuide(null);
                   router.replace(`/settings/integrations?childId=${child.id}`, { scroll: false });
                 }}
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
@@ -699,25 +671,6 @@ export default function SettingsIntegrationsPage() {
                     {getPlatformDisplayName(bindingForm.platform)} 目前先接入手动
                     Session 绑定，自动登录后续再补。请在 JSON 里同时提供活动页
                     `activityUrl` 和登录后的 `cookies`。
-                  </div>
-                ) : null}
-                {manualSessionGuide ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    <p className="font-medium">{manualSessionGuide.message}</p>
-                    <ol className="mt-2 list-decimal space-y-1 pl-5">
-                      <li>先打开平台登录页并完成验证码或登录验证</li>
-                      <li>登录成功后，进入学习记录/活动页，并复制该页面 URL</li>
-                      <li>把活动页 URL 和当前浏览器里的 Cookie 按下面 JSON 结构粘贴回来</li>
-                      <li>保存后系统会优先复用这次 Session，减少后续打断</li>
-                    </ol>
-                    <a
-                      href={manualSessionGuide.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-flex text-sm font-medium text-primary underline"
-                    >
-                      打开 {getPlatformDisplayName(manualSessionGuide.platform)} 登录页
-                    </a>
                   </div>
                 ) : null}
                 <div>

@@ -159,41 +159,17 @@ export async function POST(request: Request) {
         finalManagedSessionCapturedAt = new Date().toISOString();
         finalStatus = "active";
       } else {
-        // For captcha/2FA/unsupported: still save credentials so user can retry later,
-        // but mark as attention_required
-        if (
-          loginResult.reason === "captcha_required" ||
-          loginResult.reason === "two_factor_required" ||
-          loginResult.reason === "unsupported"
-        ) {
-          finalStatus = "attention_required";
-        } else if (loginResult.reason === "invalid_credentials") {
+        if (loginResult.reason === "invalid_credentials") {
           return NextResponse.json(
             { error: loginResult.message, reason: loginResult.reason },
             { status: 401 }
           );
-        } else {
-          finalStatus = "attention_required";
         }
 
-        return NextResponse.json(
-          {
-            error: loginResult.message,
-            reason: loginResult.reason,
-            hint:
-              loginResult.reason === "captcha_required" ||
-              loginResult.reason === "two_factor_required" ||
-              loginResult.reason === "unsupported"
-                ? "请切换到手动 Session 模式完成绑定。"
-                : undefined,
-            ...(loginResult.reason === "captcha_required" ||
-            loginResult.reason === "two_factor_required" ||
-            loginResult.reason === "unsupported"
-              ? getManualSessionGuide(platform)
-              : {}),
-          },
-          { status: 400 }
-        );
+        // captcha_required / two_factor_required / unsupported / other:
+        // save credentials and mark attention_required so user can retry
+        // or complete via manual session later
+        finalStatus = "attention_required";
       }
     } catch (error) {
       return NextResponse.json(
