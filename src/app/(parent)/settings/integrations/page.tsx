@@ -94,6 +94,13 @@ export default function SettingsIntegrationsPage() {
     Record<string, string>
   >({});
   const [savingChildGroupId, setSavingChildGroupId] = useState<string | null>(null);
+  const [showGroupAddForm, setShowGroupAddForm] = useState(false);
+  const [groupAddForm, setGroupAddForm] = useState({ recipientRef: "", displayName: "" });
+  const [groupAddLoading, setGroupAddLoading] = useState(false);
+  const [groupAddError, setGroupAddError] = useState<string | null>(null);
+  const [groupEditingId, setGroupEditingId] = useState<string | null>(null);
+  const [groupEditName, setGroupEditName] = useState("");
+  const [groupEditLoading, setGroupEditLoading] = useState(false);
 
   const refreshData = async (nextParentId: string) => {
     const { data: childrenData } = await supabase
@@ -497,6 +504,58 @@ export default function SettingsIntegrationsPage() {
     if (status === "syncing") return "同步中";
     if (status === "failed") return "同步失败";
     return status;
+  };
+
+  const handleGroupAdd = async () => {
+    setGroupAddError(null);
+    if (!groupAddForm.recipientRef.trim()) {
+      setGroupAddError("请输入微信群标识。");
+      return;
+    }
+    setGroupAddLoading(true);
+    try {
+      const { error } = await supabase.from("wechat_groups").insert({
+        parent_id: parentId,
+        recipient_ref: groupAddForm.recipientRef.trim(),
+        display_name: groupAddForm.displayName.trim() || null,
+        source: "manual",
+      });
+      if (error) {
+        if (error.message.includes("duplicate")) {
+          setGroupAddError("这个群标识已经存在了。");
+        } else {
+          setGroupAddError(error.message);
+        }
+        return;
+      }
+      setGroupAddForm({ recipientRef: "", displayName: "" });
+      setShowGroupAddForm(false);
+      if (parentId) await refreshData(parentId);
+    } finally {
+      setGroupAddLoading(false);
+    }
+  };
+
+  const handleGroupEdit = async (groupId: string) => {
+    setGroupEditLoading(true);
+    try {
+      const { error } = await supabase
+        .from("wechat_groups")
+        .update({ display_name: groupEditName.trim() || null })
+        .eq("id", groupId);
+      if (!error) {
+        setGroupEditingId(null);
+        if (parentId) await refreshData(parentId);
+      }
+    } finally {
+      setGroupEditLoading(false);
+    }
+  };
+
+  const handleGroupDelete = async (groupId: string) => {
+    if (!confirm("确定要删除这个微信群吗？相关的消息路由也会失效。")) return;
+    await supabase.from("wechat_groups").delete().eq("id", groupId);
+    if (parentId) await refreshData(parentId);
   };
 
   return (
@@ -1150,6 +1209,142 @@ export default function SettingsIntegrationsPage() {
                 </div>
               );
             })()}
+          </div>
+        </Card>
+      )}
+
+      {selectedChildId && (
+        <Card id="wechat-groups" className="scroll-mt-4">
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-bold text-forest-700">微信群管理</h2>
+              <p className="mt-1 text-sm text-forest-500">
+                管理你的目标微信群，系统自动发现活跃群，也可以手动添加。
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {wechatGroups.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
+                  还没有微信群。启动微信发送服务并在目标群里发一条消息，系统会自动发现。
+                </div>
+              ) : (
+                wechatGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="flex items-center justify-between rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3"
+                  >
+                    {groupEditingId === group.id ? (
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="text"
+                          value={groupEditName}
+                          onChange={(e) => setGroupEditName(e.target.value)}
+                          placeholder="群显示名称"
+                          className="flex-1 rounded-lg border border-forest-200 px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          disabled={groupEditLoading}
+                          onClick={() => handleGroupEdit(group.id)}
+                        >
+                          {groupEditLoading ? "保存中..." : "保存"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setGroupEditingId(null)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm">
+                          <p className="font-medium text-forest-700">
+                            {group.display_name || "未命名群"}
+                          </p>
+                          <p className="mt-0.5 text-xs text-forest-500">
+                            {group.source === "manual" ? "手动添加" : "自动发现"}
+                            {group.last_seen_at ? " · 最近已连接" : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setGroupEditingId(group.id);
+                              setGroupEditName(group.display_name || "");
+                            }}
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-500"
+                            onClick={() => handleGroupDelete(group.id)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {showGroupAddForm ? (
+              <div className="rounded-xl border border-forest-200 bg-white p-4 space-y-3">
+                <p className="text-sm font-medium text-forest-700">手动添加微信群</p>
+                <Input
+                  label="微信群标识"
+                  value={groupAddForm.recipientRef}
+                  onChange={(e) =>
+                    setGroupAddForm((prev) => ({ ...prev, recipientRef: e.target.value }))
+                  }
+                  placeholder="例如 wxid_xxx@chatroom"
+                />
+                <Input
+                  label="显示名称（可选）"
+                  value={groupAddForm.displayName}
+                  onChange={(e) =>
+                    setGroupAddForm((prev) => ({ ...prev, displayName: e.target.value }))
+                  }
+                  placeholder="例如 Mia 数学群"
+                />
+                {groupAddError ? (
+                  <p className="text-sm text-rose-700">{groupAddError}</p>
+                ) : null}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" disabled={groupAddLoading} onClick={handleGroupAdd}>
+                    {groupAddLoading ? "添加中..." : "添加"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setShowGroupAddForm(false);
+                      setGroupAddForm({ recipientRef: "", displayName: "" });
+                      setGroupAddError(null);
+                    }}
+                  >
+                    取消
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowGroupAddForm(true)}
+              >
+                + 手动添加微信群
+              </Button>
+            )}
           </div>
         </Card>
       )}
