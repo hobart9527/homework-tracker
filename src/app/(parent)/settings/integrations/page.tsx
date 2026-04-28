@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SettingsShell } from "@/components/parent/SettingsShell";
 import { Card } from "@/components/ui/Card";
@@ -40,6 +40,7 @@ function getManualSessionLoginUrl(platform: string) {
 export default function SettingsIntegrationsPage() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const selectedChildIdFromQuery = searchParams.get("childId");
   const [loading, setLoading] = useState(true);
   const [parentId, setParentId] = useState<string | null>(null);
@@ -78,7 +79,7 @@ export default function SettingsIntegrationsPage() {
   const [editCredentialPassword, setEditCredentialPassword] = useState("");
   const [editCredentialLoading, setEditCredentialLoading] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const hasChildContext = Boolean(selectedChildIdFromQuery);
+  const [selectedChildId, setSelectedChildId] = useState<string>("");
 
   const [routingForm, setRoutingForm] = useState({
     childId: "",
@@ -166,17 +167,27 @@ export default function SettingsIntegrationsPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!selectedChildIdFromQuery || !children.length) {
-      return;
-    }
+    if (!children.length) return;
 
-    if (!children.some((child) => child.id === selectedChildIdFromQuery)) {
-      return;
-    }
+    const validFromQuery =
+      selectedChildIdFromQuery &&
+      children.some((c) => c.id === selectedChildIdFromQuery)
+        ? selectedChildIdFromQuery
+        : null;
 
-    setBindingForm((prev) => ({ ...prev, childId: selectedChildIdFromQuery }));
-    setRoutingForm((prev) => ({ ...prev, childId: selectedChildIdFromQuery }));
+    const nextId = validFromQuery || children[0].id;
+
+    setSelectedChildId((prev) => {
+      if (prev && children.some((c) => c.id === prev)) return prev;
+      return nextId;
+    });
   }, [children, selectedChildIdFromQuery]);
+
+  useEffect(() => {
+    if (selectedChildId) {
+      setBindingForm((prev) => ({ ...prev, childId: selectedChildId }));
+    }
+  }, [selectedChildId]);
 
   const homeworkTitleById = Object.fromEntries(
     homeworks.map((homework) => [homework.id, homework.title])
