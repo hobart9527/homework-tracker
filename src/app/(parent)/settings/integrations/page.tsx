@@ -54,11 +54,8 @@ export default function SettingsIntegrationsPage() {
     childId: "",
     platform: "ixl" as SupportedPlatform,
     username: "",
-    authMode: "auto_login" as "auto_login" | "manual_session",
     loginUsername: "",
     loginPassword: "",
-    managedSessionPayloadText: "",
-    managedSessionCapturedAt: "",
   });
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [bindingLoading, setBindingLoading] = useState(false);
@@ -201,23 +198,9 @@ export default function SettingsIntegrationsPage() {
       return;
     }
 
-    if (bindingForm.authMode === "auto_login" && !bindingForm.loginPassword) {
-      setBindingError("自动登录模式需要填写登录密码。");
-      return;
-    }
-
-    let managedSessionPayload: Record<string, unknown> | null = null;
-
-    if (bindingForm.authMode === "manual_session" && bindingForm.managedSessionPayloadText.trim()) {
-      try {
-        managedSessionPayload = JSON.parse(
-          bindingForm.managedSessionPayloadText
-        ) as Record<string, unknown>;
-      } catch {
-        setBindingError("Managed Session JSON 格式不正确。");
-        return;
-      }
-    }
+    const platformSupportsAuto = AUTO_LOGIN_PLATFORMS.has(bindingForm.platform);
+    const hasPassword = Boolean(bindingForm.loginPassword);
+    const authMode = platformSupportsAuto && hasPassword ? "auto_login" : "manual_session";
 
     setBindingLoading(true);
 
@@ -229,12 +212,9 @@ export default function SettingsIntegrationsPage() {
           childId: bindingForm.childId,
           platform: bindingForm.platform,
           username: bindingForm.username.trim(),
-          authMode: bindingForm.authMode,
+          authMode,
           loginUsername: bindingForm.loginUsername.trim() || bindingForm.username.trim(),
           loginPassword: bindingForm.loginPassword,
-          managedSessionPayload,
-          managedSessionCapturedAt:
-            bindingForm.managedSessionCapturedAt || null,
         }),
       });
 
@@ -252,11 +232,8 @@ export default function SettingsIntegrationsPage() {
         childId: "",
         platform: "ixl",
         username: "",
-        authMode: "auto_login",
         loginUsername: "",
         loginPassword: "",
-        managedSessionPayloadText: "",
-        managedSessionCapturedAt: "",
       });
 
       if (parentId) {
@@ -423,11 +400,8 @@ export default function SettingsIntegrationsPage() {
       childId: account.child_id,
       platform: account.platform as SupportedPlatform,
       username: account.external_account_ref,
-      authMode: (account.auth_mode as "auto_login" | "manual_session") ?? "manual_session",
       loginUsername: "",
       loginPassword: "",
-      managedSessionPayloadText: "",
-      managedSessionCapturedAt: "",
     });
     setBindingError(null);
   };
@@ -536,8 +510,6 @@ export default function SettingsIntegrationsPage() {
                     username: "",
                     loginUsername: "",
                     loginPassword: "",
-                    managedSessionPayloadText: "",
-                    managedSessionCapturedAt: "",
                   }));
                   setBindingError(null);
                   router.replace(`/settings/integrations?childId=${child.id}`, { scroll: false });
@@ -570,43 +542,6 @@ export default function SettingsIntegrationsPage() {
           </div>
 
           <div className="space-y-4">
-            {/* Auth Mode Toggle */}
-            <div className="flex rounded-xl border-2 border-forest-200 p-1">
-              <button
-                type="button"
-                onClick={() =>
-                  setBindingForm((prev) =>
-                    AUTO_LOGIN_PLATFORMS.has(prev.platform)
-                      ? { ...prev, authMode: "auto_login" }
-                      : prev
-                  )
-                }
-                disabled={!AUTO_LOGIN_PLATFORMS.has(bindingForm.platform)}
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  bindingForm.authMode === "auto_login"
-                    ? "bg-primary text-white"
-                    : "text-forest-600 hover:bg-forest-50"
-                }`}
-              >
-                自动登录（IXL / Khan）
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setBindingForm((prev) => ({ ...prev, authMode: "manual_session" }))
-                }
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  bindingForm.authMode === "manual_session"
-                    ? "bg-primary text-white"
-                    : "text-forest-600 hover:bg-forest-50"
-                }`}
-              >
-                手动 Session
-              </button>
-            </div>
-
-
-
             <div>
               <label htmlFor="platform-name" className="mb-1 block text-sm font-medium text-forest-700">
                 平台
@@ -615,16 +550,7 @@ export default function SettingsIntegrationsPage() {
                 id="platform-name"
                 value={bindingForm.platform}
                 onChange={(e) =>
-                  setBindingForm((prev) => {
-                    const platform = e.target.value as SupportedPlatform;
-                    return {
-                      ...prev,
-                      platform,
-                      authMode: AUTO_LOGIN_PLATFORMS.has(platform)
-                        ? prev.authMode
-                        : "manual_session",
-                    };
-                  })
+                  setBindingForm((prev) => ({ ...prev, platform: e.target.value as SupportedPlatform }))
                 }
                 className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
               >
@@ -644,7 +570,7 @@ export default function SettingsIntegrationsPage() {
               placeholder="例如 mia-family-account"
             />
 
-            {bindingForm.authMode === "auto_login" ? (
+            {AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? (
               <>
                 <Input
                   label="登录用户名"
@@ -665,66 +591,17 @@ export default function SettingsIntegrationsPage() {
                 />
               </>
             ) : (
-              <>
-                {!AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? (
-                  <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                    {getPlatformDisplayName(bindingForm.platform)} 目前先接入手动
-                    Session 绑定，自动登录后续再补。请在 JSON 里同时提供活动页
-                    `activityUrl` 和登录后的 `cookies`。
-                  </div>
-                ) : null}
-                <div>
-                  <label htmlFor="managed-session-payload" className="mb-1 block text-sm font-medium text-forest-700">
-                    Managed Session JSON
-                  </label>
-                  <textarea
-                    id="managed-session-payload"
-                    value={bindingForm.managedSessionPayloadText}
-                    onChange={(e) =>
-                      setBindingForm((prev) => ({
-                        ...prev,
-                        managedSessionPayloadText: e.target.value,
-                      }))
-                    }
-                    placeholder={
-                      bindingForm.platform === "epic" ||
-                      bindingForm.platform === "raz-kids"
-                        ? '例如 {"activityUrl":"https://...","cookies":[{"name":"session","value":"..."}]}'
-                        : '例如 {"cookies":[{"name":"PHPSESSID","value":"..."}]}'
-                    }
-                    className="min-h-28 w-full rounded-xl border-2 border-forest-200 px-4 py-3 focus:border-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="managed-session-captured-at" className="mb-1 block text-sm font-medium text-forest-700">
-                    Session 捕获时间（可选）
-                  </label>
-                  <input
-                    id="managed-session-captured-at"
-                    type="datetime-local"
-                    value={bindingForm.managedSessionCapturedAt}
-                    onChange={(e) =>
-                      setBindingForm((prev) => ({
-                        ...prev,
-                        managedSessionCapturedAt: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </>
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                {getPlatformDisplayName(bindingForm.platform)} 暂不支持自动登录，保存后可
+                通过卡片上的「更新 Session」手动录入。
+              </div>
             )}
 
             {bindingError ? <p className="text-sm text-rose-700">{bindingError}</p> : null}
 
             <div className="flex justify-end">
               <Button disabled={bindingLoading} onClick={handleBindingSubmit}>
-                {bindingLoading
-                  ? "绑定中..."
-                  : bindingForm.authMode === "auto_login"
-                    ? "测试登录并绑定"
-                    : "绑定账号"}
+                {bindingLoading ? "绑定中..." : "绑定"}
               </Button>
             </div>
           </div>
@@ -776,22 +653,6 @@ export default function SettingsIntegrationsPage() {
                       >
                         删除
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setTakeoverAccountId(account.id);
-                          setTakeoverPayload(
-                            account.platform === "ixl"
-                              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                              : account.platform === "khan-academy"
-                                ? '{"cookies":[{"name":"KAAS","value":""}]}'
-                                : '{"activityUrl":"","cookies":[]}'
-                          );
-                        }}
-                      >
-                        Session
-                      </Button>
                     </div>
                   </div>
 
@@ -830,6 +691,25 @@ export default function SettingsIntegrationsPage() {
                   {account.last_sync_error_summary ? (
                     <p className="mt-1 text-rose-600">{account.last_sync_error_summary}</p>
                   ) : null}
+
+                  <div className="mt-2 border-t border-forest-200 pt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setTakeoverAccountId(account.id);
+                        setTakeoverPayload(
+                          account.platform === "ixl"
+                            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                            : account.platform === "khan-academy"
+                              ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                              : '{"activityUrl":"","cookies":[]}'
+                        );
+                      }}
+                    >
+                      更新 Session
+                    </Button>
+                  </div>
 
                   {/* Edit credentials panel */}
                   {editCredentialId === account.id && (
@@ -914,6 +794,18 @@ export default function SettingsIntegrationsPage() {
               size="md"
             >
               <div className="space-y-4">
+                {account.auto_login_enabled && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      handleRefreshSession(account.id, account.platform);
+                      setTakeoverAccountId(null);
+                      setTakeoverPayload("");
+                    }}
+                  >
+                    自动重试登录
+                  </Button>
+                )}
                 <div className="flex rounded-lg border border-forest-200 p-0.5">
                   <button
                     type="button"
