@@ -7,6 +7,7 @@ import { SettingsShell } from "@/components/parent/SettingsShell";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
@@ -822,6 +823,22 @@ export default function SettingsIntegrationsPage() {
                       >
                         删除
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setTakeoverAccountId(account.id);
+                          setTakeoverPayload(
+                            account.platform === "ixl"
+                              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                              : account.platform === "khan-academy"
+                                ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                                : '{"activityUrl":"","cookies":[]}'
+                          );
+                        }}
+                      >
+                        Session
+                      </Button>
                     </div>
                   </div>
 
@@ -860,175 +877,6 @@ export default function SettingsIntegrationsPage() {
                   {account.last_sync_error_summary ? (
                     <p className="mt-1 text-rose-600">{account.last_sync_error_summary}</p>
                   ) : null}
-
-                  {/* Action buttons */}
-                  <div className="mt-2 flex items-center gap-1 border-t border-forest-200 pt-2">
-                    {account.status === "attention_required" && account.auto_login_enabled && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRefreshSession(account.id, account.platform)}
-                      >
-                        刷新登录
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setTakeoverAccountId(account.id);
-                        setTakeoverPayload(
-                          account.platform === "ixl"
-                            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                            : account.platform === "khan-academy"
-                              ? '{"cookies":[{"name":"KAAS","value":""}]}'
-                              : '{"activityUrl":"","cookies":[]}'
-                        );
-                      }}
-                    >
-                      手动更新 Session
-                    </Button>
-                  </div>
-
-                  {/* Takeover panel */}
-                  {takeoverAccountId === account.id && (
-                    <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
-                      <p className="text-amber-800">
-                        请选择以下任一方式更新 Session：
-                      </p>
-
-                      <div className="flex rounded-lg border border-forest-200 p-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setTakeoverMethod("script")}
-                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                            takeoverMethod === "script"
-                              ? "bg-primary text-white"
-                              : "text-forest-600 hover:bg-forest-50"
-                          }`}
-                        >
-                          方式一：本地脚本（推荐）
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTakeoverMethod("manual")}
-                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                            takeoverMethod === "manual"
-                              ? "bg-primary text-white"
-                              : "text-forest-600 hover:bg-forest-50"
-                          }`}
-                        >
-                          方式二：手动粘贴
-                        </button>
-                      </div>
-
-                      {takeoverMethod === "script" ? (
-                        <div className="space-y-3">
-                          <div className="rounded-lg bg-forest-50 px-3 py-2.5 text-xs text-forest-600">
-                            <p className="font-medium text-forest-700 mb-1">使用步骤：</p>
-                            <ol className="list-decimal space-y-0.5 pl-4">
-                              <li>在终端运行以下命令</li>
-                              <li>浏览器窗口会自动弹出</li>
-                              <li>手动完成登录（包括验证码）</li>
-                              <li>回到终端按 Enter，JSON 自动复制到剪贴板</li>
-                              <li>回到此页面，点击下方「我已获取，直接粘贴」</li>
-                            </ol>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-mono text-slate-700">
-                              npm run session:collect -- --platform={account.platform}
-                            </code>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                navigator.clipboard.writeText(
-                                  `npm run session:collect -- --platform=${account.platform}`
-                                );
-                                setCopiedCommand(true);
-                                setTimeout(() => setCopiedCommand(false), 2000);
-                              }}
-                            >
-                              {copiedCommand ? "已复制" : "复制命令"}
-                            </Button>
-                          </div>
-
-                          <p className="text-xs text-forest-500">
-                            首次使用需要先安装 Playwright：
-                            <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">
-                              npm install playwright && npx playwright install chromium
-                            </code>
-                          </p>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setTakeoverMethod("manual");
-                                setTakeoverPayload(
-                                  account.platform === "ixl"
-                                    ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                                    : account.platform === "khan-academy"
-                                      ? '{"cookies":[{"name":"KAAS","value":""}]}'
-                                      : '{"activityUrl":"","cookies":[]}'
-                                );
-                              }}
-                            >
-                              我已获取，直接粘贴
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setTakeoverAccountId(null);
-                                setTakeoverPayload("");
-                              }}
-                            >
-                              取消
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <a
-                            href={getManualSessionLoginUrl(account.platform)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex text-sm font-medium text-primary underline"
-                          >
-                            打开 {getPlatformDisplayName(account.platform)} 登录页
-                          </a>
-                          <textarea
-                            value={takeoverPayload}
-                            onChange={(e) => setTakeoverPayload(e.target.value)}
-                            placeholder='{"cookies":[{"name":"PHPSESSID","value":"..."}]}'
-                            className="min-h-24 w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-800 focus:border-primary focus:outline-none"
-                          />
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              disabled={takeoverLoading}
-                              onClick={() => handleTakeoverSave(account.id)}
-                            >
-                              {takeoverLoading ? "保存中..." : "保存 Session"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={takeoverLoading}
-                              onClick={() => {
-                                setTakeoverAccountId(null);
-                                setTakeoverPayload("");
-                              }}
-                            >
-                              取消
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {/* Edit credentials panel */}
                   {editCredentialId === account.id && (
@@ -1100,6 +948,153 @@ export default function SettingsIntegrationsPage() {
             })()}
           </div>
         </div>
+
+        {/* Session update modal */}
+        {takeoverAccountId && (() => {
+          const account = platformAccounts.find((a) => a.id === takeoverAccountId);
+          if (!account) return null;
+          return (
+            <Modal
+              isOpen
+              onClose={() => { setTakeoverAccountId(null); setTakeoverPayload(""); }}
+              title={`更新 Session — ${getPlatformDisplayName(account.platform)}`}
+              size="md"
+            >
+              <div className="space-y-4">
+                <div className="flex rounded-lg border border-forest-200 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setTakeoverMethod("script")}
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      takeoverMethod === "script"
+                        ? "bg-primary text-white"
+                        : "text-forest-600 hover:bg-forest-50"
+                    }`}
+                  >
+                    方式一：本地脚本（推荐）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTakeoverMethod("manual")}
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      takeoverMethod === "manual"
+                        ? "bg-primary text-white"
+                        : "text-forest-600 hover:bg-forest-50"
+                    }`}
+                  >
+                    方式二：手动粘贴
+                  </button>
+                </div>
+
+                {takeoverMethod === "script" ? (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-forest-50 px-3 py-2.5 text-xs text-forest-600">
+                      <p className="font-medium text-forest-700 mb-1">使用步骤：</p>
+                      <ol className="list-decimal space-y-0.5 pl-4">
+                        <li>在终端运行以下命令</li>
+                        <li>浏览器窗口会自动弹出</li>
+                        <li>手动完成登录（包括验证码）</li>
+                        <li>回到终端按 Enter，JSON 自动复制到剪贴板</li>
+                        <li>回到此页面，点击下方「我已获取，直接粘贴」</li>
+                      </ol>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-mono text-slate-700">
+                        npm run session:collect -- --platform={account.platform}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `npm run session:collect -- --platform=${account.platform}`
+                          );
+                          setCopiedCommand(true);
+                          setTimeout(() => setCopiedCommand(false), 2000);
+                        }}
+                      >
+                        {copiedCommand ? "已复制" : "复制命令"}
+                      </Button>
+                    </div>
+
+                    <p className="text-xs text-forest-500">
+                      首次使用需要先安装 Playwright：
+                      <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">
+                        npm install playwright && npx playwright install chromium
+                      </code>
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setTakeoverMethod("manual");
+                          setTakeoverPayload(
+                            account.platform === "ixl"
+                              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                              : account.platform === "khan-academy"
+                                ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                                : '{"activityUrl":"","cookies":[]}'
+                          );
+                        }}
+                      >
+                        我已获取，直接粘贴
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setTakeoverAccountId(null);
+                          setTakeoverPayload("");
+                        }}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <a
+                      href={getManualSessionLoginUrl(account.platform)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex text-sm font-medium text-primary underline"
+                    >
+                      打开 {getPlatformDisplayName(account.platform)} 登录页
+                    </a>
+                    <textarea
+                      value={takeoverPayload}
+                      onChange={(e) => setTakeoverPayload(e.target.value)}
+                      placeholder='{"cookies":[{"name":"PHPSESSID","value":"..."}]}'
+                      className="min-h-24 w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-800 focus:border-primary focus:outline-none"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        disabled={takeoverLoading}
+                        onClick={() => handleTakeoverSave(account.id)}
+                      >
+                        {takeoverLoading ? "保存中..." : "保存 Session"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={takeoverLoading}
+                        onClick={() => {
+                          setTakeoverAccountId(null);
+                          setTakeoverPayload("");
+                        }}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Modal>
+          );
+        })()}
       </Card>
 
       {selectedChildId && (
