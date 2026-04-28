@@ -81,15 +81,6 @@ export default function SettingsIntegrationsPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedChildId, setSelectedChildId] = useState<string>("");
 
-  const [routingForm, setRoutingForm] = useState({
-    childId: "",
-    homeworkId: "",
-    channel: "wechat_group" as "wechat_group",
-    recipientRef: "",
-    recipientLabel: "",
-  });
-  const [routingError, setRoutingError] = useState<string | null>(null);
-  const [routingLoading, setRoutingLoading] = useState(false);
   const [childGroupSelections, setChildGroupSelections] = useState<
     Record<string, string>
   >({});
@@ -199,10 +190,6 @@ export default function SettingsIntegrationsPage() {
   const homeworkTitleById = Object.fromEntries(
     homeworks.map((homework) => [homework.id, homework.title])
   );
-  const routingHomeworkOptions = homeworks.filter(
-    (homework) => !routingForm.childId || homework.child_id === routingForm.childId
-  );
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -1353,9 +1340,7 @@ export default function SettingsIntegrationsPage() {
         <Card id="message-routing" className="scroll-mt-4">
           <div className="space-y-4">
             {(() => {
-              const filteredRules = hasChildContext
-                ? routingRules.filter((r) => r.child_id === selectedChildIdFromQuery)
-                : routingRules;
+              const filteredRules = routingRules.filter((r) => r.child_id === selectedChildId);
               if (filteredRules.length === 0) return null;
               return (
                 <>
