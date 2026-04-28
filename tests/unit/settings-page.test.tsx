@@ -417,12 +417,9 @@ describe("Settings IA pages", () => {
 
     await waitFor(() => {
       expect(screen.getByText("学习平台账号")).toBeInTheDocument();
-      expect(screen.getByText("孩子默认提交群")).toBeInTheDocument();
+      expect(screen.getByText("默认微信群")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getAllByLabelText("孩子")[0], {
-      target: { value: "child-1" },
-    });
     fireEvent.change(screen.getByLabelText("用户名或账号标识"), {
       target: { value: "mia@example.com" },
     });
@@ -483,9 +480,6 @@ describe("Settings IA pages", () => {
       expect(screen.getByText("学习平台账号")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getAllByLabelText("孩子")[0], {
-      target: { value: "child-1" },
-    });
     fireEvent.change(screen.getByLabelText("用户名或账号标识"), {
       target: { value: "mia@example.com" },
     });
@@ -521,10 +515,10 @@ describe("Settings IA pages", () => {
     render(<SettingsIntegrationsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("孩子默认提交群")).toBeInTheDocument();
+      expect(screen.getByText("默认微信群")).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText("Mia 默认微信群")).toBeInTheDocument();
+    expect(screen.getByLabelText("Mia 默认群")).toBeInTheDocument();
     expect(
       screen.queryByLabelText("通道")
     ).not.toBeInTheDocument();
@@ -534,18 +528,18 @@ describe("Settings IA pages", () => {
     render(<SettingsIntegrationsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("孩子默认提交群")).toBeInTheDocument();
+      expect(screen.getByText("默认微信群")).toBeInTheDocument();
     });
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Mia 默认微信群")).toHaveValue("group-1");
+      expect(screen.getByLabelText("Mia 默认群")).toHaveValue("group-1");
     });
 
-    fireEvent.change(screen.getByLabelText("Mia 默认微信群"), {
+    fireEvent.change(screen.getByLabelText("Mia 默认群"), {
       target: { value: "group-2" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "保存 Mia 默认群" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
       expect(updateChildEq).toHaveBeenCalledWith("id", "child-1");
