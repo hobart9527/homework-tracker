@@ -53,7 +53,6 @@ export default function SettingsIntegrationsPage() {
     childId: "",
     platform: "ixl" as SupportedPlatform,
     username: "",
-    externalAccountRef: "",
     authMode: "auto_login" as "auto_login" | "manual_session",
     loginUsername: "",
     loginPassword: "",
@@ -203,7 +202,7 @@ export default function SettingsIntegrationsPage() {
     setManualSessionGuide(null);
 
     if (!bindingForm.childId || !bindingForm.username.trim()) {
-      setBindingError("请选择孩子并填写用户名或账号标识。");
+      setBindingError("请选择孩子并填写账号标识。");
       return;
     }
 
@@ -235,7 +234,6 @@ export default function SettingsIntegrationsPage() {
           childId: bindingForm.childId,
           platform: bindingForm.platform,
           username: bindingForm.username.trim(),
-          externalAccountRef: bindingForm.externalAccountRef.trim(),
           authMode: bindingForm.authMode,
           loginUsername: bindingForm.loginUsername.trim() || bindingForm.username.trim(),
           loginPassword: bindingForm.loginPassword,
@@ -291,7 +289,6 @@ export default function SettingsIntegrationsPage() {
         childId: "",
         platform: "ixl",
         username: "",
-        externalAccountRef: "",
         authMode: "auto_login",
         loginUsername: "",
         loginPassword: "",
@@ -421,7 +418,6 @@ export default function SettingsIntegrationsPage() {
           childId: platformAccounts.find((a) => a.id === accountId)?.child_id,
           platform: platformAccounts.find((a) => a.id === accountId)?.platform,
           username: platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
-          externalAccountRef: platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
           authMode: "auto_login",
           loginUsername: editCredentialUsername || platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
           loginPassword: editCredentialPassword,
@@ -452,7 +448,6 @@ export default function SettingsIntegrationsPage() {
       childId: account.child_id,
       platform: account.platform as SupportedPlatform,
       username: account.external_account_ref,
-      externalAccountRef: account.external_account_ref,
       authMode: (account.auth_mode as "auto_login" | "manual_session") ?? "manual_session",
       loginUsername: "",
       loginPassword: "",
@@ -565,7 +560,6 @@ export default function SettingsIntegrationsPage() {
                     ...prev,
                     childId: child.id,
                     username: "",
-                    externalAccountRef: "",
                     loginUsername: "",
                     loginPassword: "",
                     managedSessionPayloadText: "",
@@ -669,24 +663,12 @@ export default function SettingsIntegrationsPage() {
             </div>
 
             <Input
-              label="用户名或账号标识"
+              label="账号标识"
               value={bindingForm.username}
               onChange={(e) =>
                 setBindingForm((prev) => ({ ...prev, username: e.target.value }))
               }
               placeholder="例如 mia-family-account"
-            />
-
-            <Input
-              label="外部账号标识（可选）"
-              value={bindingForm.externalAccountRef}
-              onChange={(e) =>
-                setBindingForm((prev) => ({
-                  ...prev,
-                  externalAccountRef: e.target.value,
-                }))
-              }
-              placeholder="默认会使用上面的用户名"
             />
 
             {bindingForm.authMode === "auto_login" ? (
@@ -697,7 +679,7 @@ export default function SettingsIntegrationsPage() {
                   onChange={(e) =>
                     setBindingForm((prev) => ({ ...prev, loginUsername: e.target.value }))
                   }
-                  placeholder="留空则使用上面的用户名或账号标识"
+                  placeholder="留空则使用上面的账号标识"
                 />
                 <Input
                   label="登录密码"
@@ -879,42 +861,40 @@ export default function SettingsIntegrationsPage() {
                     <p className="mt-1 text-rose-600">{account.last_sync_error_summary}</p>
                   ) : null}
 
-                  {/* Action buttons for attention_required accounts */}
-                  {account.status === "attention_required" && (
-                    <div className="mt-2 flex items-center gap-1 border-t border-forest-200 pt-2">
-                      {account.auto_login_enabled && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleRefreshSession(account.id, account.platform)}
-                        >
-                          刷新登录
-                        </Button>
-                      )}
+                  {/* Action buttons */}
+                  <div className="mt-2 flex items-center gap-1 border-t border-forest-200 pt-2">
+                    {account.status === "attention_required" && account.auto_login_enabled && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => {
-                          setTakeoverAccountId(account.id);
-                          setTakeoverPayload(
-                            account.platform === "ixl"
-                              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                              : account.platform === "khan-academy"
-                                ? '{"cookies":[{"name":"KAAS","value":""}]}'
-                                : '{"activityUrl":"","cookies":[]}'
-                          );
-                        }}
+                        onClick={() => handleRefreshSession(account.id, account.platform)}
                       >
-                        手动补录
+                        刷新登录
                       </Button>
-                    </div>
-                  )}
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setTakeoverAccountId(account.id);
+                        setTakeoverPayload(
+                          account.platform === "ixl"
+                            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                            : account.platform === "khan-academy"
+                              ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                              : '{"activityUrl":"","cookies":[]}'
+                        );
+                      }}
+                    >
+                      手动更新 Session
+                    </Button>
+                  </div>
 
                   {/* Takeover panel */}
                   {takeoverAccountId === account.id && (
                     <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
                       <p className="text-amber-800">
-                        自动登录不可用。请选择以下任一方式补录 Session：
+                        请选择以下任一方式更新 Session：
                       </p>
 
                       <div className="flex rounded-lg border border-forest-200 p-0.5">
