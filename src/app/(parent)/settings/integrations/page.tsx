@@ -503,8 +503,50 @@ export default function SettingsIntegrationsPage() {
     <SettingsShell
       title="孩子集成"
       description="这里管理孩子自己的学习平台账号和默认消息路由，不处理家庭级通知通道。"
-      backHref={hasChildContext ? "/children" : "/settings"}
+      backHref="/settings"
     >
+        {/* Child tab bar */}
+        {children.length > 1 && (
+          <div className="flex flex-wrap gap-2" role="tablist">
+            {children.map((child) => (
+              <button
+                key={child.id}
+                role="tab"
+                aria-selected={selectedChildId === child.id}
+                onClick={() => {
+                  setSelectedChildId(child.id);
+                  setBindingForm((prev) => ({
+                    ...prev,
+                    childId: child.id,
+                    username: "",
+                    externalAccountRef: "",
+                    loginUsername: "",
+                    loginPassword: "",
+                    managedSessionPayloadText: "",
+                    managedSessionCapturedAt: "",
+                  }));
+                  setBindingError(null);
+                  setManualSessionGuide(null);
+                  router.replace(`/settings/integrations?childId=${child.id}`, { scroll: false });
+                }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  selectedChildId === child.id
+                    ? "bg-primary text-white"
+                    : "bg-forest-50 text-forest-600 hover:bg-forest-100"
+                }`}
+              >
+                {child.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!selectedChildId && (
+          <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-center text-sm text-forest-500">
+            请选择一个孩子开始配置
+          </div>
+        )}
+
       <Card id="platform-binding" className="scroll-mt-4">
         <div className="space-y-4">
           <div>
