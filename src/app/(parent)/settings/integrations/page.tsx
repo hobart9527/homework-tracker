@@ -581,7 +581,7 @@ export default function SettingsIntegrationsPage() {
                     : "bg-forest-50 text-forest-600 hover:bg-forest-100"
                 }`}
               >
-                {child.name}
+                {child.avatar} {child.name}
               </button>
             ))}
           </div>
@@ -638,11 +638,7 @@ export default function SettingsIntegrationsPage() {
               </button>
             </div>
 
-            <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3">
-              <p className="text-sm font-medium text-forest-700">
-                孩子：{children.find((c) => c.id === selectedChildId)?.name ?? "未选择"}
-              </p>
-            </div>
+
 
             <div>
               <label htmlFor="platform-name" className="mb-1 block text-sm font-medium text-forest-700">
