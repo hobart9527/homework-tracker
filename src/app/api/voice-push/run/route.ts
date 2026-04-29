@@ -1,4 +1,4 @@
-import { deliverVoicePushRequest } from "@/lib/voice-push-bridge";
+import { deliverVoicePushRequest, deliverVoicePushToWeCom } from "@/lib/voice-push-bridge";
 import { runVoicePushDeliveryBatch } from "@/lib/voice-push-worker";
 import { resolveWeChatTarget } from "@/lib/wechat-target-resolver";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
@@ -31,12 +31,24 @@ export async function GET(request: Request) {
       : 20;
 
   try {
+    const useWeCom = !!(process.env.WECOM_CORPID && process.env.WECOM_CORPSECRET);
+
     const result = await runVoicePushDeliveryBatch({
       supabase: supabase as any,
-      deliver: (request) =>
-        deliverVoicePushRequest({
-          request,
-        }),
+      deliver: useWeCom
+        ? (request) =>
+            deliverVoicePushToWeCom({
+              taskId: request.taskId,
+              attachmentId: request.attachmentId,
+              filePath: request.filePath,
+              fileUrl: request.fileUrl,
+              recipientRef: request.recipientRef,
+              deliveryKey: request.deliveryKey,
+            })
+        : (request) =>
+            deliverVoicePushRequest({
+              request,
+            }),
       resolveTarget: (task) =>
         resolveWeChatTarget({
           supabase: supabase as any,

@@ -54,13 +54,12 @@ export default function SettingsIntegrationsPage() {
     childId: "",
     platform: "ixl" as SupportedPlatform,
     username: "",
-    loginUsername: "",
     loginPassword: "",
   });
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [bindingLoading, setBindingLoading] = useState(false);
   const [takeoverAccountId, setTakeoverAccountId] = useState<string | null>(null);
-  const [takeoverMethod, setTakeoverMethod] = useState<"script" | "manual">("script");
+  const [takeoverMethod, setTakeoverMethod] = useState<"auto" | "script" | "manual">("auto");
   const [takeoverPayload, setTakeoverPayload] = useState<string>("");
   const [takeoverLoading, setTakeoverLoading] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
@@ -70,6 +69,11 @@ export default function SettingsIntegrationsPage() {
   const [editCredentialUsername, setEditCredentialUsername] = useState("");
   const [editCredentialPassword, setEditCredentialPassword] = useState("");
   const [editCredentialLoading, setEditCredentialLoading] = useState(false);
+  const [editAccountId, setEditAccountId] = useState<string | null>(null);
+  const [editAccountUsername, setEditAccountUsername] = useState("");
+  const [editAccountLoginUsername, setEditAccountLoginUsername] = useState("");
+  const [editAccountPassword, setEditAccountPassword] = useState("");
+  const [editAccountLoading, setEditAccountLoading] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedChildId, setSelectedChildId] = useState<string>("");
 
@@ -213,7 +217,7 @@ export default function SettingsIntegrationsPage() {
           platform: bindingForm.platform,
           username: bindingForm.username.trim(),
           authMode,
-          loginUsername: bindingForm.loginUsername.trim() || bindingForm.username.trim(),
+          loginUsername: bindingForm.username.trim(),
           loginPassword: bindingForm.loginPassword,
         }),
       });
@@ -221,8 +225,7 @@ export default function SettingsIntegrationsPage() {
       const body = await response.json();
 
       if (!response.ok) {
-        let errorMsg = body.error || "绑定学习平台账号失败，请稍后重试。";
-        setBindingError(errorMsg);
+        setBindingError(mapAuthError(body.error || "绑定学习平台账号失败"));
         return;
       }
 
@@ -232,7 +235,6 @@ export default function SettingsIntegrationsPage() {
         childId: "",
         platform: "ixl",
         username: "",
-        loginUsername: "",
         loginPassword: "",
       });
 
@@ -281,7 +283,7 @@ export default function SettingsIntegrationsPage() {
           );
           return;
         }
-        alert(body.error || "刷新 Session 失败");
+        alert(mapAuthError(body.error || "刷新 Session 失败"));
         return;
       }
 
@@ -378,7 +380,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        alert(body.error || "更新凭据失败");
+        alert(mapAuthError(body.error || "更新凭据失败"));
         return;
       }
 
@@ -395,15 +397,64 @@ export default function SettingsIntegrationsPage() {
     }
   };
 
-  const populateForm = (account: PlatformAccount) => {
-    setBindingForm({
-      childId: account.child_id,
-      platform: account.platform as SupportedPlatform,
-      username: account.external_account_ref,
-      loginUsername: "",
-      loginPassword: "",
-    });
+  const startEditAccount = (account: PlatformAccount) => {
+    setEditAccountId(account.id);
+    setEditAccountUsername(account.external_account_ref);
+    setEditAccountLoginUsername("");
+    setEditAccountPassword("");
+    setEditCredentialId(null);
     setBindingError(null);
+  };
+
+  const saveEditAccount = async (accountId: string, platform: string) => {
+    if (!editAccountUsername.trim()) {
+      setBindingError("请填写账号标识。");
+      return;
+    }
+
+    const isAutoPlatform = AUTO_LOGIN_PLATFORMS.has(platform as SupportedPlatform);
+    const hasPassword = Boolean(editAccountPassword);
+    const authMode = isAutoPlatform && hasPassword ? "auto_login" : "manual_session";
+
+    setEditAccountLoading(true);
+    setBindingError(null);
+
+    try {
+      const response = await fetch("/api/platform-connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          childId: platformAccounts.find((a) => a.id === accountId)?.child_id,
+          platform,
+          username: editAccountUsername.trim(),
+          externalAccountRef: editAccountUsername.trim(),
+          authMode,
+          loginUsername: editAccountLoginUsername.trim() || editAccountUsername.trim(),
+          loginPassword: editAccountPassword,
+        }),
+      });
+
+      const body = await response.json();
+
+      if (!response.ok) {
+        setBindingError(mapAuthError(body.error || "更新失败"));
+        return;
+      }
+
+      setEditAccountId(null);
+      if (parentId) await refreshData(parentId);
+
+      if (body.account?.status === "attention_required") {
+        setTakeoverAccountId(body.account.id);
+        setTakeoverPayload(
+          body.account.platform === "ixl"
+            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+            : '{"cookies":[{"name":"KAAS","value":""}]}'
+        );
+      }
+    } finally {
+      setEditAccountLoading(false);
+    }
   };
 
   const toggleExpand = (accountId: string) => {
@@ -434,6 +485,17 @@ export default function SettingsIntegrationsPage() {
     if (status === "syncing") return "同步中";
     if (status === "failed") return "同步失败";
     return status;
+  };
+
+  const mapAuthError = (message: string) => {
+    if (/no kaas cookie/i.test(message)) return "登录失败：Khan Academy 未返回有效会话，可能需要验证码或手机验证。";
+    if (/no session cookie/i.test(message)) return "登录失败：平台未返回有效会话，请确认用户名和密码正确。";
+    if (/invalid.*credential|password.*incorrect|用户名.*密码/i.test(message)) return "用户名或密码不正确。";
+    if (/captcha|验证码|challenge/i.test(message)) return "平台要求验证码验证，请使用手动 Session 方式。";
+    if (/two.factor|2fa|verification/i.test(message)) return "平台要求二次验证，请使用手动 Session 方式。";
+    if (/timeout|timed out/i.test(message)) return "登录超时，平台可能暂时无法访问，请稍后重试。";
+    if (/cloudflare|blocked/i.test(message)) return "平台安全验证拦截了自动登录，请使用手动 Session 方式。";
+    return message;
   };
 
   const handleGroupAdd = async () => {
@@ -508,7 +570,6 @@ export default function SettingsIntegrationsPage() {
                     ...prev,
                     childId: child.id,
                     username: "",
-                    loginUsername: "",
                     loginPassword: "",
                   }));
                   setBindingError(null);
@@ -562,34 +623,24 @@ export default function SettingsIntegrationsPage() {
             </div>
 
             <Input
-              label="账号标识"
+              label={AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? "账号标识 / 登录用户名" : "账号标识"}
               value={bindingForm.username}
               onChange={(e) =>
                 setBindingForm((prev) => ({ ...prev, username: e.target.value }))
               }
-              placeholder="例如 mia-family-account"
+              placeholder={AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? "同时也是平台的登录用户名" : "例如 mia-family-account"}
             />
 
             {AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? (
-              <>
-                <Input
-                  label="登录用户名"
-                  value={bindingForm.loginUsername}
-                  onChange={(e) =>
-                    setBindingForm((prev) => ({ ...prev, loginUsername: e.target.value }))
-                  }
-                  placeholder="留空则使用上面的账号标识"
-                />
-                <Input
-                  label="登录密码"
-                  type="password"
-                  value={bindingForm.loginPassword}
-                  onChange={(e) =>
-                    setBindingForm((prev) => ({ ...prev, loginPassword: e.target.value }))
-                  }
-                  placeholder="平台登录密码"
-                />
-              </>
+              <Input
+                label="登录密码"
+                type="password"
+                value={bindingForm.loginPassword}
+                onChange={(e) =>
+                  setBindingForm((prev) => ({ ...prev, loginPassword: e.target.value }))
+                }
+                placeholder="平台登录密码"
+              />
             ) : (
               <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
                 {getPlatformDisplayName(bindingForm.platform)} 暂不支持自动登录，保存后可
@@ -635,7 +686,7 @@ export default function SettingsIntegrationsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => populateForm(account)}
+                        onClick={() => startEditAccount(account)}
                       >
                         编辑
                       </Button>
@@ -663,6 +714,48 @@ export default function SettingsIntegrationsPage() {
                     {hasCredentials ? " · 凭据已存储" : ""}
                   </p>
 
+                  {/* Inline edit account panel */}
+                  {editAccountId === account.id && (
+                    <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
+                      <p className="font-medium text-forest-700">编辑账号信息</p>
+                      <Input
+                        label={AUTO_LOGIN_PLATFORMS.has(account.platform as SupportedPlatform) ? "账号标识 / 登录用户名" : "账号标识"}
+                        value={editAccountUsername}
+                        onChange={(e) => setEditAccountUsername(e.target.value)}
+                        placeholder={account.external_account_ref}
+                      />
+                      {AUTO_LOGIN_PLATFORMS.has(account.platform as SupportedPlatform) && (
+                        <Input
+                          label="新密码（可选，留空不修改凭据）"
+                          type="password"
+                          value={editAccountPassword}
+                          onChange={(e) => setEditAccountPassword(e.target.value)}
+                          placeholder="输入新密码以更新自动登录"
+                        />
+                      )}
+                      {bindingError && <p className="text-sm text-rose-700">{bindingError}</p>}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={editAccountLoading}
+                          onClick={() => saveEditAccount(account.id, account.platform)}
+                        >
+                          {editAccountLoading ? "保存中..." : "保存"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditAccountId(null);
+                            setBindingError(null);
+                          }}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Expandable details */}
                   {isExpanded && (
                     <div className="mt-2 space-y-1 border-t border-forest-200 pt-2 text-xs text-forest-500">
@@ -689,7 +782,7 @@ export default function SettingsIntegrationsPage() {
                   )}
 
                   {account.last_sync_error_summary ? (
-                    <p className="mt-1 text-rose-600">{account.last_sync_error_summary}</p>
+                    <p className="mt-1 text-rose-600">{mapAuthError(account.last_sync_error_summary)}</p>
                   ) : null}
 
                   <div className="mt-2 border-t border-forest-200 pt-2">
@@ -794,44 +887,65 @@ export default function SettingsIntegrationsPage() {
               size="md"
             >
               <div className="space-y-4">
-                {account.auto_login_enabled && (
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      handleRefreshSession(account.id, account.platform);
-                      setTakeoverAccountId(null);
-                      setTakeoverPayload("");
-                    }}
-                  >
-                    自动重试登录
-                  </Button>
-                )}
                 <div className="flex rounded-lg border border-forest-200 p-0.5">
                   <button
                     type="button"
+                    onClick={() => setTakeoverMethod("auto")}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                      takeoverMethod === "auto"
+                        ? "bg-primary text-white"
+                        : "text-forest-600 hover:bg-forest-50"
+                    }`}
+                  >
+                    自动登录
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setTakeoverMethod("script")}
-                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
                       takeoverMethod === "script"
                         ? "bg-primary text-white"
                         : "text-forest-600 hover:bg-forest-50"
                     }`}
                   >
-                    方式一：本地脚本（推荐）
+                    本地脚本
                   </button>
                   <button
                     type="button"
                     onClick={() => setTakeoverMethod("manual")}
-                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
                       takeoverMethod === "manual"
                         ? "bg-primary text-white"
                         : "text-forest-600 hover:bg-forest-50"
                     }`}
                   >
-                    方式二：手动粘贴
+                    手动粘贴
                   </button>
                 </div>
 
-                {takeoverMethod === "script" ? (
+                {takeoverMethod === "auto" ? (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
+                      <p className="font-medium mb-1">自动登录并抓取 Session</p>
+                      <p>系统将使用存储的凭据自动登录平台，完成后自动保存 Session。</p>
+                    </div>
+                    {account.auto_login_enabled ? (
+                      <Button
+                        onClick={() => {
+                          handleRefreshSession(account.id, account.platform);
+                          setTakeoverAccountId(null);
+                          setTakeoverPayload("");
+                        }}
+                      >
+                        开始自动登录
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                        该账号未存储登录凭据，无法使用自动登录。请先通过「编辑账号」填入密码，或切换到「本地脚本」方式。
+                      </p>
+                    )}
+                  </div>
+                ) : takeoverMethod === "script" ? (
                   <div className="space-y-3">
                     <div className="rounded-lg bg-forest-50 px-3 py-2.5 text-xs text-forest-600">
                       <p className="font-medium text-forest-700 mb-1">使用步骤：</p>
@@ -1029,7 +1143,7 @@ export default function SettingsIntegrationsPage() {
             <div className="space-y-2">
               {wechatGroups.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                  还没有微信群。启动微信发送服务并在目标群里发一条消息，系统会自动发现。
+                  还没有微信群。点击下方「手动添加微信群」输入企业微信 chatid 即可添加。
                 </div>
               ) : (
                 wechatGroups.map((group) => (

@@ -6,16 +6,13 @@ import { SettingsShell } from "@/components/parent/SettingsShell";
 import { ReminderSettings } from "@/components/parent/ReminderSettings";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
 import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
-type WeChatGroup = Database["public"]["Tables"]["wechat_groups"]["Row"];
 
 export default function SettingsChannelsPage() {
   const supabase = useMemo(() => createClient(), []);
   const [parent, setParent] = useState<Parent | null>(null);
-  const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [bridgeHealthLoading, setBridgeHealthLoading] = useState(false);
   const [bridgeHealthMessage, setBridgeHealthMessage] = useState<string | null>(
@@ -24,32 +21,6 @@ export default function SettingsChannelsPage() {
   const [bridgeHealthTone, setBridgeHealthTone] = useState<
     "neutral" | "success" | "danger"
   >("neutral");
-
-  // Manual add form
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState({
-    recipientRef: "",
-    displayName: "",
-  });
-  const [addLoading, setAddLoading] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-
-  // Edit mode
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDisplayName, setEditDisplayName] = useState("");
-  const [editLoading, setEditLoading] = useState(false);
-
-  const fetchGroups = async (parentId: string) => {
-    const { data: groups } = await supabase
-      .from("wechat_groups")
-      .select("*")
-      .eq("parent_id", parentId)
-      .order("created_at", { ascending: false });
-
-    if (groups) {
-      setWechatGroups(groups as WeChatGroup[]);
-    }
-  };
 
   useEffect(() => {
     const fetchParent = async () => {
@@ -69,7 +40,6 @@ export default function SettingsChannelsPage() {
 
       if (data) {
         setParent(data);
-        await fetchGroups(data.id);
       }
       setLoading(false);
     };
@@ -85,230 +55,50 @@ export default function SettingsChannelsPage() {
     );
   }
 
-  const handleAddGroup = async () => {
-    setAddError(null);
-    if (!addForm.recipientRef.trim()) {
-      setAddError("请输入微信群标识。");
-      return;
-    }
-
-    setAddLoading(true);
-    try {
-      const { error } = await supabase.from("wechat_groups").insert({
-        parent_id: parent.id,
-        recipient_ref: addForm.recipientRef.trim(),
-        display_name: addForm.displayName.trim() || null,
-        source: "manual",
-      });
-
-      if (error) {
-        if (error.message.includes("duplicate")) {
-          setAddError("这个群标识已经存在了。");
-        } else {
-          setAddError(error.message);
-        }
-        return;
-      }
-
-      setAddForm({ recipientRef: "", displayName: "" });
-      setShowAddForm(false);
-      await fetchGroups(parent.id);
-    } finally {
-      setAddLoading(false);
-    }
-  };
-
-  const handleUpdateGroup = async (groupId: string) => {
-    setEditLoading(true);
-    try {
-      const { error } = await supabase
-        .from("wechat_groups")
-        .update({ display_name: editDisplayName.trim() || null })
-        .eq("id", groupId);
-
-      if (!error) {
-        setEditingId(null);
-        await fetchGroups(parent.id);
-      }
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  const handleDeleteGroup = async (groupId: string) => {
-    if (!confirm("确定要删除这个微信群吗？相关的消息路由也会失效。")) {
-      return;
-    }
-    await supabase.from("wechat_groups").delete().eq("id", groupId);
-    await fetchGroups(parent.id);
-  };
-
   return (
     <SettingsShell
       title="家庭通知通道"
-      description="管理微信群、Telegram 等家庭级通知通道。"
+      description="管理微信群、Telegram 等家庭级通知通道。微信群管理已移至孩子集成页。"
+      backHref="/settings"
     >
-      <Card id="wechat-groups" className="scroll-mt-4">
+      <Card className="scroll-mt-4">
         <div className="space-y-4">
           <div>
             <h2 className="font-bold text-forest-700">微信群管理</h2>
             <p className="mt-1 text-sm text-forest-500">
-              这里管理你的目标微信群。系统会自动发现已在 Bridge 中活跃的群，你也可以手动添加。
+              微信群的管理（添加、编辑、删除、设置孩子默认群）已迁移至
+              <a href="/settings/integrations" className="mx-1 text-primary underline">孩子集成页</a>，
+              在那里你可以为每个孩子配置专属的微信群。
             </p>
           </div>
-
-          {/* Discovered groups list */}
-          <div className="space-y-2">
-            {wechatGroups.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                还没有可选的微信群。
-                {wechatGroups.length === 0 && (
-                  <span>
-                    启动微信发送服务并在目标群里发一条消息，系统会自动发现它。你也可以手动添加。
-                  </span>
-                )}
-              </div>
-            ) : (
-              wechatGroups.map((group) => (
-                <div
-                  key={group.id}
-                  className="flex items-center justify-between rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3"
-                >
-                  {editingId === group.id ? (
-                    <div className="flex flex-1 items-center gap-2">
-                      <input
-                        type="text"
-                        value={editDisplayName}
-                        onChange={(e) => setEditDisplayName(e.target.value)}
-                        placeholder="群显示名称"
-                        className="flex-1 rounded-lg border border-forest-200 px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
-                        autoFocus
-                      />
-                      <Button
-                        size="sm"
-                        disabled={editLoading}
-                        onClick={() => handleUpdateGroup(group.id)}
-                      >
-                        {editLoading ? "保存中..." : "保存"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditingId(null)}
-                      >
-                        取消
-                      </Button>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-sm">
-                        <p className="font-medium text-forest-700">
-                          {group.display_name || "未命名群"}
-                        </p>
-                        <p className="mt-0.5 text-xs text-forest-500">
-                          {group.source === "manual" ? "手动添加" : "自动发现"}
-                          {group.last_seen_at ? " · 最近已连接" : ""}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setEditingId(group.id);
-                            setEditDisplayName(group.display_name || "");
-                          }}
-                        >
-                          编辑
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-500"
-                          onClick={() => handleDeleteGroup(group.id)}
-                        >
-                          删除
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Add group form */}
-          {showAddForm ? (
-            <div className="rounded-xl border border-forest-200 bg-white p-4 space-y-3">
-              <p className="text-sm font-medium text-forest-700">手动添加微信群</p>
-              <Input
-                label="微信群标识"
-                value={addForm.recipientRef}
-                onChange={(e) =>
-                  setAddForm((prev) => ({ ...prev, recipientRef: e.target.value }))
-                }
-                placeholder="例如 wxid_xxx@chatroom"
-              />
-              <Input
-                label="显示名称（可选）"
-                value={addForm.displayName}
-                onChange={(e) =>
-                  setAddForm((prev) => ({ ...prev, displayName: e.target.value }))
-                }
-                placeholder="例如 Mia 数学群"
-              />
-              {addError ? (
-                <p className="text-sm text-rose-700">{addError}</p>
-              ) : null}
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  disabled={addLoading}
-                  onClick={handleAddGroup}
-                >
-                  {addLoading ? "添加中..." : "添加"}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setAddForm({ recipientRef: "", displayName: "" });
-                    setAddError(null);
-                  }}
-                >
-                  取消
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setShowAddForm(true)}
-            >
-              + 手动添加微信群
-            </Button>
-          )}
         </div>
       </Card>
 
       <Card id="wechat-setup" className="scroll-mt-4">
         <div className="space-y-4">
           <div>
-            <h2 className="font-bold text-forest-700">微信发送服务</h2>
+            <h2 className="font-bold text-forest-700">企业微信发送服务</h2>
             <p className="mt-1 text-sm text-forest-500">
-              录音作业的推送依赖一个微信发送服务。首次使用需要扫码授权，之后自动保持登录。
+              使用企业微信官方 API 发送作业录音到群聊，无需额外启动服务或扫码登录。
             </p>
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <p className="font-medium">初次设置步骤</p>
+            <p className="font-medium">企业微信设置步骤</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>运行 <code className="rounded bg-amber-100 px-1">npm run dev:with-bridge</code> 启动应用和发送服务</li>
-              <li>终端会显示一个二维码链接，用微信扫码授权登录</li>
-              <li>在目标微信群里发一条消息，服务会自动发现这个群</li>
-              <li>上面"微信群管理"里会出现新发现的群，你可以给它改个好记的名字</li>
+              <li>注册
+                <a href="https://work.weixin.qq.com/" target="_blank" className="underline" rel="noreferrer">
+                  企业微信
+                </a>
+                （免费），创建企业
+              </li>
+              <li>在「应用管理」中创建自建应用，获取 CorpID、CorpSecret 和 AgentID</li>
+              <li>在环境变量中配置 <code className="rounded bg-amber-100 px-1">WECOM_CORPID</code>、
+                <code className="rounded bg-amber-100 px-1">WECOM_CORPSECRET</code>、
+                <code className="rounded bg-amber-100 px-1">WECOM_AGENTID</code>
+              </li>
+              <li>创建群聊并将应用加入群中，获取 chatid</li>
+              <li>在孩子集成页添加群，标识填写 chatid</li>
             </ol>
           </div>
 
@@ -323,39 +113,28 @@ export default function SettingsChannelsPage() {
                 setBridgeHealthTone("neutral");
 
                 try {
-                  const response = await fetch("/api/voice-push/bridge-health", {
+                  const response = await fetch("/api/voice-push/wecom-status", {
                     method: "GET",
                   });
                   const body = await response.json();
 
-                  if (!response.ok) {
-                    setBridgeHealthTone("danger");
-                    setBridgeHealthMessage(
-                      body.error || "发送服务自检失败，请检查是否已启动。"
-                    );
-                    return;
-                  }
-
-                  if (body.status === "healthy") {
+                  if (body.configured) {
                     setBridgeHealthTone("success");
                     setBridgeHealthMessage(
-                      body.deliveredCount === null
-                        ? `发送服务可访问：${body.healthUrl}`
-                        : `发送服务可访问：${body.healthUrl}，已发送 ${body.deliveredCount} 条任务。`
+                      `企业微信已配置（CorpID: ${body.corpidPreview}），可正常发送。`
                     );
-                    return;
+                  } else {
+                    setBridgeHealthTone("danger");
+                    setBridgeHealthMessage(
+                      "企业微信未配置，请在环境变量中设置 WECOM_CORPID 和 WECOM_CORPSECRET。"
+                    );
                   }
-
-                  setBridgeHealthTone("danger");
-                  setBridgeHealthMessage(
-                    body.error || "发送服务可达，但健康检查没有通过。"
-                  );
                 } catch (error) {
                   setBridgeHealthTone("danger");
                   setBridgeHealthMessage(
                     error instanceof Error
                       ? error.message
-                      : "发送服务自检失败，请稍后重试。"
+                      : "状态检查失败，请稍后重试。"
                   );
                 } finally {
                   setBridgeHealthLoading(false);
