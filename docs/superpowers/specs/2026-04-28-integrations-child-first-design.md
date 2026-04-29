@@ -41,8 +41,15 @@ SettingsShell (title: "孩子集成", backHref: /settings or /children)
 
 - `bindingForm.childId` 直接从选中孩子取，移除 child 下拉框
 - `hasChildContext` 逻辑简化：不再需要两套渲染分支
+- **绑定表单字段合并**："账号标识"和"登录用户名"合并为单一字段 `username`，减少用户困惑
 - auth mode toggle、平台选择、凭据输入、managed session JSON 保持现有逻辑
-- 已绑定账号卡片：按选中孩子过滤，编辑/删除/详情/凭据修改/手动补录功能不变
+- 已绑定账号卡片：按选中孩子过滤，支持编辑/删除/详情/凭据修改/手动补录
+- **行内编辑面板**：点击卡片上的"编辑"按钮时，在该卡片下方展开行内编辑面板，而非联动顶部绑定表单，避免打断用户浏览节奏
+- **更新 Session 弹窗（3 Tab）**：
+  - Tab 1「自动登录（推荐）」—— 默认选中，使用已保存的加密凭据自动尝试登录并抓取 Session
+  - Tab 2「本地脚本」—— 提供浏览器脚本复制方式，辅助获取 Session
+  - Tab 3「手动粘贴」—— 传统 JSON 粘贴方式
+- **错误映射**：技术错误（如 `No KAAS cookie found`）通过 `mapAuthError()` 映射为中文友好提示，并引导用户切换手动 Session 模式
 - 未选中孩子时，不渲染此块
 
 ### 默认微信群
@@ -69,5 +76,5 @@ SettingsShell (title: "孩子集成", backHref: /settings or /children)
 
 - 数据库 schema
 - API route 逻辑
-- `/settings/channels` 页面
+- `/settings/channels` 页面（微信群 CRUD 已迁移，仅保留企业微信设置和 Telegram 配置）
 - `/settings/integrations` 的 URL 路径

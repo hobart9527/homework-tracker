@@ -138,7 +138,6 @@ Insert after the loading guard return (line 193, before the `return` of main con
                     childId: child.id,
                     username: "",
                     externalAccountRef: "",
-                    loginUsername: "",
                     loginPassword: "",
                     managedSessionPayloadText: "",
                     managedSessionCapturedAt: "",
@@ -462,7 +461,7 @@ Insert after the default WeChat group Card closing tag (`</Card>` from Task 4) a
             <div className="space-y-2">
               {wechatGroups.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                  还没有微信群。启动微信发送服务并在目标群里发一条消息，系统会自动发现。
+                  还没有微信群。点击下方「手动添加微信群」输入企业微信 chatid 即可添加。
                 </div>
               ) : (
                 wechatGroups.map((group) => (
@@ -542,7 +541,7 @@ Insert after the default WeChat group Card closing tag (`</Card>` from Task 4) a
                   onChange={(e) =>
                     setGroupAddForm((prev) => ({ ...prev, recipientRef: e.target.value }))
                   }
-                  placeholder="例如 wxid_xxx@chatroom"
+                  placeholder="例如 wrOgDSDAAAaMesOMFQTvLdUHDqKqkVmA"
                 />
                 <Input
                   label="显示名称（可选）"

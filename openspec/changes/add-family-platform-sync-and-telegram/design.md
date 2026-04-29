@@ -20,7 +20,7 @@ This scope keeps the design focused while still covering the real-world complexi
 - Automatically complete homework aggressively when imported same-day learning evidence clearly maps to assigned work.
 - Preserve the exact imported learning content behind every automatic completion.
 - Deliver household daily and weekly Telegram summaries plus basic factual event notifications.
-- Queue recording-based homework for delivery to a personal WeChat-group bridge without blocking the main homework submission path.
+- Queue recording-based homework for delivery to a target WeChat group without blocking the main homework submission path.
 
 **Non-Goals**
 
@@ -128,7 +128,7 @@ The delivery pattern is mixed:
 - immediate event notification when homework is completed
 - one daily household summary sent during the 21:30-22:00 window
 
-Telegram should be treated as a household-level parent channel in the first release rather than as a per-homework routing target. Homework-level or child-level routing rules may later support Telegram as an explicit override, but Release 1 should keep family Telegram delivery separate from homework message-routing concerns so that household summaries, parent completion notifications, and WeChat bridge routing do not share one ambiguous target model.
+Telegram should be treated as a household-level parent channel in the first release rather than as a per-homework routing target. Homework-level or child-level routing rules may later support Telegram as an explicit override, but Release 1 should keep family Telegram delivery separate from homework message-routing concerns so that household summaries, parent completion notifications, and WeChat group delivery do not share one ambiguous target model.
 
 ### Decision: Store Telegram recipient identity in the database, but keep the bot secret in runtime configuration
 
@@ -153,12 +153,12 @@ The first release should therefore use:
 
 ### Decision: Keep message routing focused on delivery targets for child- and homework-level outputs, not household summary channels
 
-`message_routing_rules` should resolve where child- or homework-scoped outbound items go, especially for WeChat bridge delivery. It should not be treated as the source of truth for the household Telegram summary channel in the first release.
+`message_routing_rules` should resolve where child- or homework-scoped outbound items go, especially for WeChat group delivery. It should not be treated as the source of truth for the household Telegram summary channel in the first release.
 
 Rationale:
 
 - Homework routing and household summary delivery belong to different object owners.
-- The WeChat bridge needs a stable target abstraction for child defaults and homework overrides.
+- WeChat group delivery needs a stable target abstraction for child defaults and homework overrides.
 - Household Telegram notifications already have a single family-owned recipient and do not benefit from being forced through the same routing table.
 
 Alternatives considered:
@@ -166,66 +166,67 @@ Alternatives considered:
 - Unify all outbound channels under one routing table immediately: looks generic, but collapses family-level and homework-level ownership into one model too early.
 - Separate everything permanently: clearer, but may be too rigid if a later phase adds true per-homework Telegram overrides.
 
-### Decision: Treat personal WeChat-group audio delivery as an isolated Beta bridge
+### Decision: Treat personal WeChat-group audio delivery as an app-integrated capability
 
-Audio homework submission will generate a `voice_push_task`, but the homework completion itself will succeed independently of whether the WeChat bridge later delivers the recording to a personal group. The bridge is modeled as an external worker or automation layer rather than a core Next.js request path.
+Audio homework submission will generate a `voice_push_task`, but the homework completion itself will succeed independently of whether the WeChat delivery later delivers the recording to a target group. The delivery is handled directly by the app runtime using the WeCom (企业微信) official API when configured, with an iLink bridge fallback when WeCom is not available.
 
 Rationale:
 
-- Keeps a high-risk unofficial delivery path from destabilizing the main product.
-- Matches the project’s need to support teacher visibility without redefining homework success around a messaging channel.
-- Makes it possible to evolve the bridge implementation later without rewriting core homework logic.
+- The WeCom official API is stable, well-documented, and does not require hosting a separate bridge service.
+- Eliminates the operational burden of maintaining an always-on bridge host (home computer or NAS).
+- The iLink bridge remains as a graceful fallback for environments where WeCom is not set up.
 
 Alternatives considered:
 
+- iLink Bot Bridge as primary: requires QR login, desktop automation, and an always-on host; operationally heavy for a household tool.
 - Inline delivery during check-in submission: simpler demo path, but fragile and blocks the user-facing workflow.
 - Manual export only: safe, but does not meet the stated automation goal.
 
 The first delivery payload contains only the final audio file and no additional caption requirement.
 
-### Decision: Use a split coordinator/sender bridge runtime for the pilot
+### Decision: Use WeCom official API as the primary delivery path, iLink bridge as fallback
 
-The pilot bridge runtime should use a split model. The current app remains the queue coordinator and retry authority for `voice_push_tasks`, while the actual audio delivery happens in an external bridge sender reached through a webhook-style HTTP call.
+When `WECOM_CORPID` and `WECOM_CORPSECRET` are configured, the app uses the WeCom `appchat/send` API to deliver audio files directly to target group chats. The app handles access token caching, media upload, and message sending within the Next.js runtime. If WeCom is not configured, the app falls back to the iLink bridge via `VOICE_PUSH_BRIDGE_URL`.
 
 Rationale:
 
-- Keeps unofficial or desktop-dependent WeChat delivery logic outside the main app runtime.
-- Lets the app own queue state, retries, idempotency, and audit history without needing to host GUI automation itself.
-- Works with either a home computer sender or a Synology-hosted bridge endpoint, as long as one reachable sender endpoint exists.
+- WeCom is an official, supported API with no anti-automation risk for the documented use case.
+- No need for a split coordinator/sender architecture or external webhook endpoint.
+- Token caching and media upload are lightweight enough to run inside serverless functions.
 
 Alternatives considered:
 
-- Home computer only with local queue state: simpler on one machine, but weakens observability and makes retries depend on one host.
-- Synology-only sender with all queue logic moved out of the app: cleaner for operations, but pushes too much first-release logic into a second runtime at once.
+- Split coordinator/sender bridge runtime: adds operational complexity (queue host, bridge host, webhook endpoint) for a capability that WeCom API solves directly.
+- iLink bridge only: requires always-on infrastructure and GUI automation, which is brittle.
 
-The concrete pilot bridge strategy is:
+The concrete delivery strategy is:
 
-- the app exposes a worker entrypoint that consumes pending and retrying `voice_push_tasks`
-- the worker builds a stable per-task delivery key and forwards the audio delivery request to the external bridge endpoint
-- the bridge endpoint returns `sent`, `duplicate`, or failure semantics back to the app worker
+- the app exposes a cron-triggered worker entrypoint (`/api/voice-push/run`) that consumes pending `voice_push_tasks`
+- if WeCom is configured, call `getWeComAccessToken`, `uploadMediaToWeCom`, then `sendFileToWeComChat`
+- if WeCom is not configured, forward to the iLink bridge endpoint
+- both paths return `sent`, `duplicate`, or failure semantics
 - duplicate acknowledgements are treated as successful sends so retries remain idempotent
 - the app remains the source of truth for retry budget, failure history, and terminal task state
 
 ### Decision: Present WeChat delivery as an app-integrated capability while preserving multiple destination groups
 
-The first release should treat WeChat delivery as a built-in capability of the current product rather than as a separately managed “bridge product” in the user experience. The implementation may still use an internal sender runtime, but the product model must preserve multiple destination groups and hide raw delivery identifiers from normal household configuration.
+The first release treats WeChat delivery as a built-in capability of the current product. The WeCom API is used for direct delivery, and the product model preserves multiple destination groups while hiding raw delivery identifiers from normal household configuration.
 
 Rationale:
 
 - Matches the user expectation that WeChat delivery should feel integrated into the app rather than like a second system to deploy and reason about.
 - Preserves the real-world workflow where different assignments may need to go to different teacher groups.
-- Lets the current queue, retry, and idempotency machinery remain in place without keeping a technical bridge mental model in the main UI.
+- WeCom chatid is the only technical value users need to provide; no bridge URLs or runtime concepts are exposed.
 
 Alternatives considered:
 
 - One global default WeChat group: simpler, but wrong for the multi-teacher, multi-homework workflow.
 - Exposing raw routing-rule editing as the main UX: flexible, but too technical for the household setup flow.
-- Removing the sender runtime abstraction entirely: appealing on paper, but not realistic for QR login, group discovery, and proactive media delivery.
 
 The first-release product model should therefore be:
 
-- household-owned WeChat sender status
-- household-owned list of discovered or saved WeChat groups
+- household-owned WeChat sender status (WeCom configuration check)
+- household-owned list of saved WeChat groups (manually added with WeCom chatid)
 - optional child-level default WeChat group
 - optional homework-level WeChat group override
 - no requirement for users to understand bridge URLs or raw `recipient_ref` values in the main flow
@@ -324,21 +325,22 @@ Its recipient identity is resolved from the household parent record, not from `m
 
 ### 6. Voice Push Bridge Queue
 
-Completed audio homework creates a bridge task that packages child name, assignment title, submission time, and the final audio file for downstream delivery to a personal WeChat group bridge.
+Completed audio homework creates a delivery task that packages child name, assignment title, submission time, and the final audio file for delivery to a target WeChat group via WeCom API (with iLink bridge fallback).
 
 The first release should only require the final audio file to be delivered. Captions remain optional and out of scope.
-The intended pilot runtime for the bridge is a home always-on computer or a Synology NAS environment.
+No additional runtime infrastructure is required when WeCom is configured; the delivery runs inside the app serverless functions.
 
-For the pilot, the queue runtime is split across two responsibilities:
+The queue runtime responsibilities:
 
 - the app owns task selection, retry accounting, and state transitions
-- the external bridge sender owns the final WeChat-group delivery attempt
+- when WeCom is configured, the app directly calls WeCom APIs for delivery
+- when WeCom is not configured, the app forwards to an external iLink bridge sender
 
-This allows the sender implementation to vary by environment without changing the queue semantics in the core app.
+This dual-path approach allows WeCom-first households to operate without extra infrastructure, while preserving a fallback for existing iLink setups.
 
 The product-facing ownership model for Release 1 should be:
 
-- household owns sender status and the available WeChat group directory
+- household owns WeCom sender status (configured / not configured) and the available WeChat group directory
 - child may own an optional default WeChat group
 - homework may own an optional WeChat group override and the “send this homework to WeChat” decision
 
@@ -526,15 +528,15 @@ IXL and Khan Academy should not be treated as identical data sources. One platfo
 
 The first release allows account-password credentials together with managed session storage, which introduces operational risk: password changes, expired sessions, MFA prompts, captcha challenges, and unusual-login protections. The system therefore needs an intermediate operational state such as `attention_required`; it is not sufficient to model sync outcomes as only `success` or `failed`.
 
-The chosen first-release runtime strategy intentionally limits the live fetch path to managed-session execution for IXL and Khan Academy. This reduces the amount of login automation inside the app, but it also means session freshness becomes the key operational dependency and must be checked explicitly before connector fetch attempts.
+The live fetch path uses stored managed-session cookies for IXL and Khan Academy. When `auto_login_enabled` is true and the session is expired or invalid, the sync layer decrypts credentials and re-attempts platform login via HTTP fetch simulation before proceeding with the connector fetch. If re-login fails (captcha, 2FA, invalid credentials), the account moves to `attention_required` and the sync job records the specific error.
 
 ### Telegram Delivery Variance
 
 Telegram delivery must tolerate recipient-side and platform-side variance, including invalid chat IDs, rate limits, muted chats, blocked bots, or revoked access. Immediate event notifications and nightly digests should be treated as separate delivery attempts with separate retry and failure states.
 
-### Runtime Differences Between Home Computer And Synology NAS
+### WeCom API vs iLink Bridge Runtime
 
-The WeChat bridge runtime is not environment-neutral. A home always-on computer is a more natural host for desktop-driven automation or GUI-dependent sending flows, while a Synology NAS is more naturally suited to queue coordination or webhook hosting. The split coordinator/sender model reduces this risk by keeping queue truth in the app while allowing the final sender host to vary.
+When WeCom is configured (`WECOM_CORPID` + `WECOM_CORPSECRET`), delivery runs entirely inside the app serverless functions with no external infrastructure requirement. When WeCom is not configured, the app falls back to the iLink bridge, which does require an always-on host for desktop automation. The dual-path model ensures the primary delivery path is maintenance-free while preserving backward compatibility.
 
 ### Duplicate Information Across Telegram Channels
 
@@ -566,7 +568,7 @@ For this change, Release 1 must include:
 
 Release 1 is not acceptable if duplicate platform records can create repeated learning events, repeated auto-checkins, repeated points, or repeated notifications. It is also not acceptable if manual homework outcomes can be silently overwritten, if attachment-required homework can be fully completed from duration evidence alone, or if connector failures appear as silent “no data” states.
 
-The supported scope may remain intentionally narrow in this release: one household, multiple children, one Telegram recipient, IXL and Khan Academy as the initial platforms, and a Beta WeChat bridge for audio homework only. Within that scope, the release bar is correctness first, then expansion.
+The supported scope may remain intentionally narrow in this release: one household, multiple children, one Telegram recipient, IXL and Khan Academy as the initial platforms, and a Beta WeChat group delivery for audio homework only. Within that scope, the release bar is correctness first, then expansion.
 
 ## Acceptance Criteria
 
@@ -603,4 +605,4 @@ Operators or maintainers must be able to inspect recent platform sync status, sy
 The main product behavior is now clear. Remaining work is implementation planning rather than product clarification. The only details still best finalized inside the implementation plan are:
 
 - platform-specific matching details for IXL and Khan Academy beyond the shared duration threshold
-- the concrete sender implementation details for the chosen bridge host
+- the concrete WeCom API integration details
