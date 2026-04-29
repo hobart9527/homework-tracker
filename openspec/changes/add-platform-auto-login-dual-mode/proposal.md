@@ -8,7 +8,7 @@ This change is needed to lower the barrier for parents by supporting automatic u
 
 - Add a dual-mode authentication flow for platform account binding: `auto_login` and `manual_session`.
 - Add server-side AES-256-GCM encryption for stored login credentials.
-- Add pure HTTP fetch-based login simulators for IXL and Khan Academy that extract session cookies without browser automation.
+- Add Playwright browser automation with stealth plugin for IXL and Khan Academy auto-login, extracting session cookies after simulating human behavior.
 - Add automatic session refresh during scheduled sync when `auto_login_enabled` is true and the managed session has expired.
 - Add a manual session refresh endpoint for operators or parents to re-authenticate an auto-login account on demand.
 - Update the settings integrations UI with a mode toggle, conditional form fields, and error guidance when auto-login fails.
@@ -32,7 +32,7 @@ This change is needed to lower the barrier for parents by supporting automatic u
 
 - New database columns on `platform_accounts` for encrypted credentials and auto-login flag.
 - New encryption utility module using Node.js built-in `crypto`.
-- New platform adapter modules for IXL and Khan Academy HTTP login simulation.
+- New platform adapter modules for IXL and Khan Academy Playwright stealth login automation.
 - Modified platform-connections API to accept auth mode, username, and password.
 - New refresh-session API route for on-demand re-authentication.
 - Modified sync execution layer to attempt transparent session refresh.

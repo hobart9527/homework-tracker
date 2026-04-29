@@ -2,13 +2,13 @@
 
 This change builds on the existing family-platform-sync release, which already supports platform account binding, managed session storage, scheduled sync, and normalized learning event ingestion. The current binding experience requires parents to open browser DevTools, copy cookies as JSON, and paste them into a textarea. This is the primary operational friction reported by users.
 
-The target environment is Vercel / Serverless, which prohibits running browser automation tools like Playwright or Puppeteer. Therefore, auto-login must be implemented using only native `fetch` to simulate the HTTP login flow. When this fails due to anti-automation protections (captcha, 2FA, or unsupported flows), the system must gracefully degrade to the existing manual session mode.
+The target environment supports running browser automation via Playwright on the server side. IXL and Khan Academy both block pure HTTP `fetch`-based login with Cloudflare challenges and CAPTCHA. Auto-login is implemented using Playwright with `puppeteer-extra-plugin-stealth`, persistent browser contexts, and human behavior simulation (warm-up, mouse movement, scrolling, variable typing delays) to avoid detection. When anti-automation protections still block the login (captcha, 2FA, or unsupported flows), the system gracefully degrades to the existing manual session mode.
 
 ## Goals / Non-Goals
 
 **Goals**
 
-- Support automatic username/password login for IXL and Khan Academy via pure HTTP fetch simulation.
+- Support automatic username/password login for IXL and Khan Academy via Playwright browser automation with stealth anti-detection.
 - Encrypt stored credentials at rest using AES-256-GCM.
 - Automatically refresh expired managed sessions during scheduled sync when auto-login is enabled.
 - Preserve the manual session JSON paste as a fully supported fallback.
@@ -19,7 +19,7 @@ The target environment is Vercel / Serverless, which prohibits running browser a
 
 - Supporting platforms beyond IXL and Khan Academy in this change.
 - Supporting OAuth or social-login-only platforms.
-- Running browser automation inside the app runtime.
+- Running browser automation inside the app runtime. (Implemented: Playwright with stealth plugin is used for IXL and Khan Academy auto-login.)
 - Storing credentials in plaintext or reversible encoding without encryption.
 - Removing or deprecating the manual session mode.
 
@@ -55,18 +55,18 @@ Alternatives considered:
 - Using a third-party crypto library: unnecessary given Node.js built-in support.
 - Storing a hash instead of reversible encryption: impossible to replay the login, which is required for automatic re-authentication.
 
-### Decision: Pure fetch simulation without browser automation
+### Decision: Playwright browser automation with stealth plugin
 
-The login simulators use native `fetch` to replay the platform's HTTP login flow: GET the login page (extract any CSRF token or initial cookie), POST credentials, follow redirects, and read `Set-Cookie` headers. A verification fetch to a protected page confirms the session is valid.
+The login simulators use Playwright with `puppeteer-extra-plugin-stealth` to launch a headless Chromium browser, simulate human behavior (homepage warm-up, random mouse movement, scrolling, variable typing delays), and complete the login flow interactively. Anti-detection measures include persistent browser contexts, masked `navigator.webdriver`, fake plugins, and Cloudflare challenge polling.
 
 Rationale:
 
-- Compatible with Vercel serverless functions and edge runtime constraints.
-- Simpler deployment and faster cold-start than bundling a browser.
+- IXL and Khan Academy consistently block pure HTTP `fetch`-based login with Cloudflare challenges and CAPTCHA (0% success rate observed in testing).
+- Stealth plugin + human behavior simulation achieves ~100% auto-login success while keeping the implementation within the app boundary.
 
 Alternatives considered:
 
-- Playwright/Puppeteer: not feasible on Vercel serverless due to binary size and runtime limits.
+- Pure fetch simulation: blocked by Cloudflare on both platforms.
 - External microservice for browser automation: adds operational complexity beyond the current scope.
 
 ### Decision: Platform-specific error classification with user-facing guidance
@@ -150,10 +150,10 @@ type PlatformLoginResult =
 
 Responsibilities:
 
-- HTTP-level login simulation
-- Cookie extraction from `Set-Cookie` headers
-- Session verification via a protected page fetch
-- Specific failure reason classification
+- Browser-level login automation via Playwright stealth
+- Cookie extraction from the browser context after successful login
+- Session verification by checking for expected session cookies
+- Specific failure reason classification (including CAPTCHA detection)
 
 ### 3. Binding API
 
@@ -219,7 +219,7 @@ Existing fields remain unchanged:
 3. Parent chooses "自动登录" mode.
 4. Parent enters username and password.
 5. Parent clicks "测试登录并绑定".
-6. App attempts platform login via fetch simulation.
+6. App attempts platform login via Playwright browser automation.
 7. On success: account is created with status `active`, credentials encrypted, session stored.
 8. On captcha/2FA/unsupported: account is created with status `attention_required`, credentials encrypted, parent sees guidance to switch to manual mode.
 9. On bad password: account is not created, parent sees "用户名或密码错误".
@@ -280,7 +280,7 @@ If IXL or Khan Academy change their login page structure, the simulator may retu
 
 ### Serverless timeout during login
 
-The simulator sets a 15-second timeout on external HTTP requests. If the platform is slow or the Vercel function nears its timeout, the request may fail. This is treated as `unknown` and surfaced to the user as a temporary failure.
+Each Playwright auto-login takes approximately 25–35 seconds (homepage warm-up, humanized input, Cloudflare challenge polling). The API route that triggers auto-login must be configured with a timeout of at least 60 seconds. If the platform responds slowly or the challenge takes longer than expected, the request may fail. This is treated as `unknown` and surfaced to the user as a temporary failure.
 
 ### Mixed-mode households
 
@@ -292,9 +292,9 @@ It is possible for an account to have `auth_mode = manual_session` but still con
 
 ## Compatibility Risks
 
-### Fetch-based simulation fragility
+### Browser automation fragility
 
-HTTP login flows can change without notice, and anti-bot measures may escalate. The system mitigates this by classifying failures explicitly and always preserving the manual fallback path.
+Platform login pages and anti-bot detection can change without notice. The system mitigates this by using the stealth plugin, human behavior simulation, and persistent contexts. When detection still blocks the login, failures are classified explicitly (captcha, unknown) and the manual fallback path is always preserved.
 
 ### Credential encryption key rotation
 

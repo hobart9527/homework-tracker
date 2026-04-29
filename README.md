@@ -130,6 +130,8 @@ NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 PROJECT_ID=...
 CRON_SECRET=...
+PLATFORM_CREDENTIALS_ENCRYPTION_KEY=...  # 用于加密自动登录凭据，至少 32 字符
+SUPABASE_SERVICE_ROLE_KEY=...
 VOICE_PUSH_BRIDGE_URL=...
 VOICE_PUSH_BRIDGE_TOKEN=...
 ```
@@ -172,6 +174,9 @@ npm run start
 npm run test
 npm run supabase:migrate
 npm run supabase:generate-types
+npm run test:auto-login          # 测试自动登录
+npm run sync:ixl                 # 手动同步 IXL 学习记录
+npm run sync:khan                # 手动同步 Khan Academy 学习记录
 ```
 
 ## 首发集成运行说明 Release-One Integration Notes
@@ -179,23 +184,26 @@ npm run supabase:generate-types
 ### 平台同步 Platform Sync
 
 - 当前首发只开放 `IXL` 和 `Khan Academy`
-- 连接创建后，运行时抓取依赖 managed session，而不是在应用内重放账号密码登录
-- 已过期 session 会进入 `attention_required`
+- 支持两种绑定方式：自动登录（Playwright 浏览器自动化）和手动 Session（Cookie 粘贴）
+- 自动登录使用 `playwright-extra` + `puppeteer-extra-plugin-stealth`，包含 warm-up、随机鼠标轨迹、人类化输入等防检测策略
+- 已过期 session 会触发自动重新登录；连续失败则进入 `attention_required` 并 Telegram 通知家长
 - 定时入口为 `GET /api/platform-sync/run`
 - 手动排障入口为 `POST /api/platform-sync/import`
 
-#### Session 收集辅助脚本
+#### 自动登录测试
 
-当自动登录触发 CAPTCHA 时，应用内模拟登录无法继续。此时需要手动在真实浏览器中完成登录，然后提取 Session Cookie。
-
-仓库提供本地 Playwright 脚本，一键完成：
+本地验证自动登录成功率：
 
 ```bash
-# 1. 安装 Playwright（首次使用）
-npm install playwright
-npx playwright install chromium
+npm run test:auto-login -- --platform=ixl
+npm run test:auto-login -- --platform=khan-academy
+```
 
-# 2. 运行脚本
+#### Session 收集辅助脚本（手动兜底）
+
+当自动登录触发 CAPTCHA 时，需要手动在真实浏览器中完成登录并提取 Cookie。
+
+```bash
 npm run session:collect -- --platform=ixl
 # 或带凭据自动填充：
 npm run session:collect -- --platform=ixl --username=xxx --password=xxx
