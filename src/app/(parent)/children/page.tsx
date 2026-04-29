@@ -60,15 +60,36 @@ export default function ChildrenListPage() {
             <span className="text-xl">←</span>
           </Link>
           <h1 className="text-xl font-bold">{t('parent.children.title')}</h1>
-          <Link href="/children/new">
-            <Button size="sm" variant="secondary">
-              + {t('common.add')}
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/settings">
+              <Button size="sm" variant="ghost">
+                设置
+              </Button>
+            </Link>
+            <Link href="/children/new">
+              <Button size="sm" variant="secondary">
+                + {t('common.add')}
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto p-4">
+        <Card className="mb-4 border border-forest-100 bg-forest-50/60">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-bold text-forest-700">孩子相关集成</h2>
+              <p className="text-sm text-forest-500">
+                这里管理孩子自己的学习平台账号和默认消息目标。家庭级的通知通道配置仍然统一放在设置页。
+              </p>
+            </div>
+            <Link href="/settings">
+              <Button size="sm">前往家庭设置</Button>
+            </Link>
+          </div>
+        </Card>
+
         {children.length === 0 ? (
           <div className="text-center py-12">
             <span className="text-6xl">👶</span>
@@ -92,6 +113,22 @@ export default function ChildrenListPage() {
                     <p className="text-sm text-primary">
                       ⭐ {child.points} 积分 • 🔥 {child.streak_days} 天连续
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Link
+                        href={`/settings/integrations?childId=${child.id}#platform-binding`}
+                      >
+                        <Button size="sm" variant="secondary">
+                          学习平台账号
+                        </Button>
+                      </Link>
+                      <Link
+                        href={`/settings/integrations?childId=${child.id}#message-routing`}
+                      >
+                        <Button size="sm" variant="ghost">
+                          默认消息路由
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="ghost">

@@ -61,6 +61,7 @@ export default function ParentDashboardPage() {
   );
   const [loading, setLoading] = useState(true);
   const [reminderStates, setReminderStates] = useState<ParentReminderState[]>([]);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Store raw data in ref to avoid re-fetching when child selection changes
   const rawDataRef = useRef<{
@@ -161,7 +162,35 @@ export default function ParentDashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, selectedMonth, supabase]);
+  }, [selectedDate, selectedMonth, supabase, refreshTick]);
+
+  // Auto-refresh when child checks in (via child-points-changed event or realtime)
+  useEffect(() => {
+    const handleRefresh = () => {
+      setRefreshTick((t) => t + 1);
+    };
+    window.addEventListener("child-points-changed", handleRefresh);
+
+    let cleanupChannel = () => {};
+    if (typeof supabase.channel === "function") {
+      const channel = supabase
+        .channel("dashboard-check-ins")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "check_ins" },
+          handleRefresh
+        )
+        .subscribe();
+      cleanupChannel = () => {
+        void channel.unsubscribe();
+      };
+    }
+
+    return () => {
+      window.removeEventListener("child-points-changed", handleRefresh);
+      cleanupChannel();
+    };
+  }, [supabase]);
 
   // Update dashboard when selectedChildId changes (without refetching data)
   useEffect(() => {
@@ -278,6 +307,11 @@ export default function ParentDashboardPage() {
             <Link href="/children">
               <Button size="sm" variant="ghost">
                 {t('parent.dashboard.children')}
+              </Button>
+            </Link>
+            <Link href="/settings">
+              <Button size="sm" variant="ghost">
+                设置
               </Button>
             </Link>
             <Button size="sm" variant="ghost" onClick={handleLogout}>

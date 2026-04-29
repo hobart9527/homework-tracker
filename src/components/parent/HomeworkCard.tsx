@@ -73,7 +73,9 @@ export function HomeworkCard({
             </p>
           )}
           <div className="flex items-center gap-3 mt-2 text-xs text-forest-400">
-            <span>⏱️ {homework.estimated_minutes || 30} 分钟</span>
+            {homework.estimated_minutes != null ? (
+              <span>⏱️ {homework.estimated_minutes} 分钟</span>
+            ) : null}
             <span>⭐ {homework.point_value} 积分</span>
             {homework.daily_cutoff_time && (
               <span>📍 截止 {homework.daily_cutoff_time}</span>

@@ -13,9 +13,13 @@ export type HomeworkFormState = {
   repeat_start_date: string;
   point_value: number;
   point_deduction: number;
-  estimated_minutes: number;
+  estimated_minutes: number | null;
   daily_cutoff_time: string;
   required_checkpoint_type: HomeworkProofType | "";
+  platform_binding_platform: string;
+  platform_binding_source_ref: string;
+  send_to_wechat: boolean;
+  wechat_group_id: string;
 };
 
 export type HomeworkAssignmentSummary = {
@@ -47,9 +51,13 @@ type SourceHomework = {
   repeat_start_date: string | null;
   point_value: number;
   point_deduction: number;
-  estimated_minutes: number;
+  estimated_minutes: number | null;
   daily_cutoff_time: string | null;
   required_checkpoint_type: HomeworkProofType;
+  platform_binding_platform: string | null;
+  platform_binding_source_ref: string | null;
+  send_to_wechat: boolean | null;
+  wechat_group_id: string | null;
 };
 
 type ChildRef = {
@@ -93,6 +101,10 @@ export function buildHomeworkDraftFromSource(
     estimated_minutes: source.estimated_minutes,
     daily_cutoff_time: source.daily_cutoff_time || "23:30",
     required_checkpoint_type: source.required_checkpoint_type || "",
+    platform_binding_platform: source.platform_binding_platform || "",
+    platform_binding_source_ref: source.platform_binding_source_ref || "",
+    send_to_wechat: source.send_to_wechat || false,
+    wechat_group_id: source.wechat_group_id || "",
   };
 }
 
@@ -107,13 +119,11 @@ export function buildHomeworkInsertRows(
     type_icon: form.type_icon,
     title: form.title,
     description: form.description || null,
-    required_checkpoint_type: form.required_checkpoint_type || null,
     repeat_type: form.repeat_type,
     repeat_days: form.repeat_type === "weekly" ? form.repeat_days : null,
     repeat_interval: form.repeat_type === "interval" ? form.repeat_interval : null,
     repeat_start_date: form.repeat_start_date || null,
     point_value: form.point_value,
-    point_deduction: form.point_deduction,
     estimated_minutes: form.estimated_minutes,
     daily_cutoff_time: form.daily_cutoff_time || null,
     created_by: createdBy,

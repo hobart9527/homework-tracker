@@ -56,20 +56,23 @@ export function buildCheckInInsertPayload(input: {
   homeworkId: string;
   childId: string;
   completedAt: string;
+  submittedAt?: string;
   note?: string | null;
   proofType: ProofType;
+  audioDurationSeconds?: number | null;
   result: CheckInSubmissionResult;
 }) {
   return {
     homework_id: input.homeworkId,
     child_id: input.childId,
     completed_at: input.completedAt,
-    submitted_at: input.completedAt,
+    submitted_at: input.submittedAt ?? input.completedAt,
     points_earned: input.result.awardedPoints,
     awarded_points: input.result.awardedPoints,
     is_scored: input.result.scored,
     is_late: input.result.late,
     proof_type: input.proofType,
+    audio_duration_seconds: input.audioDurationSeconds ?? null,
     note: input.note || null,
   };
 }

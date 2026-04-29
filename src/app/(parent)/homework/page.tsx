@@ -76,11 +76,18 @@ export default function HomeworkListPage() {
             <span className="text-xl">←</span>
           </Link>
           <h1 className="text-xl font-bold">{t('parent.homework.title')}</h1>
-          <Link href={buildNewHomeworkHref({ selectedChildId })}>
-            <Button size="sm" variant="secondary">
-              + {t('common.add')}
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/settings">
+              <Button size="sm" variant="ghost">
+                设置
+              </Button>
+            </Link>
+            <Link href={buildNewHomeworkHref({ selectedChildId })}>
+              <Button size="sm" variant="secondary">
+                + {t('common.add')}
+              </Button>
+            </Link>
+          </div>
         </div>
       </header>
 

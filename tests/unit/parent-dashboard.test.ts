@@ -1491,6 +1491,63 @@ describe("ParentDashboardPage wiring", () => {
 
     expect(mockSupabase.auth.signOut).toHaveBeenCalled();
   });
+
+  it("keeps settings as a first-level header entry", async () => {
+    const mockSupabase = {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({
+          data: { session: { user: { id: "parent-1" } } },
+        }),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "children") {
+          return {
+            select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "child-1",
+                      parent_id: "parent-1",
+                      name: "Ivy",
+                      avatar: "🦊",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        if (table === "homeworks") {
+          return {
+            select: () => ({
+              eq: () => Promise.resolve({ data: [] }),
+            }),
+          };
+        }
+
+        if (table === "check_ins") {
+          return {
+            select: () => ({
+              in: () => Promise.resolve({ data: [] }),
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+
+    vi.mocked(createClient).mockReturnValue(mockSupabase as any);
+
+    render(createElement(ParentDashboardPage));
+    await screen.findByRole("link", { name: "设置" });
+
+    expect(screen.getByRole("link", { name: "设置" })).toHaveAttribute(
+      "href",
+      "/settings"
+    );
+  });
 });
 
 describe("Parent attachment previews and monthly cluster", () => {
@@ -1502,42 +1559,6 @@ describe("Parent attachment previews and monthly cluster", () => {
         }),
       },
       from: vi.fn((table: string) => {
-        if (table === "check_ins") {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  gte: () => ({
-                    lt: () => ({
-                      order: () => ({
-                        limit: () =>
-                          Promise.resolve({
-                            data: [
-                              {
-                                id: "check-1",
-                                homework_id: "hw-1",
-                                child_id: "child-1",
-                                completed_at: "2026-04-08T10:00:00.000Z",
-                                submitted_at: "2026-04-08T10:00:00.000Z",
-                                points_earned: 3,
-                                awarded_points: 3,
-                                is_scored: true,
-                                is_late: false,
-                                proof_type: "photo",
-                                note: null,
-                                created_at: "2026-04-08T10:00:00.000Z",
-                              },
-                            ],
-                          }),
-                      }),
-                    }),
-                  }),
-                }),
-              }),
-            }),
-          };
-        }
-
         if (table === "attachments") {
           return {
             select: () => ({
@@ -1596,6 +1617,8 @@ describe("Parent attachment previews and monthly cluster", () => {
               statusText: "已完成",
               scored: true,
               awardedPoints: 3,
+              latestCheckInId: "check-1",
+              latestProofType: "photo",
             },
           ],
         } as any,
@@ -1666,10 +1689,7 @@ describe("Parent attachment previews and monthly cluster", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("loads attachment previews using the local day window", async () => {
-    const expectedStart = new Date("2026-04-08T00:00:00").toISOString();
-    const expectedEnd = new Date("2026-04-08T23:59:59.999").toISOString();
-
+  it("loads attachment previews using check-in id directly", async () => {
     const mockSupabase = {
       auth: {
         getSession: vi.fn().mockResolvedValue({
@@ -1677,45 +1697,6 @@ describe("Parent attachment previews and monthly cluster", () => {
         }),
       },
       from: vi.fn((table: string) => {
-        if (table === "check_ins") {
-          return {
-            select: () => ({
-              eq: () => ({
-                eq: () => ({
-                  gte: (_field: string, start: string) => ({
-                    lt: (_field: string, end: string) => ({
-                      order: () => ({
-                        limit: () =>
-                          Promise.resolve({
-                            data:
-                              start === expectedStart && end === expectedEnd
-                                ? [
-                                    {
-                                      id: "check-1",
-                                      homework_id: "hw-1",
-                                      child_id: "child-1",
-                                      completed_at: "2026-04-07T18:30:00.000Z",
-                                      submitted_at: "2026-04-07T18:30:00.000Z",
-                                      points_earned: 3,
-                                      awarded_points: 3,
-                                      is_scored: true,
-                                      is_late: false,
-                                      proof_type: "photo",
-                                      note: null,
-                                      created_at: "2026-04-07T18:30:00.000Z",
-                                    },
-                                  ]
-                                : [],
-                          }),
-                      }),
-                    }),
-                  }),
-                }),
-              }),
-            }),
-          };
-        }
-
         if (table === "attachments") {
           return {
             select: () => ({
@@ -1761,6 +1742,8 @@ describe("Parent attachment previews and monthly cluster", () => {
             statusText: "已完成",
             scored: true,
             awardedPoints: 3,
+            latestCheckInId: "check-1",
+            latestProofType: "photo",
           },
         ],
         childId: "child-1",

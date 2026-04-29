@@ -37,6 +37,8 @@ export type ParentChildDashboardDetail = {
     statusText: string;
     scored: boolean;
     awardedPoints: number;
+    latestCheckInId: string | null;
+    latestProofType: "photo" | "audio" | null;
     reminderState?: ParentReminderState | null;
   }>;
 };
@@ -217,10 +219,12 @@ function buildChildDashboard(
       title: homework.title,
       typeIcon: homework.type_icon,
       cutoffTime: homework.daily_cutoff_time,
-      proofType: homework.required_checkpoint_type,
+      proofType: homework.required_checkpoint_type ?? status?.latestProofType ?? null,
       statusText: getStatusText({ completed, late, overdue }),
       scored: status?.scored ?? false,
       awardedPoints: status?.awardedPoints ?? 0,
+      latestCheckInId: status?.latestCheckInId ?? null,
+      latestProofType: status?.latestProofType ?? null,
       reminderState: getReminderState(reminderStates, homework.id, date),
     };
   });

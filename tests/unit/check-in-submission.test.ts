@@ -1,11 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   buildSubmissionDecision,
+  buildCheckInInsertPayload,
   getProofLabel,
   isMissingCheckInScoringColumnError,
   isProofType,
 } from "@/lib/tasks/check-in-submission";
 import { POST } from "@/app/api/check-ins/create/route";
+import { formatDateKey, parseDateValue } from "@/lib/homework-utils";
 
 const createClientMock = vi.hoisted(() => vi.fn());
 
@@ -206,6 +208,52 @@ describe("buildSubmissionDecision", () => {
       } as any)
     ).toThrow(/照片/);
   });
+
+  it("includes recorded audio duration in the check-in payload", () => {
+    const result = buildSubmissionDecision({
+      homework: makeHomework(),
+      existingSameDay: [],
+      proofType: "audio",
+      now: new Date("2026-04-11T19:00:00"),
+    } as any);
+
+    expect(
+      buildCheckInInsertPayload({
+        homeworkId: "hw-1",
+        childId: "child-1",
+        completedAt: "2026-04-11T19:00:00.000Z",
+        proofType: "audio",
+        audioDurationSeconds: 37,
+        result,
+      } as any)
+    ).toMatchObject({
+      proof_type: "audio",
+      audio_duration_seconds: 37,
+    });
+  });
+
+  it("keeps submitted_at separate from the completion date when the task is checked in for a selected day", () => {
+    const result = buildSubmissionDecision({
+      homework: makeHomework(),
+      existingSameDay: [],
+      proofType: null,
+      now: new Date("2026-04-11T19:00:00"),
+    } as any);
+
+    expect(
+      buildCheckInInsertPayload({
+        homeworkId: "hw-1",
+        childId: "child-1",
+        completedAt: "2026-04-24T12:00:00.000Z",
+        submittedAt: "2026-04-23T23:30:00.000Z",
+        proofType: null,
+        result,
+      } as any)
+    ).toMatchObject({
+      completed_at: "2026-04-24T12:00:00.000Z",
+      submitted_at: "2026-04-23T23:30:00.000Z",
+    });
+  });
 });
 
 describe("isMissingCheckInScoringColumnError", () => {
@@ -294,5 +342,56 @@ describe("check-in create route", () => {
 
     expect(response.status).toBe(500);
     expect(body.error).toBe("duplicate key value violates unique constraint");
+  });
+
+  it("records a selected target date as the completion day while keeping submission time as now", async () => {
+    const insertPayloads: Array<Record<string, unknown>> = [];
+    const client = makeSupabaseClient({});
+    const originalFrom = client.from;
+
+    client.from = vi.fn((table: string) => {
+      const source = originalFrom(table);
+
+      if (table !== "check_ins") {
+        return source;
+      }
+
+      return {
+        ...source,
+        insert: vi.fn((payload: Record<string, unknown>) => {
+          insertPayloads.push(payload);
+          return {
+            select: () => ({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: "check-1",
+                  ...payload,
+                },
+                error: null,
+              }),
+            }),
+          };
+        }),
+      };
+    });
+
+    createClientMock.mockResolvedValue(client);
+
+    const response = await POST(
+      new Request("http://localhost/api/check-ins/create", {
+        method: "POST",
+        body: JSON.stringify({
+          homework_id: "hw-1",
+          targetDate: "2026-04-24",
+          proofType: null,
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      formatDateKey(parseDateValue(String(insertPayloads[0]?.completed_at)))
+    ).toBe("2026-04-24");
+    expect(insertPayloads[0]?.submitted_at).not.toBe(insertPayloads[0]?.completed_at);
   });
 });

@@ -42,7 +42,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
     <div
       ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={(e) => e.target === overlayRef.current && onClose()}
+      onClick={(e) => e.currentTarget === e.target && onClose()}
     >
       <div
         className={`w-full ${SIZE_STYLES[size]} max-h-[90vh] overflow-auto rounded-3xl bg-white shadow-2xl`}

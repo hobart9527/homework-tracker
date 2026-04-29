@@ -1,114 +1,113 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { ReminderSettings } from "@/components/parent/ReminderSettings";
-import { QuickTypeManager } from "@/components/parent/QuickTypeManager";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
-type CustomType = Database["public"]["Tables"]["custom_homework_types"]["Row"];
 
 export default function SettingsPage() {
   const { t } = useTranslation();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const [parent, setParent] = useState<Parent | null>(null);
   const [loading, setLoading] = useState(true);
-  const [customTypes, setCustomTypes] = useState<CustomType[]>([]);
 
   useEffect(() => {
-    const fetchParent = async () => {
+    const fetchData = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        setLoading(false);
+        return;
+      }
 
-      const { data } = await supabase
+      const { data: parentData } = await supabase
         .from("parents")
         .select("*")
         .eq("id", session.user.id)
         .single();
 
-      if (data) setParent(data);
+      if (parentData) {
+        setParent(parentData);
+      }
       setLoading(false);
     };
 
-    fetchParent();
-  }, [supabase]);
-
-  useEffect(() => {
-    const fetchTypes = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) return;
-      const { data } = await supabase
-        .from("custom_homework_types")
-        .select("*")
-        .eq("parent_id", session.user.id);
-      if (data) setCustomTypes(data);
-    };
-    fetchTypes();
+    fetchData();
   }, [supabase]);
 
   if (loading || !parent) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">{t('common.loading')}</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-2xl">{t("common.loading")}</div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-primary text-white p-4">
-        <div className="max-w-2xl mx-auto flex items-center gap-4">
+      <header className="bg-primary p-4 text-white">
+        <div className="mx-auto flex max-w-3xl items-center gap-4">
           <Link href="/dashboard">
             <span className="text-xl">←</span>
           </Link>
-          <h1 className="text-xl font-bold">{t('parent.settings.title')}</h1>
+          <div>
+            <h1 className="text-xl font-bold">{t("parent.settings.title")}</h1>
+            <p className="mt-1 text-sm text-white/80">
+              先选对象，再配置功能。家庭级、孩子级、作业级和系统级入口已经分开整理。
+            </p>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto p-4 space-y-4">
+      <main className="mx-auto max-w-3xl space-y-4 p-4">
         <Card>
-          <QuickTypeManager
-            types={customTypes}
-            onAdd={async (name, icon, points) => {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (!session) return;
-              const { data } = await supabase
-                .from("custom_homework_types")
-                .insert({ parent_id: session.user.id, name, icon, default_points: points })
-                .select()
-                .single();
-              if (data) setCustomTypes((prev) => [...prev, data]);
-            }}
-            onUpdate={async (id, name, icon, points) => {
-              await supabase.from("custom_homework_types").update({ name, icon, default_points: points }).eq("id", id);
-              setCustomTypes((prev) => prev.map((t) => t.id === id ? { ...t, name, icon, default_points: points } : t));
-            }}
-            onDelete={async (id) => {
-              await supabase.from("custom_homework_types").delete().eq("id", id);
-              setCustomTypes((prev) => prev.filter((t) => t.id !== id));
-            }}
-          />
+          <div className="space-y-3">
+            <div>
+              <h2 className="font-bold text-forest-700">设置导航</h2>
+              <p className="mt-1 text-sm text-forest-500">
+                不同对象的配置入口已经拆开，避免把家庭通道、孩子身份和作业规则混在同一个页面里。
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Link href="/settings/channels">
+                <div className="rounded-2xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
+                  <h3 className="font-semibold text-forest-700">家庭通知通道</h3>
+                  <p className="mt-1 text-sm text-forest-500">
+                    Telegram、微信 bridge 与家庭级通知偏好
+                  </p>
+                </div>
+              </Link>
+
+              <Link href="/settings/integrations">
+                <div className="rounded-2xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
+                  <h3 className="font-semibold text-forest-700">孩子集成</h3>
+                  <p className="mt-1 text-sm text-forest-500">
+                    学习平台账号与孩子默认消息路由
+                  </p>
+                </div>
+              </Link>
+
+              <Link href="/settings/system">
+                <div className="rounded-2xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
+                  <h3 className="font-semibold text-forest-700">系统运行</h3>
+                  <p className="mt-1 text-sm text-forest-500">
+                    平台同步、语音桥接、失败重试与排障
+                  </p>
+                </div>
+              </Link>
+            </div>
+          </div>
         </Card>
 
         <Card>
-          <h2 className="font-bold text-forest-700 mb-4">{t('parent.settings.notifications')}</h2>
-          <ReminderSettings
-            settings={parent}
-            onUpdate={() => window.location.reload()}
-          />
-        </Card>
-
-        <Card>
-          <h2 className="font-bold text-forest-700 mb-4">{t('parent.settings.profile')}</h2>
+          <h2 className="mb-4 font-bold text-forest-700">{t("parent.settings.profile")}</h2>
           <Button
             variant="ghost"
             onClick={async () => {
@@ -116,7 +115,7 @@ export default function SettingsPage() {
               window.location.href = "/login";
             }}
           >
-            {t('common.logout')}
+            {t("common.logout")}
           </Button>
         </Card>
       </main>

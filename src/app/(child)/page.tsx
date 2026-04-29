@@ -20,6 +20,12 @@ import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
+type AttachmentUploadStatus = {
+  checkInId: string;
+  state: "uploading" | "uploaded" | "failed";
+  progress: number;
+  message?: string;
+};
 
 function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
   const today = formatDateKey(new Date());
@@ -46,6 +52,9 @@ export default function ChildLandingPage() {
     formatDateKey(new Date())
   );
   const [selectedHomework, setSelectedHomework] = useState<Homework | null>(null);
+  const [attachmentUploadStatuses, setAttachmentUploadStatuses] = useState<
+    Record<string, AttachmentUploadStatus>
+  >({});
   const requestIdRef = useRef(0);
 
   const fetchData = useCallback(async () => {
@@ -205,6 +214,7 @@ export default function ChildLandingPage() {
             homeworks={homeworks}
             checkIns={checkIns}
             onSelectHomework={setSelectedHomework}
+            attachmentUploadStatuses={attachmentUploadStatuses}
           />
         </section>
       </div>
@@ -212,10 +222,22 @@ export default function ChildLandingPage() {
       {selectedHomework && (
         <CheckInModal
           homework={selectedHomework}
+          targetDate={selectedDate}
           isOpen={Boolean(selectedHomework)}
           onClose={() => setSelectedHomework(null)}
           onSuccess={() => {
             fetchData();
+          }}
+          onAttachmentUploadStatusChange={(status) => {
+            setAttachmentUploadStatuses((prev) => ({
+              ...prev,
+              [status.homeworkId]: {
+                checkInId: status.checkInId,
+                state: status.state,
+                progress: status.progress,
+                message: status.message,
+              },
+            }));
           }}
         />
       )}

@@ -71,6 +71,21 @@ describe("buildDailyTaskStatuses", () => {
     expect(result[0].awardedPoints).toBe(4);
   });
 
+  it("exposes the latest proof type for completed task attachments", () => {
+    const result = buildDailyTaskStatuses(
+      [makeHomework()],
+      [
+        makeCheckIn({
+          completed_at: "2026-04-11T09:00:00.000Z",
+          proof_type: "audio",
+        }),
+      ] as any,
+      "2026-04-11"
+    );
+
+    expect(result[0].latestProofType).toBe("audio");
+  });
+
   it("keeps repeat submissions completed but not scored", () => {
     const result = buildDailyTaskStatuses(
       [makeHomework()],
