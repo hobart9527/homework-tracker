@@ -21,6 +21,7 @@
     "sync:ixl": "node scripts/sync-ixl.mjs",
     "verify:khan-data": "node scripts/verify-khan-data.mjs",
     "verify:ixl-data": "node scripts/verify-ixl-data.mjs",
+    "test:auto-login": "node scripts/test-auto-login.mjs",
     "supabase:init": "supabase init",
     "supabase:migrate": "supabase db push",
     "supabase:generate-types": "supabase gen types typescript --project-id $PROJECT_ID > src/lib/supabase/types.ts"

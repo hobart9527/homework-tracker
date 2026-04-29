@@ -5,6 +5,42 @@ config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
 import { autoLoginIxl } from "../src/lib/ixl-auto-login.mjs";
+import { createHash, createDecipheriv } from "crypto";
+
+const ALGORITHM = "aes-256-gcm";
+
+function deriveKey(secret) {
+  return createHash("sha256").update(secret).digest();
+}
+
+function decryptCredential(encryptedData, secretKey) {
+  const parts = encryptedData.split(":");
+  if (parts.length !== 3) {
+    throw new Error("Invalid encrypted data format");
+  }
+  const [ivHex, authTagHex, encrypted] = parts;
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
+  const key = deriveKey(secretKey);
+  const decipher = createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
+function getDbCredentials(account) {
+  if (!account.auto_login_enabled || !account.login_credentials_encrypted) {
+    return null;
+  }
+  const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
+  if (!key) return null;
+  try {
+    return JSON.parse(decryptCredential(account.login_credentials_encrypted, key));
+  } catch {
+    return null;
+  }
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -15,6 +51,12 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+const IXL_CREDENTIALS = {
+  username: process.env.IXL_USERNAME,
+  password: process.env.IXL_PASSWORD,
+};
+
 const IXL_SUBJECTS = [
   { queryValue: "0", label: "math" },
   { queryValue: "1", label: "ela" },
@@ -46,7 +88,19 @@ async function fetchIxlActivities(payload) {
     const response = await fetch(String(url), {
       headers: {
         cookie: cookieHeader,
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+        Accept: "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        Referer: "https://www.ixl.com/analytics/student-usage",
+        Origin: "https://www.ixl.com",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
+        Connection: "keep-alive",
       },
     });
 
@@ -223,7 +277,14 @@ async function syncIxlAccount(account) {
       await new Promise((r) => setTimeout(r, backoff * 1000));
 
       try {
-        const newPayload = await autoLoginIxl();
+        const dbCreds = getDbCredentials(account);
+        const creds = dbCreds ?? IXL_CREDENTIALS;
+        if (!creds?.username || !creds?.password) {
+          throw new Error("No credentials available (neither DB nor .env.local)");
+        }
+        console.log(`  🔑 使用${dbCreds ? "数据库" : ".env.local"}凭据重新登录...`);
+        const loginResult = await autoLoginIxl(creds.username, creds.password);
+        const newPayload = { cookies: loginResult.cookies };
         await supabase
           .from("platform_accounts")
           .update({
@@ -249,10 +310,6 @@ async function syncIxlAccount(account) {
         return { status: "error", error: reloginErr.message };
       }
     }
-          .eq("id", account.id);
-        return { status: "error", error: reloginErr.message };
-      }
-    }
 
     console.error(`  ❌ ${account.external_account_ref}: ${err.message}`);
 
@@ -273,7 +330,7 @@ async function main() {
 
   const { data: accounts, error } = await supabase
     .from("platform_accounts")
-    .select("id, child_id, external_account_ref, status, managed_session_payload")
+    .select("id, child_id, external_account_ref, status, managed_session_payload, login_credentials_encrypted, auto_login_enabled")
     .eq("platform", "ixl");
 
   if (error) {

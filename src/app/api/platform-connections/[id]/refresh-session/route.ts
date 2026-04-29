@@ -99,6 +99,7 @@ export async function POST(
         {
           error: loginResult.message,
           reason: loginResult.reason,
+          logs: loginResult.logs,
           hint:
             loginResult.reason === "captcha_required" ||
             loginResult.reason === "two_factor_required" ||
@@ -131,6 +132,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: loginResult.message || "Session 刷新成功",
+      logs: loginResult.logs,
     });
   } catch (error) {
     return NextResponse.json(

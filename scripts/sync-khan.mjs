@@ -3,18 +3,54 @@
 /**
  * Khan Academy 学习记录同步脚本
  *
- * 通过 Playwright 打开 Khan Academy 进度页，
- * 直接从 DOM 表格中提取学习记录，写入 learning_events。
+ * 通过 Playwright 打开进度页，调用浏览器内的 GraphQL API 提取学习记录，
+ * 写入 learning_events。Session 过期时自动重新登录。
  */
 
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { createClient } from "@supabase/supabase-js";
+import { createHash, createDecipheriv } from "crypto";
+
+const ALGORITHM = "aes-256-gcm";
+
+function deriveKey(secret) {
+  return createHash("sha256").update(secret).digest();
+}
+
+function decryptCredential(encryptedData, secretKey) {
+  const parts = encryptedData.split(":");
+  if (parts.length !== 3) {
+    throw new Error("Invalid encrypted data format");
+  }
+  const [ivHex, authTagHex, encrypted] = parts;
+  const iv = Buffer.from(ivHex, "hex");
+  const authTag = Buffer.from(authTagHex, "hex");
+  const key = deriveKey(secretKey);
+  const decipher = createDecipheriv(ALGORITHM, key, iv);
+  decipher.setAuthTag(authTag);
+  let decrypted = decipher.update(encrypted, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
+function getDbCredentials(account) {
+  if (!account.auto_login_enabled || !account.login_credentials_encrypted) {
+    return null;
+  }
+  const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
+  if (!key) return null;
+  try {
+    return JSON.parse(decryptCredential(account.login_credentials_encrypted, key));
+  } catch {
+    return null;
+  }
+}
 
 const KHAN_CREDENTIALS = {
-  username: "albertultraman",
-  password: "0531",
+  username: process.env.KHAN_USERNAME,
+  password: process.env.KHAN_PASSWORD,
 };
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -27,6 +63,149 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+const ACTIVITY_QUERY = `query ActivitySessionsV2Query($studentKaid: String!, $endDate: Date, $startDate: Date, $courseType: String, $activityKind: String, $after: ID, $pageSize: Int) {
+  user(kaid: $studentKaid) {
+    id
+    activityLogV2(
+      endDate: $endDate
+      startDate: $startDate
+      courseType: $courseType
+      activityKind: $activityKind
+    ) {
+      time {
+        exerciseMinutes
+        totalMinutes
+        __typename
+      }
+      activitySessions(pageSize: $pageSize, after: $after) {
+        sessions {
+          ...ActivitySession
+          ... on BasicActivitySession {
+            aiGuideThread {
+              title
+              id
+              __typename
+            }
+            essaySession {
+              essayTitle
+              id
+              __typename
+            }
+            __typename
+          }
+          ... on MasteryActivitySession {
+            correctCount
+            problemCount
+            skillLevels {
+              ...ActivitySessionSkillLevels
+              exercise {
+                id
+                translatedTitle
+                __typename
+              }
+              __typename
+            }
+            task {
+              id
+              isRestarted
+              __typename
+            }
+            __typename
+          }
+          __typename
+        }
+        pageInfo {
+          nextCursor
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    __typename
+  }
+}
+
+fragment ActivitySession on ActivitySession {
+  id
+  title
+  subtitle
+  activityKind {
+    id
+    __typename
+  }
+  durationMinutes
+  eventTimestamp
+  skillType
+  __typename
+}
+
+fragment ActivitySessionSkillLevels on SkillLevelChange {
+  id
+  before
+  after
+  __typename
+}`;
+
+async function fetchKhanActivities(page, kaid) {
+  const allSessions = [];
+  let cursor = null;
+  const endDate = new Date().toISOString().slice(0, 10);
+  const startDate = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+  do {
+    const batch = await page.evaluate(
+      async ({ query, kaid, startDate, endDate, cursor }) => {
+        const resp = await fetch(
+          "/api/internal/graphql/ActivitySessionsV2Query?lang=en&app=khanacademy&_=" + Date.now(),
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              operationName: "ActivitySessionsV2Query",
+              variables: {
+                studentKaid: kaid,
+                startDate,
+                endDate,
+                courseType: null,
+                activityKind: null,
+                pageSize: 50,
+                after: cursor,
+              },
+              query,
+            }),
+          }
+        );
+        const data = await resp.json();
+        const activityLog = data?.data?.user?.activityLogV2;
+        return {
+          sessions: activityLog?.activitySessions?.sessions || [],
+          nextCursor: activityLog?.activitySessions?.pageInfo?.nextCursor || null,
+        };
+      },
+      { query: ACTIVITY_QUERY, kaid, startDate, endDate, cursor }
+    );
+
+    allSessions.push(...batch.sessions);
+    cursor = batch.nextCursor;
+  } while (cursor);
+
+  // Normalize sessions into flat activity records
+  return allSessions.map((s) => ({
+    id: s.id,
+    title: s.title,
+    subtitle: s.subtitle || null,
+    activityKind: s.activityKind?.id || null,
+    durationMinutes: s.durationMinutes || 0,
+    eventTimestamp: s.eventTimestamp,
+    skillType: s.skillType || null,
+    correctCount: s.correctCount ?? null,
+    problemCount: s.problemCount ?? null,
+    skillLevels: s.skillLevels || null,
+    __typename: s.__typename,
+  }));
+}
+
 async function syncKhanAccount(account) {
   const cookies = account.managed_session_payload?.cookies;
   if (!cookies?.length) {
@@ -36,14 +215,19 @@ async function syncKhanAccount(account) {
 
   let chromium;
   try {
-    const playwright = await import("playwright");
-    chromium = playwright.chromium;
+    const pw = await import("playwright-extra");
+    const StealthPlugin = (await import("puppeteer-extra-plugin-stealth")).default;
+    pw.chromium.use(StealthPlugin());
+    chromium = pw.chromium;
   } catch {
-    console.error("❌ Playwright 未安装。请先运行: npm install playwright && npx playwright install chromium");
+    console.error("❌ Playwright 未安装");
     return { status: "error", reason: "playwright_not_installed" };
   }
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox"],
+  });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
   });
@@ -60,137 +244,50 @@ async function syncKhanAccount(account) {
   const page = await context.newPage();
 
   try {
-    const resp = await page.goto("https://www.khanacademy.org/profile/me/progress", {
+    await page.goto("https://www.khanacademy.org/profile/me/progress", {
       waitUntil: "networkidle",
       timeout: 30000,
     });
 
-    // Detect session expired (redirected to login)
     const currentUrl = page.url();
     if (currentUrl.includes("/login")) {
       throw new Error("Session expired");
     }
 
-    // Detect Cloudflare block
-    const bodyCheck = await page.textContent("body").catch(() => "");
-    if (bodyCheck.includes("trouble loading external resources")) {
-      throw new Error("Session expired");
+    // Wait for the page to fully load and API calls to complete
+    await page.waitForTimeout(3000);
+
+    // Get KAID from cookies (stored in cookie name or value)
+    let kaid = null;
+    const kaidCookie = cookies.find((c) => c.name.startsWith("returning_login_kaid_"));
+    if (kaidCookie) {
+      kaid = "kaid_" + kaidCookie.name.replace("returning_login_kaid_", "");
+    }
+    if (!kaid) {
+      // fallback: extract from page context
+      kaid = await page.evaluate(() => window.__USER_PROFILE__?.kaid || null);
+    }
+    if (!kaid) {
+      throw new Error("No KAID found in cookies or page context");
     }
 
-    // Wait for the activity table to render
-    await page.waitForTimeout(5000);
+    console.log(`  🌐 通过 GraphQL API 抓取学习记录...`);
+    const activities = await fetchKhanActivities(page, kaid);
 
-    // Scroll to trigger any lazy loading
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(2000);
-
-    // Extract activity data from DOM
-    const activities = await page.evaluate(() => {
-      const results = [];
-
-      // Find the activity table
-      const tables = document.querySelectorAll("table");
-      for (const table of tables) {
-        const headers = Array.from(table.querySelectorAll("thead th, thead td"))
-          .map((th) => th.textContent?.trim().toLowerCase() || "");
-
-        // Check if this is the activity table
-        const hasActivityHeader = headers.some((h) => h.includes("activity"));
-        const hasDateHeader = headers.some((h) => h.includes("date"));
-
-        if (!hasActivityHeader || !hasDateHeader) continue;
-
-        const rows = table.querySelectorAll("tbody tr");
-        for (const row of rows) {
-          const cells = row.querySelectorAll("td");
-          if (cells.length < 6) continue;
-
-          const titleEl = cells[0].querySelector("p[title]") || cells[0].querySelector("p");
-          const subjectEl = cells[0].querySelectorAll("p")[1];
-          const dateEl = cells[1];
-          const levelEl = cells[2];
-          const changeEl = cells[3];
-          const correctEl = cells[4];
-          const timeEl = cells[5];
-
-          const title = titleEl?.textContent?.trim() || "";
-          const subject = subjectEl?.textContent?.trim() || "";
-          const dateStr = dateEl?.textContent?.trim() || "";
-          const level = levelEl?.textContent?.trim() || "";
-          const change = changeEl?.textContent?.trim() || "";
-          const correctTotal = correctEl?.textContent?.trim() || "";
-          const timeStr = timeEl?.textContent?.trim() || "";
-
-          if (!title) continue;
-
-          // Parse date: "Apr 22, 2026 at 4:24 PM"
-          let occurredAt = null;
-          if (dateStr) {
-            try {
-              // Try various date formats
-              const date = new Date(dateStr.replace(/\bat\b/g, ''));
-              if (!isNaN(date.getTime())) {
-                occurredAt = date.toISOString();
-              }
-            } catch {
-              // ignore parse errors
-            }
-          }
-          // Fallback to current time if parsing fails
-          if (!occurredAt) {
-            occurredAt = new Date().toISOString();
-          }
-
-          // Parse time: "8" (minutes)
-          let durationMinutes = null;
-          if (timeStr && timeStr !== "–" && timeStr !== "-") {
-            const match = timeStr.match(/(\d+)/);
-            if (match) durationMinutes = parseInt(match[1], 10);
-          }
-
-          // Parse correct/total: "5/10" or "–"
-          let correctCount = null;
-          let problemCount = null;
-          if (correctTotal && correctTotal !== "–" && correctTotal !== "-") {
-            const match = correctTotal.match(/(\d+)\s*\/\s*(\d+)/);
-            if (match) {
-              correctCount = parseInt(match[1], 10);
-              problemCount = parseInt(match[2], 10);
-            }
-          }
-
-          results.push({
-            title,
-            subject,
-            occurredAt,
-            level: level !== "–" ? level : null,
-            change: change !== "–" ? change : null,
-            correctCount,
-            problemCount,
-            durationMinutes,
-            rawDate: dateStr,
-            rawTime: timeStr,
-          });
-        }
-      }
-
-      return results;
-    });
+    console.log(`  ✅ 找到 ${activities.length} 条学习记录`);
 
     await browser.close();
 
     if (activities.length === 0) {
-      console.log(`  ⚠️  ${account.external_account_ref}: 页面上没有找到活动数据`);
+      console.log(`  ⚠️  ${account.external_account_ref}: 该账号最近没有活动数据`);
       return { status: "no_data", reason: "no_activities_found" };
     }
 
-    console.log(`  ✅ 找到 ${activities.length} 条学习记录`);
-
-    // Deduplicate by title + date + subject
+    // Deduplicate
     const seen = new Set();
     const uniqueActivities = [];
     for (const a of activities) {
-      const key = `${a.title}::${a.occurredAt || a.rawDate}::${a.subject}`;
+      const key = `${a.title}::${a.eventTimestamp}::${a.activityKind}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniqueActivities.push(a);
@@ -203,46 +300,31 @@ async function syncKhanAccount(account) {
     const householdTimeZone = "Asia/Shanghai";
 
     for (const activity of uniqueActivities) {
-      const localDateKey = activity.occurredAt
-        ? new Intl.DateTimeFormat("en-CA", {
-            timeZone: householdTimeZone,
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          }).format(new Date(activity.occurredAt))
-        : new Intl.DateTimeFormat("en-CA", {
-            timeZone: householdTimeZone,
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          }).format(new Date());
+      const ts = activity.eventTimestamp ? new Date(activity.eventTimestamp) : new Date();
+      const localDateKey = new Intl.DateTimeFormat("en-CA", {
+        timeZone: householdTimeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(ts);
 
       const eventData = {
         child_id: account.child_id,
         platform: "khan-academy",
         platform_account_id: account.id,
-        occurred_at: activity.occurredAt || new Date().toISOString(),
+        occurred_at: ts.toISOString(),
         local_date_key: localDateKey,
         event_type: "skill_practice",
         title: activity.title,
-        subject: activity.subject || null,
-        duration_minutes: activity.durationMinutes,
-        score: activity.correctCount !== null && activity.problemCount !== null
-          ? activity.correctCount / activity.problemCount
-          : null,
-        completion_state: activity.level || "completed",
-        source_ref: `khan:${activity.title}:${activity.occurredAt || Date.now()}`,
-        raw_payload: {
-          title: activity.title,
-          subject: activity.subject,
-          level: activity.level,
-          change: activity.change,
-          correctCount: activity.correctCount,
-          problemCount: activity.problemCount,
-          durationMinutes: activity.durationMinutes,
-          date: activity.rawDate,
-          time: activity.rawTime,
-        },
+        subject: activity.subtitle || null,
+        duration_minutes: activity.durationMinutes || null,
+        score:
+          activity.correctCount !== null && activity.problemCount !== null && activity.problemCount > 0
+            ? activity.correctCount / activity.problemCount
+            : null,
+        completion_state: "completed",
+        source_ref: `khan:${activity.id}`,
+        raw_payload: activity,
       };
 
       const { error } = await supabase.from("learning_events").insert(eventData);
@@ -256,7 +338,6 @@ async function syncKhanAccount(account) {
       }
     }
 
-    // Update account last_synced_at
     await supabase
       .from("platform_accounts")
       .update({
@@ -282,7 +363,7 @@ async function syncKhanAccount(account) {
     if (isSessionExpired) {
       const failCount = account._loginFailCount || 0;
       if (failCount >= 3) {
-        console.error(`  ❌ 连续 ${failCount} 次登录失败，已停止重试以避免风控`);
+        console.error(`  ❌ 连续 ${failCount} 次登录失败，已停止重试`);
         await supabase
           .from("platform_accounts")
           .update({
@@ -298,13 +379,15 @@ async function syncKhanAccount(account) {
       await new Promise((r) => setTimeout(r, backoff * 1000));
 
       try {
-        const { autoLoginKhan } = await import(
-          "../src/lib/khan-auto-login.mjs"
-        );
-        const newPayload = await autoLoginKhan(
-          KHAN_CREDENTIALS.username,
-          KHAN_CREDENTIALS.password
-        );
+        const dbCreds = getDbCredentials(account);
+        const creds = dbCreds ?? KHAN_CREDENTIALS;
+        if (!creds?.username || !creds?.password) {
+          throw new Error("No credentials available (neither DB nor .env.local)");
+        }
+        console.log(`  🔑 使用${dbCreds ? "数据库" : ".env.local"}凭据重新登录...`);
+        const { autoLoginKhan } = await import("../src/lib/khan-auto-login.mjs");
+        const loginResult = await autoLoginKhan(creds.username, creds.password);
+        const newPayload = { cookies: loginResult.cookies };
         await supabase
           .from("platform_accounts")
           .update({
@@ -319,17 +402,15 @@ async function syncKhanAccount(account) {
         return syncKhanAccount(account);
       } catch (reloginErr) {
         account._loginFailCount = failCount + 1;
-        console.error(
-          `  ❌ 自动登录失败 (${account._loginFailCount}/3): ${reloginErr.message}`
-        );
+        console.error(`  ❌ 自动登录失败 (${account._loginFailCount}/3): ${reloginErr.message}`);
         console.log(
-          `  💡 请手动运行: npm run session:collect -- --platform=khan-academy --username=${KHAN_CREDENTIALS.username} --password=${KHAN_CREDENTIALS.password}`
+          `  💡 请手动运行: npm run session:collect -- --platform=khan-academy`
         );
         await supabase
           .from("platform_accounts")
           .update({
             status: "attention_required",
-            last_sync_error_summary: `Auto-relogin failed (#${account._loginFailCount}): ${reloginErr.message}. Try: npm run session:collect -- --platform=khan-academy`,
+            last_sync_error_summary: `Auto-relogin failed (#${account._loginFailCount}): ${reloginErr.message}`,
           })
           .eq("id", account.id);
         return { status: "error", error: reloginErr.message };
@@ -355,7 +436,7 @@ async function main() {
 
   const { data: accounts, error } = await supabase
     .from("platform_accounts")
-    .select("id, child_id, external_account_ref, status, managed_session_payload")
+    .select("id, child_id, external_account_ref, status, managed_session_payload, login_credentials_encrypted, auto_login_enabled")
     .eq("platform", "khan-academy");
 
   if (error) {

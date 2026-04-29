@@ -4,6 +4,7 @@ import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
 import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
 import { NextResponse } from "next/server";
 
+
 const SUPPORTED_PLATFORMS = new Set([
   "ixl",
   "khan-academy",
@@ -143,6 +144,7 @@ export async function POST(request: Request) {
     : "attention_required";
   let loginCredentialsEncrypted: string | null = null;
   let autoLoginEnabled = false;
+  let autoLoginLogs: string[] | undefined;
 
   // Auto-login mode
   if (authMode === "auto_login" && loginPassword) {
@@ -152,45 +154,42 @@ export async function POST(request: Request) {
           ? await simulateIxlLogin(loginUsername || username, loginPassword)
           : await simulateKhanLogin(loginUsername || username, loginPassword);
 
+      autoLoginLogs = loginResult.logs;
+
       if (loginResult.success) {
         finalManagedSessionPayload = {
           cookies: loginResult.cookies,
         };
         finalManagedSessionCapturedAt = new Date().toISOString();
         finalStatus = "active";
-      } else {
-        // For captcha/2FA/unsupported: still save credentials so user can retry later,
-        // but mark as attention_required
-        if (
-          loginResult.reason === "captcha_required" ||
-          loginResult.reason === "two_factor_required" ||
-          loginResult.reason === "unsupported"
-        ) {
-          finalStatus = "attention_required";
-        } else if (loginResult.reason === "invalid_credentials") {
-          return NextResponse.json(
-            { error: loginResult.message, reason: loginResult.reason },
-            { status: 401 }
-          );
-        } else {
-          finalStatus = "attention_required";
-        }
-
+      } else if (
+        loginResult.reason === "captcha_required" ||
+        loginResult.reason === "two_factor_required" ||
+        loginResult.reason === "unsupported"
+      ) {
+        finalStatus = "attention_required";
         return NextResponse.json(
           {
             error: loginResult.message,
             reason: loginResult.reason,
-            hint:
-              loginResult.reason === "captcha_required" ||
-              loginResult.reason === "two_factor_required" ||
-              loginResult.reason === "unsupported"
-                ? "请切换到手动 Session 模式完成绑定。"
-                : undefined,
-            ...(loginResult.reason === "captcha_required" ||
-            loginResult.reason === "two_factor_required" ||
-            loginResult.reason === "unsupported"
-              ? getManualSessionGuide(platform)
-              : {}),
+            logs: loginResult.logs,
+            hint: "请切换到手动 Session 模式完成绑定。",
+            ...getManualSessionGuide(platform),
+          },
+          { status: 400 }
+        );
+      } else if (loginResult.reason === "invalid_credentials") {
+        return NextResponse.json(
+          { error: loginResult.message, reason: loginResult.reason, logs: loginResult.logs },
+          { status: 401 }
+        );
+      } else {
+        finalStatus = "attention_required";
+        return NextResponse.json(
+          {
+            error: loginResult.message,
+            reason: loginResult.reason,
+            logs: loginResult.logs,
           },
           { status: 400 }
         );
@@ -268,7 +267,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, account: updatedAccount });
+    return NextResponse.json({ success: true, account: updatedAccount, logs: autoLoginLogs });
   }
 
   const { data: account, error: insertError } = await supabase
@@ -295,5 +294,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ success: true, account });
+  return NextResponse.json({ success: true, account, logs: autoLoginLogs });
 }
