@@ -17,15 +17,10 @@ import {
 import { buildDailyTaskStatuses } from "@/lib/tasks/daily-task";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
+import type { AttachmentUploadStatus } from "@/lib/attachment-types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
-type AttachmentUploadStatus = {
-  checkInId: string;
-  state: "uploading" | "uploaded" | "failed";
-  progress: number;
-  message?: string;
-};
 
 function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
   const today = formatDateKey(new Date());
@@ -225,18 +220,17 @@ export default function ChildLandingPage() {
           targetDate={selectedDate}
           isOpen={Boolean(selectedHomework)}
           onClose={() => setSelectedHomework(null)}
-          onSuccess={() => {
-            fetchData();
+          onSuccess={(checkIn) => {
+            if (checkIn) {
+              setCheckIns((prev) => [...prev, checkIn as CheckIn]);
+            } else {
+              fetchData();
+            }
           }}
           onAttachmentUploadStatusChange={(status) => {
             setAttachmentUploadStatuses((prev) => ({
               ...prev,
-              [status.homeworkId]: {
-                checkInId: status.checkInId,
-                state: status.state,
-                progress: status.progress,
-                message: status.message,
-              },
+              [status.homeworkId]: status,
             }));
           }}
         />

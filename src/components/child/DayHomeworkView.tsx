@@ -2,15 +2,10 @@ import { isAfterCutoff } from "@/lib/homework-utils";
 import { ChildHomeworkCard } from "@/components/child/ChildHomeworkCard";
 import { buildDailyTaskStatuses } from "@/lib/tasks/daily-task";
 import type { Database } from "@/lib/supabase/types";
+import type { AttachmentUploadStatus } from "@/lib/attachment-types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
-type AttachmentUploadStatus = {
-  checkInId: string;
-  state: "uploading" | "uploaded" | "failed";
-  progress: number;
-  message?: string;
-};
 
 interface DayHomeworkViewProps {
   date: string;

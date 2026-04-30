@@ -12,22 +12,17 @@ import {
   resolveAudioRecordingFormat,
 } from "@/lib/audio-recording";
 import type { Database } from "@/lib/supabase/types";
+import type { AttachmentUploadStatus } from "@/lib/attachment-types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
-type AttachmentUploadStatus = {
-  homeworkId: string;
-  checkInId: string;
-  state: "uploading" | "uploaded" | "failed";
-  progress: number;
-  message?: string;
-};
+type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 
 interface CheckInModalProps {
   homework: Homework;
   targetDate?: string;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (checkIn?: CheckIn) => void;
   onAttachmentUploadStatusChange?: (status: AttachmentUploadStatus) => void;
 }
 
@@ -63,7 +58,12 @@ export function CheckInModal({
   const [recordingElapsedSeconds, setRecordingElapsedSeconds] = useState(0);
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<AttachmentUploadStatus | null>(null);
+  const [createdCheckInId, setCreatedCheckInId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const maxRecordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+  const MAX_RECORDING_SECONDS = 3600;
 
   useEffect(() => {
     if (!isOpen) {
@@ -81,8 +81,13 @@ export function CheckInModal({
       setRecordingElapsedSeconds(0);
       setRecordingStartedAt(null);
       setUploadStatus(null);
+      setCreatedCheckInId(null);
       recordingStartedAtRef.current = null;
       submittingRef.current = false;
+      if (maxRecordingTimerRef.current) {
+        clearTimeout(maxRecordingTimerRef.current);
+        maxRecordingTimerRef.current = null;
+      }
     }
   }, [isOpen]);
 
@@ -95,6 +100,9 @@ export function CheckInModal({
           URL.revokeObjectURL(attachment.previewUrl);
         }
       });
+      if (maxRecordingTimerRef.current) {
+        clearTimeout(maxRecordingTimerRef.current);
+      }
     };
   }, [attachments]);
 
@@ -104,9 +112,15 @@ export function CheckInModal({
     }
 
     const intervalId = window.setInterval(() => {
-      setRecordingElapsedSeconds(
-        Math.max(0, Math.floor((Date.now() - recordingStartedAt) / 1000))
+      const elapsed = Math.max(
+        0,
+        Math.floor((Date.now() - recordingStartedAt) / 1000)
       );
+      setRecordingElapsedSeconds(elapsed);
+
+      if (elapsed >= MAX_RECORDING_SECONDS && mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+      }
     }, 200);
 
     return () => {
@@ -193,6 +207,13 @@ export function CheckInModal({
     candidateFiles: Array<{ file: File; durationSeconds?: number | null }>
   ) => {
     if (candidateFiles.length === 0) {
+      return;
+    }
+
+    const oversized = candidateFiles.filter((item) => item.file.size > MAX_FILE_SIZE);
+    if (oversized.length > 0) {
+      setFeedback(`文件过大（最大支持 ${MAX_FILE_SIZE / 1024 / 1024}MB）`);
+      setSubmissionState("error");
       return;
     }
 
@@ -368,6 +389,123 @@ export function CheckInModal({
     }
   };
 
+  const uploadAttachmentsToCheckIn = async (
+    checkInId: string,
+    sessionUserId: string
+  ): Promise<boolean> => {
+    const mainAttachmentType = attachments[0]?.type ?? "audio";
+    const typeLabel = mainAttachmentType === "photo" ? "照片" : "录音";
+
+    updateUploadStatus({
+      homeworkId: homework.id,
+      checkInId,
+      state: "uploading",
+      progress: 10,
+      message: `${typeLabel}上传中`,
+    });
+    setFeedback(`${typeLabel}上传中，请稍等...`);
+
+    const storageUploads = await Promise.all(
+      attachments.map(async (attachment) => {
+        const storagePath = `${sessionUserId}/${checkInId}/${Date.now()}_${attachment.file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("attachments")
+          .upload(storagePath, attachment.file);
+        return { attachment, storagePath, uploadError };
+      })
+    );
+
+    const failedUpload = storageUploads.find((r) => r.uploadError);
+    if (failedUpload) {
+      updateUploadStatus({
+        homeworkId: homework.id,
+        checkInId,
+        state: "failed",
+        progress: 30,
+        message: `${typeLabel}上传失败：${failedUpload.uploadError!.message}`,
+      });
+      setFeedback(
+        `作业已记录，但${typeLabel}上传失败：${failedUpload.uploadError!.message}`
+      );
+      setSubmissionState("error");
+      return false;
+    }
+
+    for (let index = 0; index < storageUploads.length; index++) {
+      const { attachment, storagePath } = storageUploads[index];
+      const dbProgress =
+        Math.round((index / storageUploads.length) * 50) + 30;
+
+      updateUploadStatus({
+        homeworkId: homework.id,
+        checkInId,
+        state: "uploading",
+        progress: dbProgress,
+        message: `${typeLabel}保存中...`,
+      });
+
+      const { data: insertedAttachment, error: insertAttachmentError } =
+        await supabase
+          .from("attachments")
+          .insert({
+            check_in_id: checkInId,
+            type: attachment.type,
+            storage_path: storagePath,
+          })
+          .select()
+          .single();
+
+      if (insertAttachmentError) {
+        updateUploadStatus({
+          homeworkId: homework.id,
+          checkInId,
+          state: "failed",
+          progress: Math.min(95, dbProgress + 20),
+          message: `${typeLabel}保存失败：${insertAttachmentError.message}`,
+        });
+        setFeedback(
+          `作业已记录，但${typeLabel}保存失败：${insertAttachmentError.message}`
+        );
+        setSubmissionState("error");
+        return false;
+      }
+
+      if (attachment.type === "audio" && insertedAttachment) {
+        const voicePushTask = buildVoicePushTaskPayload({
+          childId: homework.child_id,
+          homeworkId: homework.id,
+          checkInId: checkInId,
+          attachmentId: insertedAttachment.id,
+          storagePath,
+        });
+
+        void createVoicePushTask({
+          supabase: supabase as any,
+          task: {
+            childId: voicePushTask.childId,
+            homeworkId: voicePushTask.homeworkId,
+            checkInId: voicePushTask.checkInId,
+            attachmentId: voicePushTask.attachmentId,
+            filePath: voicePushTask.filePath,
+          },
+        }).catch((err) => {
+          console.error("Voice push task creation failed:", err);
+        });
+      }
+    }
+
+    updateUploadStatus({
+      homeworkId: homework.id,
+      checkInId,
+      state: "uploaded",
+      progress: 100,
+      message: `${typeLabel}已保存`,
+    });
+    setFeedback(`${typeLabel}已保存，打卡完成`);
+    setSubmissionState("success");
+    return true;
+  };
+
   const handleSubmit = async () => {
     if (loading || submittingRef.current) {
       return;
@@ -406,143 +544,60 @@ export function CheckInModal({
         return;
       }
 
-      const response = await fetch("/api/check-ins/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          homeworkId: homework.id,
-          targetDate: targetDate ?? new Date().toISOString().split("T")[0],
-          note,
-          proofType: attachments[0]?.type ?? null,
-          audioDurationSeconds:
-            attachments.find((attachment) => attachment.type === "audio")
-              ?.durationSeconds ?? null,
-        }),
-      });
+      let checkInId = createdCheckInId;
+      let checkInData: CheckIn | undefined;
 
-      const result = await response.json();
+      if (!checkInId) {
+        const response = await fetch("/api/check-ins/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            homeworkId: homework.id,
+            targetDate: targetDate ?? new Date().toISOString().split("T")[0],
+            note,
+            proofType: attachments[0]?.type ?? null,
+            audioDurationSeconds:
+              attachments.find((attachment) => attachment.type === "audio")
+                ?.durationSeconds ?? null,
+          }),
+        });
 
-      if (!response.ok || !result.checkIn) {
-        setFeedback(result.error || "打卡失败，请重试");
-        setSubmissionState("error");
-        setLoading(false);
-        submittingRef.current = false;
-        return;
+        const result = await response.json();
+
+        if (!response.ok || !result.checkIn) {
+          setFeedback(result.error || "打卡失败，请重试");
+          setSubmissionState("error");
+          setLoading(false);
+          submittingRef.current = false;
+          return;
+        }
+
+        checkInData = result.checkIn;
+        checkInId = (checkInData as CheckIn).id;
+        setCreatedCheckInId(checkInId);
       }
 
-      const checkIn = result.checkIn;
-
-      if (attachments.length > 0) {
-        const mainAttachmentType = attachments[0]?.type ?? "audio";
-        const typeLabel = mainAttachmentType === "photo" ? "照片" : "录音";
-
-        const uploadAttachments = async () => {
+      if (attachments.length > 0 && checkInId) {
+        const uploadSucceeded = await uploadAttachmentsToCheckIn(
+          checkInId,
+          session.user.id
+        ).catch((error) => {
+          const typeLabel = attachments[0]?.type === "photo" ? "照片" : "录音";
           updateUploadStatus({
             homeworkId: homework.id,
-            checkInId: checkIn.id,
-            state: "uploading",
-            progress: 20,
-            message: `${typeLabel}上传中`,
-          });
-          setFeedback(`${typeLabel}上传中，请稍等...`);
-
-          for (const [index, attachment] of attachments.entries()) {
-            const storagePath = `${session.user.id}/${checkIn.id}/${Date.now()}_${attachment.file.name}`;
-            const baseProgress = Math.round((index / attachments.length) * 70);
-
-            const { error: uploadError } = await supabase.storage
-              .from("attachments")
-              .upload(storagePath, attachment.file);
-
-            if (uploadError) {
-              updateUploadStatus({
-                homeworkId: homework.id,
-                checkInId: checkIn.id,
-                state: "failed",
-                progress: Math.max(20, baseProgress),
-                message: `${typeLabel}上传失败：${uploadError.message}`,
-              });
-              setFeedback(`作业已记录，但${typeLabel}上传失败：${uploadError.message}`);
-              setSubmissionState("error");
-              return false;
-            }
-
-            updateUploadStatus({
-              homeworkId: homework.id,
-              checkInId: checkIn.id,
-              state: "uploading",
-              progress: Math.min(90, baseProgress + 70),
-              message: `${typeLabel}快保存好了`,
-            });
-
-            const { data: insertedAttachment, error: insertAttachmentError } = await supabase
-              .from("attachments")
-              .insert({
-                check_in_id: checkIn.id,
-                type: attachment.type,
-                storage_path: storagePath,
-              })
-              .select()
-              .single();
-
-            if (insertAttachmentError) {
-              updateUploadStatus({
-                homeworkId: homework.id,
-                checkInId: checkIn.id,
-                state: "failed",
-                progress: Math.min(95, baseProgress + 70),
-                message: `${typeLabel}保存失败：${insertAttachmentError.message}`,
-              });
-              setFeedback(`作业已记录，但${typeLabel}保存失败：${insertAttachmentError.message}`);
-              setSubmissionState("error");
-              return false;
-            }
-
-            if (attachment.type === "audio" && insertedAttachment) {
-              const voicePushTask = buildVoicePushTaskPayload({
-                childId: homework.child_id,
-                homeworkId: homework.id,
-                checkInId: checkIn.id,
-                attachmentId: insertedAttachment.id,
-                storagePath,
-              });
-
-              void createVoicePushTask({
-                supabase: supabase as any,
-                task: {
-                  childId: voicePushTask.childId,
-                  homeworkId: voicePushTask.homeworkId,
-                  checkInId: voicePushTask.checkInId,
-                  attachmentId: voicePushTask.attachmentId,
-                  filePath: voicePushTask.filePath,
-                },
-              }).catch(() => {
-                // Voice push is a beta side-channel and must not block homework completion.
-              });
-            }
-          }
-
-          updateUploadStatus({
-            homeworkId: homework.id,
-            checkInId: checkIn.id,
-            state: "uploaded",
-            progress: 100,
-            message: `${typeLabel}已保存`,
-          });
-          setFeedback(`${typeLabel}已保存，打卡完成`);
-          setSubmissionState("success");
-          return true;
-        };
-
-        const uploadSucceeded = await uploadAttachments().catch((error) => {
-          updateUploadStatus({
-            homeworkId: homework.id,
-            checkInId: checkIn.id,
+            checkInId,
             state: "failed",
             progress: 20,
-            message: error instanceof Error ? error.message : `${typeLabel}上传失败，请重试`,
+            message:
+              error instanceof Error
+                ? error.message
+                : `${typeLabel}上传失败，请重试`,
           });
-          setFeedback(error instanceof Error ? error.message : `${typeLabel}上传失败，请重试`);
+          setFeedback(
+            error instanceof Error
+              ? error.message
+              : `${typeLabel}上传失败，请重试`
+          );
           setSubmissionState("error");
           return false;
         });
@@ -560,10 +615,63 @@ export function CheckInModal({
 
       setLoading(false);
       submittingRef.current = false;
-      onSuccess();
+      onSuccess(checkInData);
       onClose();
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "打卡失败，请重试");
+      setSubmissionState("error");
+      setLoading(false);
+      submittingRef.current = false;
+    }
+  };
+
+  const handleRetryUpload = async () => {
+    if (!createdCheckInId || loading || submittingRef.current) {
+      return;
+    }
+
+    submittingRef.current = true;
+    setLoading(true);
+    setFeedback("重新上传附件...");
+    setSubmissionState("submitting");
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setFeedback("请先重新登录后再试");
+        setSubmissionState("error");
+        setLoading(false);
+        submittingRef.current = false;
+        return;
+      }
+
+      const uploadSucceeded = await uploadAttachmentsToCheckIn(
+        createdCheckInId,
+        session.user.id
+      ).catch((error) => {
+        setFeedback(
+          error instanceof Error ? error.message : "附件上传失败，请重试"
+        );
+        setSubmissionState("error");
+        return false;
+      });
+
+      setLoading(false);
+      submittingRef.current = false;
+
+      if (uploadSucceeded) {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("child-points-changed"));
+        }
+        onSuccess();
+        onClose();
+      }
+    } catch (error) {
+      setFeedback(
+        error instanceof Error ? error.message : "附件上传失败，请重试"
+      );
       setSubmissionState("error");
       setLoading(false);
       submittingRef.current = false;
@@ -782,8 +890,22 @@ export function CheckInModal({
 
         {/* Submit */}
         <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit}>
-          {loading ? "提交中..." : "确认完成 ✨"}
+          {loading
+            ? "提交中..."
+            : createdCheckInId
+              ? "重新提交"
+              : "确认完成 ✨"}
         </Button>
+        {createdCheckInId && submissionState === "error" && (
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={handleRetryUpload}
+            disabled={loading || attachments.length === 0}
+          >
+            重试上传附件
+          </Button>
+        )}
       </div>
     </Modal>
   );

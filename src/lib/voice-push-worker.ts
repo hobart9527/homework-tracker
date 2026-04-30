@@ -47,9 +47,9 @@ export async function runVoicePushDeliveryBatch(input: {
     limit: input.limit,
   });
 
-  const results = [];
+  const CONCURRENCY = 3;
 
-  for (const task of tasks) {
+  async function processTask(task: VoicePushTaskRecord) {
     const target = await resolveTarget(task as VoicePushTaskRecord);
     const unresolvedRouteAttemptNumber = task.delivery_attempts + 1;
 
@@ -64,13 +64,12 @@ export async function runVoicePushDeliveryBatch(input: {
         willRetry: false,
       });
 
-      results.push({
+      return {
         taskId: task.id,
         status: "failed" as const,
         attemptNumber: unresolvedRouteAttemptNumber,
         failureReason,
-      });
-      continue;
+      };
     }
 
     const fileUrl = input.generateFileUrl
@@ -97,13 +96,12 @@ export async function runVoicePushDeliveryBatch(input: {
           deliveryAttempts: nextAttemptNumber,
         });
 
-        results.push({
+        return {
           taskId: task.id,
           status: "sent" as const,
           attemptNumber: nextAttemptNumber,
           remoteMessageId: deliveryResult.remoteMessageId ?? null,
-        });
-        continue;
+        };
       }
 
       if (deliveryResult.status === "failed") {
@@ -118,12 +116,12 @@ export async function runVoicePushDeliveryBatch(input: {
           willRetry,
         });
 
-        results.push({
+        return {
           taskId: task.id,
           status: willRetry ? ("retrying" as const) : ("failed" as const),
           attemptNumber: nextAttemptNumber,
           failureReason,
-        });
+        };
       }
     } catch (error) {
       const failureReason =
@@ -138,13 +136,29 @@ export async function runVoicePushDeliveryBatch(input: {
         willRetry,
       });
 
-      results.push({
+      return {
         taskId: task.id,
         status: willRetry ? ("retrying" as const) : ("failed" as const),
         attemptNumber: nextAttemptNumber,
         failureReason,
-      });
+      };
     }
+
+    // Unreachable, but satisfies TypeScript
+    return {
+      taskId: task.id,
+      status: "failed" as const,
+      attemptNumber: nextAttemptNumber,
+      failureReason: "Unknown delivery outcome",
+    };
+  }
+
+  // Process tasks in parallel with limited concurrency
+  const results: Awaited<ReturnType<typeof processTask>>[] = [];
+  for (let i = 0; i < tasks.length; i += CONCURRENCY) {
+    const batch = tasks.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(processTask));
+    results.push(...batchResults);
   }
 
   return {

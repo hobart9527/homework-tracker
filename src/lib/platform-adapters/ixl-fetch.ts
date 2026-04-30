@@ -319,6 +319,31 @@ export function parseIxlActivityResponse(html: string): IxlFetchedActivity[] {
   return activities.map(toFetchedActivity);
 }
 
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  fetchImpl: typeof fetch,
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetchImpl(url, init);
+      if (response.status >= 500 || response.status === 429) {
+        const delay = Math.pow(3, attempt) * 1000;
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const delay = Math.pow(3, attempt) * 1000;
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastError ?? new Error(`Fetch failed after ${maxRetries} retries`);
+}
+
 export async function fetchIxlManagedSessionActivities(input: {
   managedSessionPayload: IxlManagedSessionPayload | null | undefined;
   fetchImpl?: typeof fetch;
@@ -333,7 +358,7 @@ export async function fetchIxlManagedSessionActivities(input: {
   const activities: IxlFetchedActivity[] = [];
 
   for (const subject of IXL_SUBJECTS) {
-    const response = await fetchImpl(
+    const response = await fetchWithRetry(
       buildIxlUsageRunUrl(
         input.managedSessionPayload?.activityUrl,
         subject.queryValue
@@ -353,10 +378,10 @@ export async function fetchIxlManagedSessionActivities(input: {
           "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
           "sec-ch-ua-mobile": "?0",
           "sec-ch-ua-platform": '"macOS"',
-          Connection: "keep-alive",
           ...(input.managedSessionPayload?.headers ?? {}),
         },
-      }
+      },
+      fetchImpl
     );
 
     const body = await response.text();

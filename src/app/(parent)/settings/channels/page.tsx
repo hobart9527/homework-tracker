@@ -161,12 +161,7 @@ export default function SettingsChannelsPage() {
           <div className="space-y-2">
             {wechatGroups.length === 0 ? (
               <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                还没有可选的微信群。
-                {wechatGroups.length === 0 && (
-                  <span>
-                    启动微信发送服务并在目标群里发一条消息，系统会自动发现它。你也可以手动添加。
-                  </span>
-                )}
+                还没有可选的微信群。你可以手动添加企业微信群的 chatid。
               </div>
             ) : (
               wechatGroups.map((group) => (
@@ -247,7 +242,7 @@ export default function SettingsChannelsPage() {
                 onChange={(e) =>
                   setAddForm((prev) => ({ ...prev, recipientRef: e.target.value }))
                 }
-                placeholder="例如 wxid_xxx@chatroom"
+                placeholder="例如 wrOgDSDAAAaMesOMFQTvLdUHDqKqkVmA"
               />
               <Input
                 label="显示名称（可选）"
@@ -296,19 +291,28 @@ export default function SettingsChannelsPage() {
       <Card id="wechat-setup" className="scroll-mt-4">
         <div className="space-y-4">
           <div>
-            <h2 className="font-bold text-forest-700">微信发送服务</h2>
+            <h2 className="font-bold text-forest-700">企业微信发送服务</h2>
             <p className="mt-1 text-sm text-forest-500">
-              录音作业的推送依赖一个微信发送服务。首次使用需要扫码授权，之后自动保持登录。
+              使用企业微信官方 API 发送作业录音到群聊，无需额外启动服务或扫码登录。
             </p>
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            <p className="font-medium">初次设置步骤</p>
+            <p className="font-medium">企业微信设置步骤</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>运行 <code className="rounded bg-amber-100 px-1">npm run dev:with-bridge</code> 启动应用和发送服务</li>
-              <li>终端会显示一个二维码链接，用微信扫码授权登录</li>
-              <li>在目标微信群里发一条消息，服务会自动发现这个群</li>
-              <li>上面"微信群管理"里会出现新发现的群，你可以给它改个好记的名字</li>
+              <li>注册
+                <a href="https://work.weixin.qq.com/" target="_blank" className="underline" rel="noreferrer">
+                  企业微信
+                </a>
+                （免费），创建企业
+              </li>
+              <li>在「应用管理」中创建自建应用，获取 CorpID、CorpSecret 和 AgentID</li>
+              <li>在环境变量中配置 <code className="rounded bg-amber-100 px-1">WECOM_CORPID</code>、
+                <code className="rounded bg-amber-100 px-1">WECOM_CORPSECRET</code>、
+                <code className="rounded bg-amber-100 px-1">WECOM_AGENTID</code>
+              </li>
+              <li>创建群聊并将应用加入群中，获取 chatid</li>
+              <li>在下方「微信群管理」中添加群，标识填写 chatid</li>
             </ol>
           </div>
 
@@ -323,39 +327,28 @@ export default function SettingsChannelsPage() {
                 setBridgeHealthTone("neutral");
 
                 try {
-                  const response = await fetch("/api/voice-push/bridge-health", {
+                  const response = await fetch("/api/voice-push/wecom-status", {
                     method: "GET",
                   });
                   const body = await response.json();
 
-                  if (!response.ok) {
-                    setBridgeHealthTone("danger");
-                    setBridgeHealthMessage(
-                      body.error || "发送服务自检失败，请检查是否已启动。"
-                    );
-                    return;
-                  }
-
-                  if (body.status === "healthy") {
+                  if (body.configured) {
                     setBridgeHealthTone("success");
                     setBridgeHealthMessage(
-                      body.deliveredCount === null
-                        ? `发送服务可访问：${body.healthUrl}`
-                        : `发送服务可访问：${body.healthUrl}，已发送 ${body.deliveredCount} 条任务。`
+                      `企业微信已配置（CorpID: ${body.corpidPreview}），可正常发送。`
                     );
-                    return;
+                  } else {
+                    setBridgeHealthTone("danger");
+                    setBridgeHealthMessage(
+                      "企业微信未配置，请在环境变量中设置 WECOM_CORPID 和 WECOM_CORPSECRET。"
+                    );
                   }
-
-                  setBridgeHealthTone("danger");
-                  setBridgeHealthMessage(
-                    body.error || "发送服务可达，但健康检查没有通过。"
-                  );
                 } catch (error) {
                   setBridgeHealthTone("danger");
                   setBridgeHealthMessage(
                     error instanceof Error
                       ? error.message
-                      : "发送服务自检失败，请稍后重试。"
+                      : "状态检查失败，请稍后重试。"
                   );
                 } finally {
                   setBridgeHealthLoading(false);

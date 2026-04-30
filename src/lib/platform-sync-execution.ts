@@ -182,11 +182,17 @@ async function tryAutoLoginRefresh(
     return false;
   }
 
+  // Merge new cookies with existing payload to preserve headers and activityUrl
+  const mergedPayload = {
+    ...(account.managed_session_payload ?? {}),
+    cookies: loginResult.cookies,
+  };
+
   // Update the account with new session payload
   await (supabase as any)
     .from("platform_accounts")
     .update({
-      managed_session_payload: { cookies: loginResult.cookies },
+      managed_session_payload: mergedPayload,
       managed_session_captured_at: new Date().toISOString(),
       status: "active",
       last_sync_error_summary: null,
@@ -194,7 +200,7 @@ async function tryAutoLoginRefresh(
     .eq("id", account.id);
 
   // Mutate the local account object so downstream sync uses the new payload
-  account.managed_session_payload = { cookies: loginResult.cookies };
+  account.managed_session_payload = mergedPayload;
 
   return true;
 }

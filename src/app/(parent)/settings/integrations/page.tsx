@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SettingsShell } from "@/components/parent/SettingsShell";
@@ -78,6 +78,12 @@ export default function SettingsIntegrationsPage() {
   const [editCredentialPassword, setEditCredentialPassword] = useState("");
   const [editCredentialLoading, setEditCredentialLoading] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [loginLogs, setLoginLogs] = useState<string[]>([]);
+  const [toastMessage, setToastMessage] = useState<{
+    type: "success" | "error" | "info";
+    text: string;
+  } | null>(null);
+  const dismissedTakeovers = useRef<Set<string>>(new Set());
   const hasChildContext = Boolean(selectedChildIdFromQuery);
 
   const [routingForm, setRoutingForm] = useState({
@@ -178,6 +184,12 @@ export default function SettingsIntegrationsPage() {
     setRoutingForm((prev) => ({ ...prev, childId: selectedChildIdFromQuery }));
   }, [children, selectedChildIdFromQuery]);
 
+  useEffect(() => {
+    if (!toastMessage) return;
+    const timer = setTimeout(() => setToastMessage(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toastMessage]);
+
   const homeworkTitleById = Object.fromEntries(
     homeworks.map((homework) => [homework.id, homework.title])
   );
@@ -196,6 +208,8 @@ export default function SettingsIntegrationsPage() {
   const handleBindingSubmit = async () => {
     setBindingError(null);
     setManualSessionGuide(null);
+    setLoginLogs([]);
+    setToastMessage(null);
 
     if (!bindingForm.childId || !bindingForm.username.trim()) {
       setBindingError("请选择孩子并填写用户名或账号标识。");
@@ -241,6 +255,7 @@ export default function SettingsIntegrationsPage() {
       });
 
       const body = await response.json();
+      setLoginLogs(body.logs ?? []);
 
       if (!response.ok) {
         let errorMsg = body.error || "绑定学习平台账号失败，请稍后重试。";
@@ -282,6 +297,8 @@ export default function SettingsIntegrationsPage() {
         return;
       }
 
+      setToastMessage({ type: "success", text: "账号绑定成功" });
+      setLoginLogs(body.logs ?? []);
       setBindingForm({
         childId: "",
         platform: "ixl",
@@ -303,6 +320,8 @@ export default function SettingsIntegrationsPage() {
   };
 
   const handleRefreshSession = async (accountId: string, platform: string) => {
+    setLoginLogs([]);
+    setToastMessage(null);
     try {
       const response = await fetch(
         `/api/platform-connections/${accountId}/refresh-session`,
@@ -312,31 +331,42 @@ export default function SettingsIntegrationsPage() {
         }
       );
 
+      const body = await response.json().catch(() => ({}));
+      setLoginLogs(body.logs ?? []);
+
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
         if (
           ["captcha_required", "two_factor_required", "unsupported"].includes(
             body.reason
           )
         ) {
-          setTakeoverAccountId(accountId);
-          setTakeoverPayload(
-            platform === "ixl"
-              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-              : '{"cookies":[{"name":"KAAS","value":""}]}'
-          );
+          // Mark this account as needing manual session; do NOT auto-open takeover panel
+          dismissedTakeovers.current.add(accountId);
+          setToastMessage({
+            type: "error",
+            text: `${body.error || "自动登录不可用"} 请使用「手动补录」更新 Session。`,
+          });
           return;
         }
-        alert(body.error || "刷新 Session 失败");
+        setToastMessage({
+          type: "error",
+          text: body.error || "刷新 Session 失败",
+        });
         return;
       }
 
       if (parentId) {
         await refreshData(parentId);
       }
-      alert("Session 刷新成功");
+      setToastMessage({
+        type: "success",
+        text: body.message || "Session 刷新成功",
+      });
     } catch {
-      alert("刷新 Session 时发生网络错误");
+      setToastMessage({
+        type: "error",
+        text: "刷新 Session 时发生网络错误",
+      });
     }
   };
 
@@ -345,7 +375,7 @@ export default function SettingsIntegrationsPage() {
     try {
       payload = JSON.parse(takeoverPayload);
     } catch {
-      alert("JSON 格式不正确");
+      setToastMessage({ type: "error", text: "JSON 格式不正确" });
       return;
     }
 
@@ -362,7 +392,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        alert(body.error || "保存失败");
+        setToastMessage({ type: "error", text: body.error || "保存失败" });
         return;
       }
 
@@ -371,8 +401,9 @@ export default function SettingsIntegrationsPage() {
       if (parentId) {
         await refreshData(parentId);
       }
+      setToastMessage({ type: "success", text: "Session 保存成功" });
     } catch {
-      alert("保存时发生网络错误");
+      setToastMessage({ type: "error", text: "保存时发生网络错误" });
     } finally {
       setTakeoverLoading(false);
     }
@@ -387,7 +418,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        alert(body.error || "删除账号失败");
+        setToastMessage({ type: "error", text: body.error || "删除账号失败" });
         return;
       }
 
@@ -395,8 +426,9 @@ export default function SettingsIntegrationsPage() {
       if (parentId) {
         await refreshData(parentId);
       }
+      setToastMessage({ type: "success", text: "账号绑定已删除" });
     } catch {
-      alert("删除时发生网络错误");
+      setToastMessage({ type: "error", text: "删除时发生网络错误" });
     } finally {
       setDeleteLoading(false);
     }
@@ -404,9 +436,11 @@ export default function SettingsIntegrationsPage() {
 
   const handleEditCredentialSave = async (accountId: string) => {
     if (!editCredentialPassword) {
-      alert("请输入新密码");
+      setToastMessage({ type: "error", text: "请输入新密码" });
       return;
     }
+    setLoginLogs([]);
+    setToastMessage(null);
     setEditCredentialLoading(true);
     try {
       const response = await fetch("/api/platform-connections", {
@@ -423,9 +457,11 @@ export default function SettingsIntegrationsPage() {
         }),
       });
 
+      const body = await response.json().catch(() => ({}));
+      setLoginLogs(body.logs ?? []);
+
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        alert(body.error || "更新凭据失败");
+        setToastMessage({ type: "error", text: body.error || "更新凭据失败" });
         return;
       }
 
@@ -435,8 +471,9 @@ export default function SettingsIntegrationsPage() {
       if (parentId) {
         await refreshData(parentId);
       }
+      setToastMessage({ type: "success", text: "凭据更新成功" });
     } catch {
-      alert("更新凭据时发生网络错误");
+      setToastMessage({ type: "error", text: "更新凭据时发生网络错误" });
     } finally {
       setEditCredentialLoading(false);
     }
@@ -494,6 +531,31 @@ export default function SettingsIntegrationsPage() {
       description="这里管理孩子自己的学习平台账号和默认消息路由，不处理家庭级通知通道。"
       backHref={hasChildContext ? "/children" : "/settings"}
     >
+      {/* Toast notification */}
+      {toastMessage && (
+        <div
+          className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium shadow-sm transition-opacity ${
+            toastMessage.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : toastMessage.type === "error"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span>{toastMessage.text}</span>
+            <button
+              type="button"
+              onClick={() => setToastMessage(null)}
+              className="ml-3 text-lg leading-none opacity-60 hover:opacity-100"
+              aria-label="关闭"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       <Card id="platform-binding" className="scroll-mt-4">
         <div className="space-y-4">
           <div>
@@ -719,6 +781,20 @@ export default function SettingsIntegrationsPage() {
                     : "绑定账号"}
               </Button>
             </div>
+
+            {/* Auto-login logs */}
+            {loginLogs.length > 0 && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-1.5 text-xs font-semibold text-slate-600">自动登录日志：</p>
+                <div className="space-y-0.5">
+                  {loginLogs.map((log, idx) => (
+                    <p key={idx} className="font-mono text-xs text-slate-600">
+                      {log}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -827,6 +903,7 @@ export default function SettingsIntegrationsPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => {
+                          dismissedTakeovers.current.delete(account.id);
                           setTakeoverAccountId(account.id);
                           setTakeoverPayload(
                             account.platform === "ixl"
@@ -933,6 +1010,7 @@ export default function SettingsIntegrationsPage() {
                               size="sm"
                               variant="ghost"
                               onClick={() => {
+                                dismissedTakeovers.current.add(account.id);
                                 setTakeoverAccountId(null);
                                 setTakeoverPayload("");
                               }}
@@ -970,6 +1048,7 @@ export default function SettingsIntegrationsPage() {
                               variant="ghost"
                               disabled={takeoverLoading}
                               onClick={() => {
+                                dismissedTakeovers.current.add(account.id);
                                 setTakeoverAccountId(null);
                                 setTakeoverPayload("");
                               }}
@@ -1014,11 +1093,26 @@ export default function SettingsIntegrationsPage() {
                             setEditCredentialId(null);
                             setEditCredentialUsername("");
                             setEditCredentialPassword("");
+                            setLoginLogs([]);
                           }}
                         >
                           取消
                         </Button>
                       </div>
+
+                      {/* Edit credentials logs */}
+                      {editCredentialId === account.id && loginLogs.length > 0 && (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="mb-1.5 text-xs font-semibold text-slate-600">自动登录日志：</p>
+                          <div className="space-y-0.5">
+                            {loginLogs.map((log, idx) => (
+                              <p key={idx} className="font-mono text-xs text-slate-600">
+                                {log}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
