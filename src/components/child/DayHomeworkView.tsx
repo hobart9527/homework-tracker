@@ -25,7 +25,7 @@ export function DayHomeworkView({
   const taskStatuses = buildDailyTaskStatuses(homeworks, checkIns, date);
 
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-md ring-1 ring-forest-100">
+    <div className="rounded-card bg-white p-5 shadow-md ring-1 ring-forest-100">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-forest-700">任务清单</h2>
@@ -38,11 +38,14 @@ export function DayHomeworkView({
       <div className="space-y-3">
         {taskStatuses.length === 0 ? (
           <div className="text-center py-12">
-            <span className="text-6xl">🎉</span>
-            <h2 className="text-xl font-bold text-forest-700 mt-4">
+            <div className="mx-auto mb-4 flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-amber-50 to-yellow-100 shadow-[0_0_40px_rgba(251,191,36,0.15)] ring-1 ring-amber-200/50">
+              <span className="text-6xl">🎉</span>
+            </div>
+            <h2 className="text-xl font-bold text-forest-700">
               今天没有作业！
             </h2>
-            <p className="text-forest-500 mt-2">好好休息吧～</p>
+            <p className="mt-2 text-forest-500">好好休息吧～</p>
+            <div className="mx-auto mt-5 h-16 w-16 rounded-full border-2 border-dashed border-forest-200/60" aria-hidden="true" />
           </div>
         ) : (
           taskStatuses.map((task) => {

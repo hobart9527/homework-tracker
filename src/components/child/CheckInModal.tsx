@@ -711,7 +711,7 @@ export function CheckInModal({
         </div>
 
         {/* Attachment buttons */}
-        <div className="flex gap-2 justify-center">
+        <div className="flex gap-3 justify-center">
           <input
             ref={fileInputRef}
             type="file"
@@ -830,11 +830,52 @@ export function CheckInModal({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="可以写点备注..."
-            className="w-full px-4 py-2 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
+            className="w-full px-4 py-3 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
             rows={2}
             disabled={loading}
           />
         </div>
+
+        {/* Celebration star burst — shown on success */}
+        <div className="relative">
+          {submissionState === "success" && (
+            <>
+              <span
+                className="absolute left-[10%] top-0 animate-star-burst text-2xl"
+                aria-hidden="true"
+              >
+                ✨
+              </span>
+              <span
+                className="absolute left-[30%] -top-1 animate-star-burst text-xl"
+                style={{ animationDelay: "0.1s" }}
+                aria-hidden="true"
+              >
+                ⭐
+              </span>
+              <span
+                className="absolute left-[55%] top-0 animate-float-up text-2xl"
+                style={{ animationDelay: "0.15s" }}
+                aria-hidden="true"
+              >
+                🌟
+              </span>
+              <span
+                className="absolute left-[75%] -top-1 animate-star-burst text-xl"
+                style={{ animationDelay: "0.2s" }}
+                aria-hidden="true"
+              >
+                ✨
+              </span>
+              <span
+                className="absolute left-[90%] top-0 animate-float-up text-lg"
+                style={{ animationDelay: "0.25s" }}
+                aria-hidden="true"
+              >
+                ⭐
+              </span>
+            </>
+          )}
 
         {feedback && (
           <p
@@ -887,6 +928,7 @@ export function CheckInModal({
             </div>
           </div>
         ) : null}
+        </div>
 
         {/* Submit */}
         <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit}>

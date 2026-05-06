@@ -206,7 +206,7 @@ export function ParentMonthCalendar({
           {Array.from({ length: leadingEmptySlots }).map((_, index) => (
             <div
               key={`empty-${index}`}
-              className="h-12 rounded-lg"
+              className="h-11 min-w-[44px] rounded-lg"
             />
           ))}
 
@@ -222,7 +222,7 @@ export function ParentMonthCalendar({
                 onClick={() => onSelectDate(day.date)}
                 aria-pressed={isSelected}
                 aria-label={getDayAriaLabel(day)}
-                className={`relative flex h-12 flex-col items-center justify-center rounded-lg transition-all ${tone.bgClass} ${
+                className={`relative flex h-11 min-w-[44px] flex-col items-center justify-center rounded-lg transition-all ${tone.bgClass} ${
                   isSelected
                     ? "ring-2 ring-primary ring-offset-1"
                     : "hover:ring-1 hover:ring-forest-200"

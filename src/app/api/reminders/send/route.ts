@@ -36,6 +36,10 @@ export async function GET(request: Request) {
     .lte("target_date", endDate);
 
   if (error) {
+    // If table doesn't exist, return empty rather than crashing
+    if (error.message?.includes("does not exist") || error.code === "42P01") {
+      return NextResponse.json({ reminderStates: [] });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
@@ -100,6 +104,10 @@ export async function POST(request: Request) {
     .single();
 
   if (error || !reminder) {
+    // Table doesn't exist — return graceful response
+    if (error?.message?.includes("does not exist") || error?.code === "42P01") {
+      return NextResponse.json({ reminder: null });
+    }
     return NextResponse.json({ error: error?.message ?? "Failed to upsert reminder" }, { status: 500 });
   }
 

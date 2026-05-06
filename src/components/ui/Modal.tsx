@@ -41,18 +41,18 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-forest-900/40 p-4"
       onClick={(e) => e.currentTarget === e.target && onClose()}
     >
       <div
         className={`w-full ${SIZE_STYLES[size]} max-h-[90vh] overflow-auto rounded-3xl bg-white shadow-2xl`}
       >
         {title && (
-          <div className="p-4 border-b border-forest-100">
+          <div className="p-5 border-b border-forest-100">
             <h2 className="text-xl font-bold text-forest-700">{title}</h2>
           </div>
         )}
-        <div className="p-4">{children}</div>
+        <div className="p-5">{children}</div>
       </div>
     </div>
   );

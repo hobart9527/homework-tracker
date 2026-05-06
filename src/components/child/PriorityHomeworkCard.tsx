@@ -12,7 +12,7 @@ export function PriorityHomeworkCard({
 }: PriorityHomeworkCardProps) {
   if (!task) {
     return (
-      <div className="rounded-[28px] border border-dashed border-forest-200 bg-white/80 p-5 shadow-sm">
+      <div className="rounded-card border border-dashed border-forest-200 bg-white/80 p-5 shadow-sm">
         <div className="text-sm font-medium text-forest-600">太棒了！</div>
         <div className="mt-3 text-lg font-bold text-forest-700">今天的任务全部完成啦！</div>
         <p className="mt-1 text-sm text-forest-500">可以休息一下，或者看看本周其他天的任务。</p>
@@ -21,7 +21,7 @@ export function PriorityHomeworkCard({
   }
 
   return (
-    <div className="rounded-[28px] bg-gradient-to-r from-amber-100 via-orange-50 to-white p-5 shadow-md ring-1 ring-amber-200">
+    <div className="rounded-card bg-gradient-to-r from-amber-100 via-orange-50 to-white p-5 shadow-md ring-1 ring-amber-200">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-medium text-forest-600">下一项</div>
         <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-forest-600 shadow-sm">

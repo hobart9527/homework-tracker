@@ -12,7 +12,7 @@ export function ChildWeekSummaryCard({
   completedDays,
 }: ChildWeekSummaryCardProps) {
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-md ring-1 ring-forest-100">
+    <div className="rounded-card bg-white p-5 shadow-md ring-1 ring-forest-100">
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-forest-500">本周总览</p>

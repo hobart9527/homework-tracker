@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -45,6 +46,7 @@ export function ChildHomeworkCard({
     audio: "录音",
   } as const;
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  const router = useRouter();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewUrls, setPreviewUrls] = useState<AttachmentPreview[]>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -191,7 +193,7 @@ export function ChildHomeworkCard({
                 <button
                   type="button"
                   onClick={() => void handleViewAttachments()}
-                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-primary/15"
+                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-primary/15"
                 >
                   <span aria-hidden="true">📎</span>
                   查看已提交附件
@@ -244,11 +246,13 @@ export function ChildHomeworkCard({
                 ✓ 完成
               </div>
             ) : isOverdue ? (
-              <Button variant="accent" onClick={onComplete}>
+              <Button variant="accent" onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}>
                 补打卡
               </Button>
             ) : (
-              <Button onClick={onComplete}>完成</Button>
+              <Button onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}>
+                {homework.type_icon === "📚" ? "去阅读" : "完成"}
+              </Button>
             )}
           </div>
         </div>

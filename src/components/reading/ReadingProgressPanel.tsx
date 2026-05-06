@@ -1,0 +1,154 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+interface ReadingProgressData {
+  totalRead: number;
+  avgScore: number;
+  totalPoints: number;
+  recent: {
+    title: string;
+    category: string;
+    gradeLevel: number;
+    score: number;
+    total: number;
+    date: string;
+  }[];
+}
+
+interface ReadingProgressPanelProps {
+  childId: string;
+}
+
+function getCurrentMonth(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+export function ReadingProgressPanel({ childId }: ReadingProgressPanelProps) {
+  const [data, setData] = useState<ReadingProgressData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchProgress = async () => {
+      setLoading(true);
+      try {
+        const month = getCurrentMonth();
+        const res = await fetch(
+          `/api/reading/progress?childId=${encodeURIComponent(childId)}&month=${month}`
+        );
+        if (!res.ok) {
+          if (!cancelled) setData(null);
+          return;
+        }
+        const json: ReadingProgressData = await res.json();
+        if (!cancelled) setData(json);
+      } catch {
+        if (!cancelled) setData(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchProgress();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [childId]);
+
+  if (loading) {
+    return (
+      <section className="rounded-3xl border border-forest-100 bg-white/90 p-5 shadow-sm">
+        <div className="mb-4 h-5 w-24 animate-pulse rounded bg-gray-200" />
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="animate-pulse rounded-2xl bg-forest-50/70 p-3">
+              <div className="mx-auto mb-1 h-6 w-6 rounded bg-gray-200" />
+              <div className="mx-auto mb-1 h-7 w-10 rounded bg-gray-200" />
+              <div className="mx-auto h-3 w-12 rounded bg-gray-200" />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="animate-pulse flex items-center justify-between rounded-xl bg-forest-50/50 px-3 py-2">
+              <div className="flex-1 space-y-1">
+                <div className="h-4 w-32 rounded bg-gray-200" />
+                <div className="h-3 w-16 rounded bg-gray-200" />
+              </div>
+              <div className="ml-2 h-5 w-10 rounded-full bg-gray-200" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  if (data.totalRead === 0) {
+    return (
+      <section className="rounded-3xl border border-forest-100 bg-white/90 p-5 shadow-sm">
+        <h2 className="mb-4 text-xl font-bold text-forest-800">阅读情况</h2>
+        <div className="rounded-2xl border border-dashed border-forest-200 bg-forest-50 py-10 text-center text-forest-400">
+          本月暂无阅读记录
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-3xl border border-forest-100 bg-white/90 p-5 shadow-sm">
+      <h2 className="mb-4 text-xl font-bold text-forest-800">阅读情况</h2>
+
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="rounded-2xl bg-forest-50/70 p-3 text-center">
+          <div className="text-2xl">📚</div>
+          <div className="text-2xl font-bold text-forest-700">{data.totalRead}</div>
+          <div className="text-xs text-forest-500">本月阅读</div>
+        </div>
+        <div className="rounded-2xl bg-forest-50/70 p-3 text-center">
+          <div className="text-2xl">✅</div>
+          <div className="text-2xl font-bold text-forest-700">{data.avgScore}%</div>
+          <div className="text-xs text-forest-500">平均正确率</div>
+        </div>
+        <div className="rounded-2xl bg-forest-50/70 p-3 text-center">
+          <div className="text-2xl">⭐</div>
+          <div className="text-2xl font-bold text-forest-700">{data.totalPoints}</div>
+          <div className="text-xs text-forest-500">阅读积分</div>
+        </div>
+      </div>
+
+      {data.recent.length > 0 && (
+        <div>
+          <h4 className="mb-2 text-sm font-semibold text-forest-700">最近阅读</h4>
+          <div className="space-y-2">
+            {data.recent.slice(0, 5).map((item, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-xl bg-forest-50/50 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-forest-700">
+                    {item.title}
+                  </p>
+                  <span className="text-xs text-forest-400">{item.category}</span>
+                </div>
+                <span className="ml-2 shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                  {item.score}/{item.total}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

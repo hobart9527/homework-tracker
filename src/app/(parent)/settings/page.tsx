@@ -10,10 +10,15 @@ import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
 
+type Child = Database["public"]["Tables"]["children"]["Row"] & {
+  reading_grade_level: number | null;
+};
+
 export default function SettingsPage() {
   const { t } = useTranslation();
   const supabase = useMemo(() => createClient(), []);
   const [parent, setParent] = useState<Parent | null>(null);
+  const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,11 +40,46 @@ export default function SettingsPage() {
       if (parentData) {
         setParent(parentData);
       }
+
+      const { data: childrenData } = await supabase
+        .from("children")
+        .select("*")
+        .eq("parent_id", session.user.id);
+      if (childrenData) setChildren(childrenData as Child[]);
+
       setLoading(false);
     };
 
     fetchData();
   }, [supabase]);
+
+  const handleUpdateReadingGrade = async (childId: string, grade: number) => {
+    // Optimistic update
+    setChildren((prev) =>
+      prev.map((c) =>
+        c.id === childId ? { ...c, reading_grade_level: grade } : c,
+      ),
+    );
+
+    // Persist to DB
+    const { error } = await supabase
+      .from("children")
+      .update({ reading_grade_level: grade })
+      .eq("id", childId);
+
+    if (error) {
+      // Revert on error: re-fetch children from server
+      const { data: sessionData } = await supabase.auth.getSession();
+      const pid = sessionData.session?.user.id;
+      if (pid) {
+        const { data } = await supabase
+          .from("children")
+          .select("*")
+          .eq("parent_id", pid);
+        if (data) setChildren(data as Child[]);
+      }
+    }
+  };
 
   if (loading || !parent) {
     return (
@@ -103,6 +143,43 @@ export default function SettingsPage() {
                 </div>
               </Link>
             </div>
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="mb-4 font-bold text-forest-700">阅读等级设置</h2>
+          <p className="mb-4 text-sm text-forest-500">
+            为每个孩子单独设置英文阅读等级（Grade 1-12），默认与孩子年级一致。
+          </p>
+          <div className="space-y-3">
+            {children.map((child) => (
+              <div
+                key={child.id}
+                className="flex items-center justify-between rounded-xl bg-forest-50/70 p-3"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{child.avatar || "🦊"}</span>
+                  <div>
+                    <span className="font-medium text-forest-700">
+                      {child.name}
+                    </span>
+                  </div>
+                </div>
+                <select
+                  value={child.reading_grade_level ?? 3}
+                  onChange={(e) =>
+                    handleUpdateReadingGrade(child.id, parseInt(e.target.value))
+                  }
+                  className="rounded-lg border-2 border-forest-200 bg-white px-3 py-1.5 text-sm text-forest-700 focus:border-primary focus:outline-none"
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => (
+                    <option key={g} value={g}>
+                      Grade {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
           </div>
         </Card>
 

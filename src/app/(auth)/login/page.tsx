@@ -27,7 +27,13 @@ export default function ParentLoginPage() {
 
       const parent = parents?.[0];
       if (findError || !parent) {
-        setError("密码错误，请重试");
+        if (findError?.message?.includes("fetch") || findError?.message?.includes("network")) {
+          setError("网络连接失败，请检查网络后重试");
+        } else if (!parent) {
+          setError("密码错误，请重试");
+        } else {
+          setError("密码错误，请重试");
+        }
         setLoading(false);
         return;
       }
@@ -44,7 +50,11 @@ export default function ParentLoginPage() {
       console.log("Auth result:", { session, sessionError });
 
       if (sessionError || !session) {
-        setError("登录失败，请重试");
+        if (sessionError?.message?.includes("fetch") || sessionError?.message?.includes("network")) {
+          setError("网络连接失败，请检查网络后重试");
+        } else {
+          setError("登录失败，请重试");
+        }
         setLoading(false);
         return;
       }

@@ -33,6 +33,7 @@ const DEFAULT_TYPES = [
   { id: "ballet", name: "Ballet", icon: "👯", default_points: 3 },
   { id: "musical", name: "Musical", icon: "🎭", default_points: 3 },
   { id: "housework", name: "家务", icon: "🧹", default_points: 2 },
+  { id: "english_reading", name: "英文阅读", icon: "📚", default_points: 5 },
 ];
 
 const ALL_ICONS = ["📝", "✏️", "📋", "🎨", "⚽", "🏀", "🎸", "🧮", "🔬", "📐", "✍️", "🗣️", "🎹", "📖", "💻", "📚", "🔢", "🇨🇳", "🏐", "👯", "🎭", "🧹", "📸", "🎵", "🌟", "🧩", "🖊️", "📏", "🎯", "🏃"];
@@ -58,6 +59,8 @@ export function HomeworkForm({
   const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
+  const [readingArticles, setReadingArticles] = useState<Array<{id:string, title:string, grade_level:number, category:string}>>([]);
+  const [selectedReadingArticleId, setSelectedReadingArticleId] = useState<string>("");
   const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
   const [homeworkRoutingMode, setHomeworkRoutingMode] = useState<
     "child_default" | "homework_override"
@@ -258,6 +261,14 @@ export function HomeworkForm({
     });
   }, [autoMatchedPlatform, canConfigurePlatformBinding]);
 
+  useEffect(() => {
+    if (formData.type_name !== "英文阅读") return;
+    fetch("/api/reading/articles")
+      .then(r => r.json())
+      .then(d => setReadingArticles(d.articles || []))
+      .catch(() => {});
+  }, [formData.type_name]);
+
   const handleTypeSelect = (type: (typeof allTypes)[0]) => {
     // Auto-fill title unless user has manually customized it
     const prevDefaultTitle = formData.type_name
@@ -309,6 +320,19 @@ export function HomeworkForm({
         if (error) throw error;
         if (data?.length) {
           savedHomeworkId = data[0].id;
+        }
+      }
+
+      // Create reading assignment for english reading homework
+      if (formData.type_name === "英文阅读" && selectedReadingArticleId && savedHomeworkId) {
+        for (const childId of formData.child_ids) {
+          try {
+            await fetch("/api/reading/assignments", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ childId, articleId: selectedReadingArticleId }),
+            });
+          } catch {}
         }
       }
 
@@ -477,6 +501,26 @@ export function HomeworkForm({
               </div>
             )}
           </div>
+
+          {formData.type_name === "英文阅读" && (
+            <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
+              <label className="block text-sm font-medium text-forest-700 mb-2">
+                选择阅读文章
+              </label>
+              <select
+                value={selectedReadingArticleId}
+                onChange={(e) => setSelectedReadingArticleId(e.target.value)}
+                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm"
+              >
+                <option value="">选择一篇文章...</option>
+                {readingArticles.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    [{a.category}] {a.title} (G{a.grade_level})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <Input
             label="作业标题"

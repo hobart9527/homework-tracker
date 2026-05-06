@@ -8,8 +8,6 @@ import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
-const supabase = createClient();
-
 export default function ChildLayout({
   children,
 }: {
@@ -20,6 +18,8 @@ export default function ChildLayout({
   const [loading, setLoading] = useState(true);
   const [child, setChild] = useState<Child | null>(null);
   const [totalPoints, setTotalPoints] = useState(0);
+  const [supabase] = useState(() => createClient());
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -78,7 +78,7 @@ export default function ChildLayout({
   return (
     <div className="min-h-screen bg-background">
       {/* Child header */}
-      <header className="bg-primary text-white p-4">
+      <header className="bg-white/90 backdrop-blur-md border-b border-forest-100 text-forest-800 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="text-3xl">{child?.avatar || "🦊"}</span>
@@ -87,25 +87,44 @@ export default function ChildLayout({
               <p className="text-sm opacity-80">积分: {totalPoints}</p>
             </div>
           </div>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.push("/child-login");
-            }}
-            className="text-sm bg-white/20 px-3 py-1 rounded-lg"
-          >
-            退出
-          </button>
+          {confirmingLogout ? (
+            <div className="flex items-center gap-2 bg-rose-50 px-3 py-1.5 rounded-lg">
+              <span className="text-xs text-rose-700">确认退出？</span>
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  router.push("/child-login");
+                }}
+                className="text-xs bg-rose-500 text-white px-2 py-1 rounded-md"
+              >
+                退出
+              </button>
+              <button
+                onClick={() => setConfirmingLogout(false)}
+                className="text-xs text-forest-600 px-2 py-1"
+              >
+                取消
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmingLogout(true)}
+              className="text-sm bg-forest-100 text-forest-700 px-3 py-1 rounded-lg"
+            >
+              退出
+            </button>
+          )}
         </div>
       </header>
 
       {/* Bottom navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-forest-100 px-4 py-2 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-forest-100 px-4 py-3 z-50 min-h-[56px]">
         <div className="max-w-5xl mx-auto flex justify-around">
           {[
             { href: "/", label: "今日", icon: "📋" },
             { href: "/progress", label: "进度", icon: "📊" },
             { href: "/rewards", label: "积分", icon: "⭐" },
+            { href: "/reading", label: "阅读", icon: "📚" },
           ].map(({ href, label, icon }) => {
             const isActive =
               href === "/"
@@ -115,12 +134,12 @@ export default function ChildLayout({
               <Link
                 key={href}
                 href={href}
-                className={`flex flex-col items-center py-1 transition-colors ${
+                className={`flex flex-col items-center py-2 transition-colors ${
                   isActive ? "text-primary" : "text-forest-400"
                 }`}
               >
-                <span className="text-2xl">{icon}</span>
-                <span className="text-xs">{label}</span>
+                <span className="text-3xl">{icon}</span>
+                <span className="text-sm">{label}</span>
               </Link>
             );
           })}

@@ -133,7 +133,7 @@ export function WeekCalendar({
   const todayStr = formatDateKey(new Date());
 
   return (
-    <div className="rounded-[28px] bg-white p-5 shadow-md ring-1 ring-forest-100">
+    <div className="rounded-card bg-white p-5 shadow-md ring-1 ring-forest-100">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-medium text-forest-500">{t("child.weekCalendar.title")}</h3>
@@ -206,7 +206,7 @@ export function WeekCalendar({
                   ? `, ${completion.completed}/${completion.total}`
                   : ""
               }`}
-              className={`flex flex-col items-center gap-1 rounded-xl px-2 py-3 transition-all ${
+              className={`flex flex-col items-center gap-1 rounded-xl px-2 py-2.5 transition-all min-h-[44px] min-w-[44px] ${
                 isSelected
                   ? "bg-forest-50 shadow-sm"
                   : "hover:bg-forest-50/50"
@@ -219,7 +219,7 @@ export function WeekCalendar({
                 <DayRing
                   completion={completionPct}
                   strokeColor={tone.ringColor}
-                  size={36}
+                  size={44}
                   strokeWidth={3}
                 >
                   <span className={`text-sm font-bold ${tone.textColor}`}>

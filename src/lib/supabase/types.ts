@@ -61,6 +61,7 @@ export interface Database {
           password_hash: string;
           points: number | null;
           streak_days: number | null;
+          reading_grade_level: number | null;
           last_check_in: string | null;
           default_wechat_group_id: string | null;
           created_at: string | null;
@@ -75,6 +76,7 @@ export interface Database {
           password_hash: string;
           points?: number | null;
           streak_days?: number | null;
+          reading_grade_level?: number | null;
           last_check_in?: string | null;
           default_wechat_group_id?: string | null;
           created_at?: string | null;
@@ -89,6 +91,7 @@ export interface Database {
           password_hash?: string;
           points?: number | null;
           streak_days?: number | null;
+          reading_grade_level?: number | null;
           last_check_in?: string | null;
           default_wechat_group_id?: string | null;
           created_at?: string | null;
@@ -146,6 +149,7 @@ export interface Database {
           platform_binding_source_ref: string | null;
           created_by: string | null;
           created_at: string | null;
+          deleted_at: string | null;
         };
         Insert: {
           id?: string;
@@ -172,6 +176,7 @@ export interface Database {
           platform_binding_source_ref?: string | null;
           created_by?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
         Update: {
           id?: string;
@@ -198,6 +203,7 @@ export interface Database {
           platform_binding_source_ref?: string | null;
           created_by?: string | null;
           created_at?: string | null;
+          deleted_at?: string | null;
         };
       };
       check_ins: {
@@ -703,6 +709,152 @@ export interface Database {
           attempt_number?: number;
           status?: "retrying" | "failed" | "sent";
           failure_reason?: string | null;
+          created_at?: string;
+        };
+      };
+      reading_articles: {
+        Row: {
+          id: string;
+          topic_key: string;
+          title: string;
+          content: string;
+          source: string;
+          source_url: string | null;
+          category: string;
+          grade_level: number;
+          word_count: number;
+          estimated_minutes: number;
+          difficulty: number;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          topic_key: string;
+          title: string;
+          content: string;
+          source?: string;
+          source_url?: string | null;
+          category: string;
+          grade_level: number;
+          word_count?: number;
+          estimated_minutes?: number;
+          difficulty?: number;
+          status?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          topic_key?: string;
+          title?: string;
+          content?: string;
+          source?: string;
+          source_url?: string | null;
+          category?: string;
+          grade_level?: number;
+          word_count?: number;
+          estimated_minutes?: number;
+          difficulty?: number;
+          status?: string;
+          created_at?: string;
+        };
+      };
+      reading_questions: {
+        Row: {
+          id: string;
+          article_id: string;
+          question_text: string;
+          question_type: string;
+          options: Json;
+          correct_answer: string;
+          difficulty: number;
+          order_index: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          article_id: string;
+          question_text: string;
+          question_type: string;
+          options: Json;
+          correct_answer: string;
+          difficulty?: number;
+          order_index: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          article_id?: string;
+          question_text?: string;
+          question_type?: string;
+          options?: Json;
+          correct_answer?: string;
+          difficulty?: number;
+          order_index?: number;
+          created_at?: string;
+        };
+      };
+      reading_assignments: {
+        Row: {
+          id: string;
+          child_id: string;
+          article_id: string;
+          status: string;
+          assigned_by: string | null;
+          assigned_date: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          child_id: string;
+          article_id: string;
+          status?: string;
+          assigned_by?: string | null;
+          assigned_date?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          child_id?: string;
+          article_id?: string;
+          status?: string;
+          assigned_by?: string | null;
+          assigned_date?: string;
+          completed_at?: string | null;
+        };
+      };
+      reading_quiz_attempts: {
+        Row: {
+          id: string;
+          child_id: string;
+          article_id: string;
+          assignment_id: string | null;
+          answers: Json;
+          score: number;
+          total_questions: number;
+          time_spent_seconds: number | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          child_id: string;
+          article_id: string;
+          assignment_id?: string | null;
+          answers: Json;
+          score: number;
+          total_questions: number;
+          time_spent_seconds?: number | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          child_id?: string;
+          article_id?: string;
+          assignment_id?: string | null;
+          answers?: Json;
+          score?: number;
+          total_questions?: number;
+          time_spent_seconds?: number | null;
           created_at?: string;
         };
       };
