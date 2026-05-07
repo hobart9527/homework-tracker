@@ -814,7 +814,7 @@ export function HomeworkForm({
                 作业提交群
               </label>
               <p className="mt-1 text-sm text-forest-500">
-                这条作业是否自动发到微信群，以及发到哪个老师群，应该在创建或编辑作业时确定。留空时会继承孩子默认群。
+                设置作业提交后自动发送到微信群。选择具体群将覆盖孩子的默认群设置；留空则继承孩子默认群。
               </p>
             </div>
 
@@ -859,7 +859,9 @@ export function HomeworkForm({
                         <option value="">继承孩子默认群</option>
                         {wechatGroups.map((group) => (
                           <option key={group.id} value={group.id}>
-                            {group.display_name || group.recipient_ref}
+                            {group.display_name
+                              ? `"${group.display_name}"`
+                              : `群聊 ${group.recipient_ref.slice(0, 12)}...`}
                           </option>
                         ))}
                       </select>
@@ -870,14 +872,23 @@ export function HomeworkForm({
                 {formData.send_to_wechat ? (
                   formData.wechat_group_id ? (
                     <p className="mt-4 text-sm text-forest-500">
-                      当前这条作业会使用单独指定的提交群。
+                      当前这条作业会使用单独指定的提交群，覆盖孩子默认设置。
                     </p>
                   ) : (
                     <p className="mt-4 text-sm text-forest-500">
-                      当前会继承孩子默认提交群
-                      {selectedChildDefaultGroup
-                        ? `：${selectedChildDefaultGroup.display_name || selectedChildDefaultGroup.recipient_ref}`
-                        : "，但这个孩子暂时还没有设置默认群。"}
+                      {selectedChildDefaultGroup ? (
+                        <>
+                          当前会继承 {selectedChild?.name} 的默认提交群
+                          {selectedChildDefaultGroup.display_name
+                            ? `"${selectedChildDefaultGroup.display_name}"`
+                            : `群聊 ${selectedChildDefaultGroup.recipient_ref.slice(0, 12)}...`}
+                          。可在孩子集成页修改默认群。
+                        </>
+                      ) : (
+                        <>
+                          当前会继承 {selectedChild?.name} 的默认提交群，但这个孩子暂时还没有设置默认群。可在孩子集成页修改默认群。
+                        </>
+                      )}
                     </p>
                   )
                 ) : (

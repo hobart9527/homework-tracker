@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { SettingsShell } from "@/components/parent/SettingsShell";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { PlatformSyncStatusPanel } from "@/components/parent/PlatformSyncStatusPanel";
 import { VoicePushStatusPanel } from "@/components/parent/VoicePushStatusPanel";
 import type { Database } from "@/lib/supabase/types";
@@ -55,6 +56,12 @@ export default function SettingsSystemPage() {
     failedCount: number;
     skippedCount: number;
   } | null>(null);
+  const [eveningSyncLoading, setEveningSyncLoading] = useState(false);
+  const [eveningSyncMessage, setEveningSyncMessage] = useState<string | null>(null);
+  const [eveningSyncTone, setEveningSyncTone] = useState<"success" | "danger" | "neutral">("neutral");
+  const [readingRefreshLoading, setReadingRefreshLoading] = useState(false);
+  const [readingRefreshMessage, setReadingRefreshMessage] = useState<string | null>(null);
+  const [readingRefreshTone, setReadingRefreshTone] = useState<"success" | "danger" | "neutral">("neutral");
 
   const refreshStatus = async (nextParentId: string) => {
     const { data: children } = await supabase
@@ -226,6 +233,120 @@ export default function SettingsSystemPage() {
             }
           }}
         />
+      </Card>
+
+      <Card className="scroll-mt-4">
+        <div className="space-y-4">
+          <div>
+            <h2 className="font-bold text-forest-700">平台晚间同步</h2>
+            <p className="mt-1 text-sm text-forest-500">
+              手动触发晚间 20:00 窗口的平台学习记录同步（IXL、Khan Academy 等）。
+              日常同步由定时任务在每天 15:30 至凌晨 00:00 间每半小时自动执行，这里用于补漏或排障。
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={eveningSyncLoading}
+            onClick={async () => {
+              setEveningSyncLoading(true);
+              setEveningSyncMessage(null);
+              try {
+                const response = await fetch(
+                  "/api/platform-sync/run?scheduleWindow=evening-review"
+                );
+                const body = await response.json();
+                if (response.ok) {
+                  setEveningSyncMessage(
+                    `同步完成：处理 ${body.processedCount ?? 0} 个账号，成功 ${body.successCount ?? 0}，失败 ${body.failureCount ?? 0}`
+                  );
+                  setEveningSyncTone("success");
+                } else {
+                  setEveningSyncMessage(body.error ?? "同步请求失败");
+                  setEveningSyncTone("danger");
+                }
+              } catch {
+                setEveningSyncMessage("网络错误，请稍后重试");
+                setEveningSyncTone("danger");
+              } finally {
+                setEveningSyncLoading(false);
+              }
+            }}
+          >
+            {eveningSyncLoading ? "同步中..." : "立即运行晚间同步"}
+          </Button>
+          {eveningSyncMessage ? (
+            <p
+              className={`text-sm ${
+                eveningSyncTone === "success"
+                  ? "text-emerald-700"
+                  : eveningSyncTone === "danger"
+                    ? "text-rose-700"
+                    : "text-forest-600"
+              }`}
+            >
+              {eveningSyncMessage}
+            </p>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card className="scroll-mt-4">
+        <div className="space-y-4">
+          <div>
+            <h2 className="font-bold text-forest-700">英文阅读内容刷新</h2>
+            <p className="mt-1 text-sm text-forest-500">
+              调用 OpenAI 为精选话题生成 G3 和 G6 两个年级的适配文章和阅读理解题。
+              每次处理 5 个话题，生成约 10 篇文章。需要配置 OPENAI_API_KEY 环境变量。
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={readingRefreshLoading}
+            onClick={async () => {
+              setReadingRefreshLoading(true);
+              setReadingRefreshMessage(null);
+              try {
+                const response = await fetch("/api/reading/refresh-news", {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({ grades: [3, 6], limit: 5 }),
+                });
+                const body = await response.json();
+                if (response.ok) {
+                  setReadingRefreshMessage(
+                    `已生成 ${body.count ?? body.articles?.length ?? 0} 篇文章`
+                  );
+                  setReadingRefreshTone("success");
+                } else {
+                  setReadingRefreshMessage(body.error ?? "刷新请求失败");
+                  setReadingRefreshTone("danger");
+                }
+              } catch {
+                setReadingRefreshMessage("网络错误，请稍后重试");
+                setReadingRefreshTone("danger");
+              } finally {
+                setReadingRefreshLoading(false);
+              }
+            }}
+          >
+            {readingRefreshLoading ? "生成中（约需1-2分钟）..." : "刷新阅读内容"}
+          </Button>
+          {readingRefreshMessage ? (
+            <p
+              className={`text-sm ${
+                readingRefreshTone === "success"
+                  ? "text-emerald-700"
+                  : readingRefreshTone === "danger"
+                    ? "text-rose-700"
+                    : "text-forest-600"
+              }`}
+            >
+              {readingRefreshMessage}
+            </p>
+          ) : null}
+        </div>
       </Card>
 
       <Card id="voice-push-status" className="scroll-mt-4">

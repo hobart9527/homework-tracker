@@ -457,7 +457,7 @@ describe("HomeworkForm workbench", () => {
       screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })
     );
 
-    expect(screen.getByText(/当前会继承孩子默认提交群/)).toBeInTheDocument();
+    expect(screen.getByText(/当前会继承/)).toBeInTheDocument();
     expect(screen.getAllByText(/Ivy 数学群/).length).toBeGreaterThan(0);
   });
 

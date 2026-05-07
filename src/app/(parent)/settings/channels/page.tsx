@@ -14,11 +14,11 @@ export default function SettingsChannelsPage() {
   const supabase = useMemo(() => createClient(), []);
   const [parent, setParent] = useState<Parent | null>(null);
   const [loading, setLoading] = useState(true);
-  const [bridgeHealthLoading, setBridgeHealthLoading] = useState(false);
-  const [bridgeHealthMessage, setBridgeHealthMessage] = useState<string | null>(
+  const [wecomStatusLoading, setWecomStatusLoading] = useState(false);
+  const [wecomStatusMessage, setWecomStatusMessage] = useState<string | null>(
     null
   );
-  const [bridgeHealthTone, setBridgeHealthTone] = useState<
+  const [wecomStatusTone, setWecomStatusTone] = useState<
     "neutral" | "success" | "danger"
   >("neutral");
 
@@ -98,19 +98,21 @@ export default function SettingsChannelsPage() {
                 <code className="rounded bg-amber-100 px-1">WECOM_AGENTID</code>
               </li>
               <li>创建群聊并将应用加入群中，获取 chatid</li>
-              <li>在孩子集成页添加群，标识填写 chatid</li>
+              <li>在孩子集成页添加群，填写群聊 ID（chatid）和显示名称</li>
             </ol>
+
+            <p className="mt-2 text-sm text-amber-800">配置完成后，作业录音将自动通过企业微信官方 API 发送，无需额外启动服务。</p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button
               size="sm"
               variant="secondary"
-              disabled={bridgeHealthLoading}
+              disabled={wecomStatusLoading}
               onClick={async () => {
-                setBridgeHealthLoading(true);
-                setBridgeHealthMessage(null);
-                setBridgeHealthTone("neutral");
+                setWecomStatusLoading(true);
+                setWecomStatusMessage(null);
+                setWecomStatusTone("neutral");
 
                 try {
                   const response = await fetch("/api/voice-push/wecom-status", {
@@ -119,42 +121,42 @@ export default function SettingsChannelsPage() {
                   const body = await response.json();
 
                   if (body.configured) {
-                    setBridgeHealthTone("success");
-                    setBridgeHealthMessage(
+                    setWecomStatusTone("success");
+                    setWecomStatusMessage(
                       `企业微信已配置（CorpID: ${body.corpidPreview}），可正常发送。`
                     );
                   } else {
-                    setBridgeHealthTone("danger");
-                    setBridgeHealthMessage(
+                    setWecomStatusTone("danger");
+                    setWecomStatusMessage(
                       "企业微信未配置，请在环境变量中设置 WECOM_CORPID 和 WECOM_CORPSECRET。"
                     );
                   }
                 } catch (error) {
-                  setBridgeHealthTone("danger");
-                  setBridgeHealthMessage(
+                  setWecomStatusTone("danger");
+                  setWecomStatusMessage(
                     error instanceof Error
                       ? error.message
                       : "状态检查失败，请稍后重试。"
                   );
                 } finally {
-                  setBridgeHealthLoading(false);
+                  setWecomStatusLoading(false);
                 }
               }}
             >
-              {bridgeHealthLoading ? "检查中..." : "检查发送服务状态"}
+              {wecomStatusLoading ? "检查中..." : "检查发送服务状态"}
             </Button>
 
-            {bridgeHealthMessage ? (
+            {wecomStatusMessage ? (
               <p
                 className={`text-sm ${
-                  bridgeHealthTone === "success"
+                  wecomStatusTone === "success"
                     ? "text-emerald-700"
-                    : bridgeHealthTone === "danger"
+                    : wecomStatusTone === "danger"
                       ? "text-rose-700"
                       : "text-forest-600"
                 }`}
               >
-                {bridgeHealthMessage}
+                {wecomStatusMessage}
               </p>
             ) : null}
           </div>

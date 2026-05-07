@@ -1093,7 +1093,7 @@ export default function SettingsIntegrationsPage() {
                         <option value="">暂不设置默认群</option>
                         {wechatGroups.map((group) => (
                           <option key={group.id} value={group.id}>
-                            {group.display_name || group.recipient_ref}
+                            {group.display_name || `群聊 ${group.recipient_ref.substring(0, 12)}...`}
                           </option>
                         ))}
                       </select>
@@ -1183,8 +1183,7 @@ export default function SettingsIntegrationsPage() {
                             {group.display_name || "未命名群"}
                           </p>
                           <p className="mt-0.5 text-xs text-forest-500">
-                            {group.source === "manual" ? "手动添加" : "自动发现"}
-                            {group.last_seen_at ? " · 最近已连接" : ""}
+                            chatid: {group.recipient_ref}
                           </p>
                         </div>
                         <div className="flex items-center gap-1">
@@ -1218,21 +1217,27 @@ export default function SettingsIntegrationsPage() {
               <div className="rounded-xl border border-forest-200 bg-white p-4 space-y-3">
                 <p className="text-sm font-medium text-forest-700">手动添加微信群</p>
                 <Input
-                  label="微信群标识"
+                  label="群聊 ID（chatid）"
                   value={groupAddForm.recipientRef}
                   onChange={(e) =>
                     setGroupAddForm((prev) => ({ ...prev, recipientRef: e.target.value }))
                   }
-                  placeholder="例如 wxid_xxx@chatroom"
+                  placeholder="在 WeCom 后台群聊信息中查看"
                 />
+                <p className="mt-0.5 text-xs text-forest-500">
+                  chatid 可在企业微信管理后台「应用管理 → 群聊」中查看
+                </p>
                 <Input
-                  label="显示名称（可选）"
+                  label="显示名称"
                   value={groupAddForm.displayName}
                   onChange={(e) =>
                     setGroupAddForm((prev) => ({ ...prev, displayName: e.target.value }))
                   }
                   placeholder="例如 Mia 数学群"
                 />
+                <p className="mt-0.5 text-xs text-forest-500">
+                  给这个群起一个好记的名字，例如"张老师数学群"
+                </p>
                 {groupAddError ? (
                   <p className="text-sm text-rose-700">{groupAddError}</p>
                 ) : null}
