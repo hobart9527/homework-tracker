@@ -217,6 +217,9 @@ export async function autoLoginIxl(username, password, options = {}) {
       if (hasUsernameInput) {
         break;
       }
+      if (attempts < 2) {
+        log(`🔍 尝试${attempts + 1}: 未找到用户名输入框, URL=${page.url()}`);
+      }
 
       // Check for actual blocking CAPTCHA widgets (not just keywords in page JS)
       const hasCaptchaWidget =
@@ -225,6 +228,14 @@ export async function autoLoginIxl(username, password, options = {}) {
         ).count()) > 0;
 
       if (hasCaptchaWidget && attempts >= 3) {
+        log(`🔍 诊断: 尝试${attempts + 1}/6 次后仍无用户名输入框`);
+        log(`🔍 当前 URL: ${page.url()}`);
+        log(`🔍 页面标题: ${await page.title().catch(() => 'N/A')}`);
+        const caps = await page.locator('.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], #challenge-stage').all();
+        for (const c of caps) {
+          const tag = await c.evaluate(el => el.tagName + (el.className ? '.' + el.className : '') + (el.id ? '#' + el.id : '')).catch(() => '?');
+          log(`🔍 CAPTCHA 元素: ${tag}`);
+        }
         log("🛑 检测到 CAPTCHA 验证组件，无法自动完成");
         throw new Error("CAPTCHA challenge detected on IXL login page");
       }
@@ -246,6 +257,14 @@ export async function autoLoginIxl(username, password, options = {}) {
         ).count()) > 0;
 
       if (hasCaptchaWidget) {
+        log(`🔍 诊断: 循环结束后仍无用户名输入框`);
+        log(`🔍 当前 URL: ${page.url()}`);
+        log(`🔍 页面标题: ${await page.title().catch(() => 'N/A')}`);
+        const caps2 = await page.locator('.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], #challenge-stage').all();
+        for (const c of caps2) {
+          const tag = await c.evaluate(el => el.tagName + (el.className ? '.' + el.className : '') + (el.id ? '#' + el.id : '')).catch(() => '?');
+          log(`🔍 CAPTCHA 元素: ${tag}`);
+        }
         log("🛑 页面被 CAPTCHA 组件拦截，无法获取登录表单");
         throw new Error("CAPTCHA challenge detected on IXL login page");
       }
