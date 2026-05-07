@@ -195,9 +195,8 @@ export async function autoLoginIxl(username, password, options = {}) {
     await page.waitForTimeout(rand(3000, 5000));
 
     let attempts = 0;
-    while (attempts < 5) {
+    while (attempts < 6) {
       const bodyText = await page.textContent("body").catch(() => "");
-      const html = await page.content().catch(() => "");
 
       if (
         bodyText.includes("Checking your browser") ||
@@ -206,7 +205,7 @@ export async function autoLoginIxl(username, password, options = {}) {
         log(
           "⏳ Cloudflare 正在检查浏览器，继续等待... (" +
             (attempts + 1) +
-            "/5)"
+            "/6)"
         );
         await page.waitForTimeout(5000);
         attempts++;
@@ -219,8 +218,14 @@ export async function autoLoginIxl(username, password, options = {}) {
         break;
       }
 
-      if (/turnstile|captcha|challenge-platform/i.test(html) && attempts >= 2) {
-        log("🛑 检测到 CAPTCHA/验证码挑战");
+      // Check for actual blocking CAPTCHA widgets (not just keywords in page JS)
+      const hasCaptchaWidget =
+        (await page.locator(
+          '.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="captcha"], #challenge-stage'
+        ).count()) > 0;
+
+      if (hasCaptchaWidget && attempts >= 3) {
+        log("🛑 检测到 CAPTCHA 验证组件，无法自动完成");
         throw new Error("CAPTCHA challenge detected on IXL login page");
       }
 
@@ -232,12 +237,19 @@ export async function autoLoginIxl(username, password, options = {}) {
       (await page.locator(
         'input[name="username"], input#username, input[type="text"]'
       ).count()) > 0;
+
     if (!hasUsernameInput) {
-      const finalHtml = await page.content().catch(() => "");
-      if (/turnstile|captcha|challenge-platform/i.test(finalHtml)) {
-        log("🛑 页面被 CAPTCHA/Cloudflare 拦截");
+      // Final check: is there an actual CAPTCHA widget blocking the form?
+      const hasCaptchaWidget =
+        (await page.locator(
+          '.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], #challenge-stage'
+        ).count()) > 0;
+
+      if (hasCaptchaWidget) {
+        log("🛑 页面被 CAPTCHA 组件拦截，无法获取登录表单");
         throw new Error("CAPTCHA challenge detected on IXL login page");
       }
+
       log("⚠️ 未找到登录表单，尝试继续...");
     }
 
