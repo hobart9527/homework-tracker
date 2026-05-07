@@ -1,4 +1,11 @@
 // @ts-check
+import { config } from "dotenv";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__dirname, "..", ".env.local") });
+
 import { createClient } from "@supabase/supabase-js";
 import { createHash, createDecipheriv } from "crypto";
 import { autoLoginIxl } from "../src/lib/ixl-auto-login.mjs";

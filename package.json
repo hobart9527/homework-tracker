@@ -12,6 +12,7 @@
     "voice-push:bridge-example": "node scripts/voice-push-bridge-example.mjs",
     "voice-push:bridge-ilink": "node scripts/voice-push-bridge-ilink.mjs",
     "dev:with-bridge": "concurrently \"next dev\" \"npm run voice-push:bridge-ilink\" -n app,bridge --kill-others",
+    "refresh:sessions": "node scripts/refresh-managed-sessions.mjs",
     "start:with-bridge": "concurrently \"next start\" \"npm run voice-push:bridge-ilink\" -n app,bridge --kill-others",
     "session:collect": "node scripts/collect-platform-session.mjs",
     "test:epic-sync": "node scripts/test-epic-sync.mjs",
