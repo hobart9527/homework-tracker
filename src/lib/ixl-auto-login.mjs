@@ -139,55 +139,40 @@ export async function autoLoginIxl(username, password, options = {}) {
           : originalQuery(parameters);
     });
 
-    // ===== Warm-up: visit homepage like a real user =====
-    log("🌐 访问 IXL 首页...");
-    await page.goto("https://www.ixl.com", {
+    // ===== Go directly to sign-in page =====
+    log("🔗 直接进入登录页...");
+    await page.goto("https://www.ixl.com/signin", {
       waitUntil: "domcontentloaded",
       timeout: 30000,
     });
+    await page.waitForTimeout(rand(2000, 3000));
 
-    await page.waitForTimeout(rand(2000, 4000));
-    await randomMouseWander(page);
-    await humanScroll(page);
-    await page.waitForTimeout(rand(1000, 2500));
-
-    // Click sign-in link or navigate to login
-    log("🔗 点击进入登录页...");
-    const signInSelectors = [
-      'a.site-nav-button-sign-in',
-      'a[data-cy="site-nav-button-sign-in"]',
-      'a.lk-sign-in',
-      'header a:has-text("Sign in")',
-    ];
-    let clicked = false;
-    for (const sel of signInSelectors) {
-      const loc = page.locator(sel).first();
-      try {
-        await loc.waitFor({ timeout: 2000 });
-        const box = await loc.boundingBox();
-        if (box) {
-          await page.mouse.move(
-            box.x + rand(5, box.width - 5),
-            box.y + rand(3, box.height - 3),
-            { steps: rand(3, 8) }
-          );
-          await page.mouse.down();
-          await page.waitForTimeout(rand(50, 150));
-          await page.mouse.up();
-        } else {
+    // If redirected to homepage, try clicking sign-in from there
+    const currentUrlAfterGoto = page.url();
+    if (!currentUrlAfterGoto.includes("/signin")) {
+      log("⚠️ 被重定向到首页，尝试点击 Sign in 按钮...");
+      const signInSelectors = [
+        'a.site-nav-button-sign-in',
+        'a[data-cy="site-nav-button-sign-in"]',
+        'a.lk-sign-in',
+        'header a:has-text("Sign in")',
+      ];
+      let clicked = false;
+      for (const sel of signInSelectors) {
+        const loc = page.locator(sel).first();
+        try {
+          await loc.waitFor({ timeout: 2000 });
           await loc.click();
+          clicked = true;
+          break;
+        } catch {
+          // try next
         }
-        clicked = true;
-        break;
-      } catch {
-        // try next selector
       }
-    }
-    if (!clicked) {
-      await page.goto("https://www.ixl.com/signin", {
-        waitUntil: "domcontentloaded",
-        timeout: 30000,
-      });
+      if (!clicked) {
+        log("⚠️ 无法点击 Sign in，继续在当前页面尝试...");
+      }
+      await page.waitForTimeout(rand(2000, 3000));
     }
 
     // Wait for Cloudflare challenge to complete or page to stabilize
@@ -217,6 +202,15 @@ export async function autoLoginIxl(username, password, options = {}) {
       if (hasUsernameInput) {
         break;
       }
+      // If we're somehow still on the homepage, try re-navigating to signin
+      if (attempts === 1 && !page.url().includes("/signin")) {
+        log("🔄 仍在首页，重新导航到登录页...");
+        await page.goto("https://www.ixl.com/signin", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await page.waitForTimeout(rand(2000, 3000));
+      }
       if (attempts < 2) {
         log(`🔍 尝试${attempts + 1}: 未找到用户名输入框, URL=${page.url()}`);
       }
@@ -224,14 +218,14 @@ export async function autoLoginIxl(username, password, options = {}) {
       // Check for actual blocking CAPTCHA widgets (not just keywords in page JS)
       const hasCaptchaWidget =
         (await page.locator(
-          '.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], iframe[src*="captcha"], #challenge-stage'
+          '.turnstile-widget, [data-sitekey], iframe[src*="recaptcha/api2"], iframe[src*="hcaptcha.com"], iframe[src*="challenges.cloudflare.com"], #challenge-stage'
         ).count()) > 0;
 
       if (hasCaptchaWidget && attempts >= 3) {
         log(`🔍 诊断: 尝试${attempts + 1}/6 次后仍无用户名输入框`);
         log(`🔍 当前 URL: ${page.url()}`);
         log(`🔍 页面标题: ${await page.title().catch(() => 'N/A')}`);
-        const caps = await page.locator('.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], #challenge-stage').all();
+        const caps = await page.locator('.turnstile-widget, [data-sitekey], iframe[src*="recaptcha/api2"], iframe[src*="hcaptcha.com"], #challenge-stage').all();
         for (const c of caps) {
           const tag = await c.evaluate(el => el.tagName + (el.className ? '.' + el.className : '') + (el.id ? '#' + el.id : '')).catch(() => '?');
           log(`🔍 CAPTCHA 元素: ${tag}`);
@@ -253,14 +247,14 @@ export async function autoLoginIxl(username, password, options = {}) {
       // Final check: is there an actual CAPTCHA widget blocking the form?
       const hasCaptchaWidget =
         (await page.locator(
-          '.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], #challenge-stage'
+          '.turnstile-widget, [data-sitekey], iframe[src*="recaptcha/api2"], iframe[src*="hcaptcha.com"], #challenge-stage'
         ).count()) > 0;
 
       if (hasCaptchaWidget) {
         log(`🔍 诊断: 循环结束后仍无用户名输入框`);
         log(`🔍 当前 URL: ${page.url()}`);
         log(`🔍 页面标题: ${await page.title().catch(() => 'N/A')}`);
-        const caps2 = await page.locator('.turnstile-widget, [data-sitekey], iframe[src*="recaptcha"], iframe[src*="hcaptcha"], #challenge-stage').all();
+        const caps2 = await page.locator('.turnstile-widget, [data-sitekey], iframe[src*="recaptcha/api2"], iframe[src*="hcaptcha.com"], #challenge-stage').all();
         for (const c of caps2) {
           const tag = await c.evaluate(el => el.tagName + (el.className ? '.' + el.className : '') + (el.id ? '#' + el.id : '')).catch(() => '?');
           log(`🔍 CAPTCHA 元素: ${tag}`);
