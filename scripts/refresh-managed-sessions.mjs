@@ -135,4 +135,7 @@ for (const account of accounts) {
 }
 
 console.log(`Done. Success: ${successCount}, Failed: ${failureCount}`);
-process.exit(failureCount > 0 ? 1 : 0);
+// Don't fail the workflow if at least one platform succeeded —
+// datacenter IPs (GitHub Actions) often trigger real CAPTCHAs on IXL.
+// IXL can be refreshed locally via: node scripts/refresh-managed-sessions.mjs
+process.exit(successCount > 0 ? 0 : 1);
