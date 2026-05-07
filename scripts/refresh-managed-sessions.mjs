@@ -99,8 +99,11 @@ for (const account of accounts) {
       continue;
     }
 
-    // Run browser login
-    const result = await loginFn(username, password, { headless: true });
+    // Run browser login with real-time logging
+    const result = await loginFn(username, password, {
+      headless: true,
+      onProgress: (msg) => console.log(`  ${msg}`),
+    });
 
     if (!result || !result.cookies || result.cookies.length === 0) {
       console.error(`[${account.id}] Login returned no cookies`);
