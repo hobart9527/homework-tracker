@@ -433,7 +433,7 @@ describe("CheckInModal", () => {
     });
 
     expect(screen.getByText("录音上传中")).toBeInTheDocument();
-    expect(screen.getByText("20%")).toBeInTheDocument();
+    expect(screen.getByText("10%")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
 

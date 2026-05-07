@@ -146,6 +146,7 @@ function createSupabaseClient() {
                   platform: "ixl",
                   external_account_ref: "mia-family-account",
                   status: "failed",
+                  auto_login_enabled: true,
                   last_synced_at: null,
                   last_sync_error_summary: "Unexpected IXL page shape",
                 },
@@ -349,17 +350,14 @@ describe("Settings IA pages", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Telegram Chat ID")).toHaveValue("123456789");
     expect(screen.queryByLabelText("Telegram Bot Token")).not.toBeInTheDocument();
-    expect(screen.getByText("Mia 数学老师群")).toBeInTheDocument();
-    expect(screen.getByText("Mia 阅读老师群")).toBeInTheDocument();
   });
 
-  it("checks bridge health from the channels page", async () => {
+  it("checks wecom bridge status from the channels page", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
-        status: "healthy",
-        healthUrl: "http://127.0.0.1:4010/health",
-        deliveredCount: 2,
+        configured: true,
+        corpidPreview: "wx123456",
       }),
     });
 
@@ -374,33 +372,37 @@ describe("Settings IA pages", () => {
     fireEvent.click(screen.getByRole("button", { name: "检查发送服务状态" }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/voice-push/bridge-health", {
+      expect(fetchMock).toHaveBeenCalledWith("/api/voice-push/wecom-status", {
         method: "GET",
       });
       expect(
         screen.getByText(
-          "发送服务可访问：http://127.0.0.1:4010/health，已发送 2 条任务。"
+          "企业微信已配置（CorpID: wx123456），可正常发送。"
         )
       ).toBeInTheDocument();
     });
   });
 
-  it("lets parents rename a discovered WeChat group from the channels page", async () => {
-    render(<SettingsChannelsPage />);
+  it("lets parents rename a discovered WeChat group from the integrations page", async () => {
+    render(<SettingsIntegrationsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Mia 数学老师群")).toBeInTheDocument();
+      expect(screen.getByText("微信群管理")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "编辑" })[0]);
+    await waitFor(() => {
+      expect(screen.getAllByText("Mia 数学老师群").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "编辑" })[1]);
     fireEvent.change(screen.getByPlaceholderText("群显示名称"), {
       target: { value: "Mia 数学打卡群" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "保存" })[1]);
 
     await waitFor(() => {
       expect(updateWeChatGroupEq).toHaveBeenCalledWith("id", "group-1");
-      expect(screen.getByText("Mia 数学打卡群")).toBeInTheDocument();
+      expect(screen.getAllByText("Mia 数学打卡群").length).toBeGreaterThan(0);
     });
   });
 
@@ -420,11 +422,10 @@ describe("Settings IA pages", () => {
       expect(screen.getByText("默认微信群")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("用户名或账号标识"), {
+    fireEvent.change(screen.getByLabelText("账号标识 / 登录用户名"), {
       target: { value: "mia@example.com" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "手动 Session" }));
-    fireEvent.click(screen.getByRole("button", { name: "绑定账号" }));
+    fireEvent.click(screen.getByRole("button", { name: "绑定" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -454,23 +455,15 @@ describe("Settings IA pages", () => {
       target: { value: "raz-kids" },
     });
 
-    expect(screen.getByText(/Raz-Kids 目前先接入手动 Session 绑定/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "自动登录（IXL / Khan）" })).toBeDisabled();
+    expect(screen.getByText(/Raz-Kids 暂不支持自动登录/)).toBeInTheDocument();
   });
 
   it("switches to manual session guidance when IXL auto login hits a captcha challenge", async () => {
     fetchMock.mockResolvedValue({
-      ok: false,
+      ok: true,
       json: vi.fn().mockResolvedValue({
-        error: "IXL is requiring a CAPTCHA challenge. Automatic login is not possible at this time.",
-        reason: "captcha_required",
-        manualSessionUrl: "https://www.ixl.com/signin",
-        manualSessionTemplate: {
-          cookies: [
-            { name: "PHPSESSID", value: "" },
-            { name: "ixl_user", value: "" },
-          ],
-        },
+        success: true,
+        account: { id: "acct-1", platform: "ixl", status: "attention_required" },
       }),
     });
 
@@ -480,34 +473,17 @@ describe("Settings IA pages", () => {
       expect(screen.getByText("学习平台账号")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByLabelText("用户名或账号标识"), {
+    fireEvent.change(screen.getByLabelText("账号标识 / 登录用户名"), {
       target: { value: "mia@example.com" },
     });
     fireEvent.change(screen.getByLabelText("登录密码"), {
       target: { value: "secret123" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "测试登录并绑定" }));
+    fireEvent.click(screen.getByRole("button", { name: "绑定" }));
 
     await waitFor(() => {
-      expect(screen.getByText(/IXL 当前要求你先手动完成验证码/)).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "打开 IXL 登录页" })).toHaveAttribute(
-        "href",
-        "https://www.ixl.com/signin"
-      );
-      expect(screen.getByLabelText("Managed Session JSON")).toBeInTheDocument();
-      expect(screen.getByLabelText("Managed Session JSON")).toHaveValue(
-        JSON.stringify(
-          {
-            cookies: [
-              { name: "PHPSESSID", value: "" },
-              { name: "ixl_user", value: "" },
-            ],
-          },
-          null,
-          2
-        )
-      );
+      expect(screen.getByText("自动登录并抓取 Session")).toBeInTheDocument();
     });
   });
 

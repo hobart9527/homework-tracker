@@ -17,6 +17,10 @@ vi.mock("@/lib/platform-adapters/khan-auth", () => ({
   simulateKhanLogin: simulateKhanLoginMock,
 }));
 
+vi.mock("@/lib/crypto", () => ({
+  encryptCredential: vi.fn(() => "encrypted:mock:value"),
+}));
+
 function makeSupabaseClient(options?: {
   sessionUserId?: string | null;
   childParentId?: string;
@@ -115,9 +119,14 @@ function makeSupabaseClient(options?: {
 
 describe("platform connections route", () => {
   beforeEach(() => {
+    vi.stubEnv("PLATFORM_CREDENTIALS_ENCRYPTION_KEY", "test-key-32-bytes-long-for-aes-256!");
     createClientMock.mockReset();
     simulateIxlLoginMock.mockReset();
     simulateKhanLoginMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("rejects unauthenticated requests", async () => {
@@ -355,7 +364,7 @@ describe("platform connections route", () => {
     expect(response.status).toBe(404);
   });
 
-  it("returns manual-session guidance when IXL auto login hits a captcha challenge", async () => {
+  it("stores credentials and marks attention_required when IXL auto login hits a captcha challenge", async () => {
     createClientMock.mockResolvedValue(makeSupabaseClient());
     simulateIxlLoginMock.mockResolvedValue({
       success: false,
@@ -378,14 +387,9 @@ describe("platform connections route", () => {
     );
     const body = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(body.reason).toBe("captcha_required");
-    expect(body.manualSessionUrl).toBe("https://www.ixl.com/signin");
-    expect(body.manualSessionTemplate).toEqual({
-      cookies: [
-        { name: "PHPSESSID", value: "" },
-        { name: "ixl_user", value: "" },
-      ],
-    });
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.account.status).toBe("attention_required");
+    expect(body.account.platform).toBe("ixl");
   });
 });

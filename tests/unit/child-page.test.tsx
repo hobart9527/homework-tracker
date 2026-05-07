@@ -110,6 +110,14 @@ const supabaseClient = {
       };
     }
 
+    if (table === "attachments") {
+      return {
+        select: () => ({
+          eq: vi.fn().mockResolvedValue({ data: [] }),
+        }),
+      };
+    }
+
     return {
       select: () => ({
         eq: vi.fn(),
@@ -136,7 +144,7 @@ describe("Child landing page", () => {
       await vi.runAllTimersAsync();
     });
 
-    expect(createClient).toHaveBeenCalledTimes(1);
+    expect(createClient).toHaveBeenCalledTimes(2);
 
     const completedDaysCard = screen.getByText("完成天数").parentElement;
     expect(completedDaysCard).not.toBeNull();

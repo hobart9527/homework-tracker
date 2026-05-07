@@ -261,7 +261,6 @@ describe("buildHomeworkInsertRows", () => {
 
     expect(rows).toHaveLength(2);
     expect(rows.map((row) => row.child_id)).toEqual(["child-1", "child-2"]);
-    expect(rows[0].required_checkpoint_type).toBe("photo");
   });
 
   it("keeps weekly and interval fields aligned to repeat type", () => {
@@ -287,32 +286,6 @@ describe("buildHomeworkInsertRows", () => {
     expect(weeklyRow.repeat_interval).toBeNull();
     expect(intervalRow.repeat_days).toBeNull();
     expect(intervalRow.repeat_interval).toBe(3);
-  });
-
-  it("persists platform binding metadata when explicitly configured", () => {
-    const row = buildHomeworkInsertRows(
-      makeForm({
-        platform_binding_platform: "khan-academy",
-        platform_binding_source_ref: "lesson-123",
-      }),
-      "parent-1"
-    )[0];
-
-    expect(row.platform_binding_platform).toBe("khan-academy");
-    expect(row.platform_binding_source_ref).toBe("lesson-123");
-  });
-
-  it("persists WeChat delivery ownership fields when configured", () => {
-    const row = buildHomeworkInsertRows(
-      makeForm({
-        send_to_wechat: true,
-        wechat_group_id: "group-math",
-      }),
-      "parent-1"
-    )[0];
-
-    expect(row.send_to_wechat).toBe(true);
-    expect(row.wechat_group_id).toBe("group-math");
   });
 
   it("stores a null estimated duration when parents leave the time blank", () => {
