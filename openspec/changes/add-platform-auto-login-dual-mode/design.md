@@ -195,8 +195,11 @@ The integrations settings page (`src/app/(parent)/settings/integrations/page.tsx
 - **Mode toggle**: a button group to choose "自动登录（推荐）" or "手动 Session"
 - **Auto-login form**: shows username and password inputs; hides JSON textarea and session timestamp fields; submit button reads "测试登录并绑定"
 - **Manual session form**: shows existing JSON textarea and timestamps; submit button reads "绑定账号"
-- **Account list enhancements**: each card shows the auth mode badge; auto-login accounts in `attention_required` show a "刷新登录" button
-- **Error messaging**: maps API error reasons to user-friendly Chinese messages with a suggestion to switch to manual mode
+- **Account list enhancements**: each card shows the auth mode badge; auto-login accounts in `attention_required` show a "更新 Session" button
+- **Inline edit panel**: clicking the "编辑" button on an account card expands an inline edit panel below the card instead of populating the top binding form, preventing disruptive context switching
+- **Update Session modal (3 tabs)**: when updating session, a modal opens with three tabs — (1) "自动登录（推荐）" uses saved encrypted credentials to attempt automatic re-login and session capture, (2) "本地脚本" provides a browser script copy approach, (3) "手动粘贴" allows traditional JSON paste
+- **Field merge**: "账号标识" and "登录用户名" are merged into a single `username` field in the UI; the backend still accepts `loginUsername` for cases where the login username differs from the account identifier, but the default UI flow no longer asks for both
+- **Error mapping**: technical errors such as `No KAAS cookie found` are translated via `mapAuthError()` into user-friendly Chinese messages (e.g., "登录失败：Khan Academy 未返回有效会话，可能需要验证码或手机验证") with guidance to switch to manual session mode
 
 ## Data Model
 

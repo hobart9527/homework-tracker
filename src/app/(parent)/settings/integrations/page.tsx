@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SettingsShell } from "@/components/parent/SettingsShell";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
@@ -40,6 +41,7 @@ function getManualSessionLoginUrl(platform: string) {
 export default function SettingsIntegrationsPage() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
+  const router = useRouter();
   const selectedChildIdFromQuery = searchParams.get("childId");
   const [loading, setLoading] = useState(true);
   const [parentId, setParentId] = useState<string | null>(null);
@@ -52,22 +54,12 @@ export default function SettingsIntegrationsPage() {
     childId: "",
     platform: "ixl" as SupportedPlatform,
     username: "",
-    externalAccountRef: "",
-    authMode: "auto_login" as "auto_login" | "manual_session",
-    loginUsername: "",
     loginPassword: "",
-    managedSessionPayloadText: "",
-    managedSessionCapturedAt: "",
   });
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [bindingLoading, setBindingLoading] = useState(false);
-  const [manualSessionGuide, setManualSessionGuide] = useState<{
-    platform: string;
-    url: string;
-    message: string;
-  } | null>(null);
   const [takeoverAccountId, setTakeoverAccountId] = useState<string | null>(null);
-  const [takeoverMethod, setTakeoverMethod] = useState<"script" | "manual">("script");
+  const [takeoverMethod, setTakeoverMethod] = useState<"auto" | "script" | "manual">("auto");
   const [takeoverPayload, setTakeoverPayload] = useState<string>("");
   const [takeoverLoading, setTakeoverLoading] = useState(false);
   const [copiedCommand, setCopiedCommand] = useState(false);
@@ -77,28 +69,25 @@ export default function SettingsIntegrationsPage() {
   const [editCredentialUsername, setEditCredentialUsername] = useState("");
   const [editCredentialPassword, setEditCredentialPassword] = useState("");
   const [editCredentialLoading, setEditCredentialLoading] = useState(false);
+  const [editAccountId, setEditAccountId] = useState<string | null>(null);
+  const [editAccountUsername, setEditAccountUsername] = useState("");
+  const [editAccountLoginUsername, setEditAccountLoginUsername] = useState("");
+  const [editAccountPassword, setEditAccountPassword] = useState("");
+  const [editAccountLoading, setEditAccountLoading] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [loginLogs, setLoginLogs] = useState<string[]>([]);
-  const [toastMessage, setToastMessage] = useState<{
-    type: "success" | "error" | "info";
-    text: string;
-  } | null>(null);
-  const dismissedTakeovers = useRef<Set<string>>(new Set());
-  const hasChildContext = Boolean(selectedChildIdFromQuery);
+  const [selectedChildId, setSelectedChildId] = useState<string>("");
 
-  const [routingForm, setRoutingForm] = useState({
-    childId: "",
-    homeworkId: "",
-    channel: "wechat_group" as "wechat_group",
-    recipientRef: "",
-    recipientLabel: "",
-  });
-  const [routingError, setRoutingError] = useState<string | null>(null);
-  const [routingLoading, setRoutingLoading] = useState(false);
   const [childGroupSelections, setChildGroupSelections] = useState<
     Record<string, string>
   >({});
   const [savingChildGroupId, setSavingChildGroupId] = useState<string | null>(null);
+  const [showGroupAddForm, setShowGroupAddForm] = useState(false);
+  const [groupAddForm, setGroupAddForm] = useState({ recipientRef: "", displayName: "" });
+  const [groupAddLoading, setGroupAddLoading] = useState(false);
+  const [groupAddError, setGroupAddError] = useState<string | null>(null);
+  const [groupEditingId, setGroupEditingId] = useState<string | null>(null);
+  const [groupEditName, setGroupEditName] = useState("");
+  const [groupEditLoading, setGroupEditLoading] = useState(false);
 
   const refreshData = async (nextParentId: string) => {
     const { data: childrenData } = await supabase
@@ -172,31 +161,31 @@ export default function SettingsIntegrationsPage() {
   }, [supabase]);
 
   useEffect(() => {
-    if (!selectedChildIdFromQuery || !children.length) {
-      return;
-    }
+    if (!children.length) return;
 
-    if (!children.some((child) => child.id === selectedChildIdFromQuery)) {
-      return;
-    }
+    const validFromQuery =
+      selectedChildIdFromQuery &&
+      children.some((c) => c.id === selectedChildIdFromQuery)
+        ? selectedChildIdFromQuery
+        : null;
 
-    setBindingForm((prev) => ({ ...prev, childId: selectedChildIdFromQuery }));
-    setRoutingForm((prev) => ({ ...prev, childId: selectedChildIdFromQuery }));
+    const nextId = validFromQuery || children[0].id;
+
+    setSelectedChildId((prev) => {
+      if (prev && children.some((c) => c.id === prev)) return prev;
+      return nextId;
+    });
   }, [children, selectedChildIdFromQuery]);
 
   useEffect(() => {
-    if (!toastMessage) return;
-    const timer = setTimeout(() => setToastMessage(null), 5000);
-    return () => clearTimeout(timer);
-  }, [toastMessage]);
+    if (selectedChildId) {
+      setBindingForm((prev) => ({ ...prev, childId: selectedChildId }));
+    }
+  }, [selectedChildId]);
 
   const homeworkTitleById = Object.fromEntries(
     homeworks.map((homework) => [homework.id, homework.title])
   );
-  const routingHomeworkOptions = homeworks.filter(
-    (homework) => !routingForm.childId || homework.child_id === routingForm.childId
-  );
-
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -207,32 +196,15 @@ export default function SettingsIntegrationsPage() {
 
   const handleBindingSubmit = async () => {
     setBindingError(null);
-    setManualSessionGuide(null);
-    setLoginLogs([]);
-    setToastMessage(null);
 
     if (!bindingForm.childId || !bindingForm.username.trim()) {
-      setBindingError("请选择孩子并填写用户名或账号标识。");
+      setBindingError("请选择孩子并填写账号标识。");
       return;
     }
 
-    if (bindingForm.authMode === "auto_login" && !bindingForm.loginPassword) {
-      setBindingError("自动登录模式需要填写登录密码。");
-      return;
-    }
-
-    let managedSessionPayload: Record<string, unknown> | null = null;
-
-    if (bindingForm.authMode === "manual_session" && bindingForm.managedSessionPayloadText.trim()) {
-      try {
-        managedSessionPayload = JSON.parse(
-          bindingForm.managedSessionPayloadText
-        ) as Record<string, unknown>;
-      } catch {
-        setBindingError("Managed Session JSON 格式不正确。");
-        return;
-      }
-    }
+    const platformSupportsAuto = AUTO_LOGIN_PLATFORMS.has(bindingForm.platform);
+    const hasPassword = Boolean(bindingForm.loginPassword);
+    const authMode = platformSupportsAuto && hasPassword ? "auto_login" : "manual_session";
 
     setBindingLoading(true);
 
@@ -244,75 +216,42 @@ export default function SettingsIntegrationsPage() {
           childId: bindingForm.childId,
           platform: bindingForm.platform,
           username: bindingForm.username.trim(),
-          externalAccountRef: bindingForm.externalAccountRef.trim(),
-          authMode: bindingForm.authMode,
-          loginUsername: bindingForm.loginUsername.trim() || bindingForm.username.trim(),
+          authMode,
+          loginUsername: bindingForm.username.trim(),
           loginPassword: bindingForm.loginPassword,
-          managedSessionPayload,
-          managedSessionCapturedAt:
-            bindingForm.managedSessionCapturedAt || null,
         }),
       });
 
       const body = await response.json();
-      setLoginLogs(body.logs ?? []);
 
       if (!response.ok) {
-        let errorMsg = body.error || "绑定学习平台账号失败，请稍后重试。";
-        if (body.reason === "captcha_required") {
-          errorMsg += " 该平台当前需要验证码，请切换到手动 Session 模式。";
-        } else if (body.reason === "two_factor_required") {
-          errorMsg += " 该平台开启了双重验证，请使用手动 Session 模式。";
-        } else if (body.hint) {
-          errorMsg += ` ${body.hint}`;
-        }
-
-        if (
-          body.reason === "captcha_required" ||
-          body.reason === "two_factor_required" ||
-          body.reason === "unsupported"
-        ) {
-          setBindingForm((prev) => ({
-            ...prev,
-            authMode: "manual_session",
-            managedSessionPayloadText:
-              prev.managedSessionPayloadText ||
-              (body.manualSessionTemplate
-                ? JSON.stringify(body.manualSessionTemplate, null, 2)
-                : ""),
-          }));
-          if (body.manualSessionUrl) {
-            setManualSessionGuide({
-              platform: bindingForm.platform,
-              url: body.manualSessionUrl,
-              message:
-                body.reason === "captcha_required"
-                  ? `${bindingForm.platform.toUpperCase()} 当前要求你先手动完成验证码，再把登录成功后的 Session 粘贴回来。`
-                  : "当前平台需要你先在浏览器中手动完成登录，再把成功后的 Session 粘贴回来。",
-            });
-          }
-        }
-
-        setBindingError(errorMsg);
+        setBindingError(mapAuthError(body.error || "绑定学习平台账号失败"));
         return;
       }
 
-      setToastMessage({ type: "success", text: "账号绑定成功" });
-      setLoginLogs(body.logs ?? []);
+      const account = body.account;
+
       setBindingForm({
         childId: "",
         platform: "ixl",
         username: "",
-        externalAccountRef: "",
-        authMode: "auto_login",
-        loginUsername: "",
         loginPassword: "",
-        managedSessionPayloadText: "",
-        managedSessionCapturedAt: "",
       });
 
       if (parentId) {
         await refreshData(parentId);
+      }
+
+      // Auto-login blocked by captcha/2FA: saved credentials, now offer manual session
+      if (account?.status === "attention_required") {
+        setTakeoverAccountId(account.id);
+        setTakeoverPayload(
+          account.platform === "ixl"
+            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+            : account.platform === "khan-academy"
+              ? '{"cookies":[{"name":"KAAS","value":""}]}'
+              : '{"activityUrl":"","cookies":[]}'
+        );
       }
     } finally {
       setBindingLoading(false);
@@ -320,8 +259,6 @@ export default function SettingsIntegrationsPage() {
   };
 
   const handleRefreshSession = async (accountId: string, platform: string) => {
-    setLoginLogs([]);
-    setToastMessage(null);
     try {
       const response = await fetch(
         `/api/platform-connections/${accountId}/refresh-session`,
@@ -331,42 +268,31 @@ export default function SettingsIntegrationsPage() {
         }
       );
 
-      const body = await response.json().catch(() => ({}));
-      setLoginLogs(body.logs ?? []);
-
       if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
         if (
           ["captcha_required", "two_factor_required", "unsupported"].includes(
             body.reason
           )
         ) {
-          // Mark this account as needing manual session; do NOT auto-open takeover panel
-          dismissedTakeovers.current.add(accountId);
-          setToastMessage({
-            type: "error",
-            text: `${body.error || "自动登录不可用"} 请使用「手动补录」更新 Session。`,
-          });
+          setTakeoverAccountId(accountId);
+          setTakeoverPayload(
+            platform === "ixl"
+              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+              : '{"cookies":[{"name":"KAAS","value":""}]}'
+          );
           return;
         }
-        setToastMessage({
-          type: "error",
-          text: body.error || "刷新 Session 失败",
-        });
+        alert(mapAuthError(body.error || "刷新 Session 失败"));
         return;
       }
 
       if (parentId) {
         await refreshData(parentId);
       }
-      setToastMessage({
-        type: "success",
-        text: body.message || "Session 刷新成功",
-      });
+      alert("Session 刷新成功");
     } catch {
-      setToastMessage({
-        type: "error",
-        text: "刷新 Session 时发生网络错误",
-      });
+      alert("刷新 Session 时发生网络错误");
     }
   };
 
@@ -375,7 +301,7 @@ export default function SettingsIntegrationsPage() {
     try {
       payload = JSON.parse(takeoverPayload);
     } catch {
-      setToastMessage({ type: "error", text: "JSON 格式不正确" });
+      alert("JSON 格式不正确");
       return;
     }
 
@@ -392,7 +318,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setToastMessage({ type: "error", text: body.error || "保存失败" });
+        alert(body.error || "保存失败");
         return;
       }
 
@@ -401,9 +327,8 @@ export default function SettingsIntegrationsPage() {
       if (parentId) {
         await refreshData(parentId);
       }
-      setToastMessage({ type: "success", text: "Session 保存成功" });
     } catch {
-      setToastMessage({ type: "error", text: "保存时发生网络错误" });
+      alert("保存时发生网络错误");
     } finally {
       setTakeoverLoading(false);
     }
@@ -418,7 +343,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setToastMessage({ type: "error", text: body.error || "删除账号失败" });
+        alert(body.error || "删除账号失败");
         return;
       }
 
@@ -426,9 +351,8 @@ export default function SettingsIntegrationsPage() {
       if (parentId) {
         await refreshData(parentId);
       }
-      setToastMessage({ type: "success", text: "账号绑定已删除" });
     } catch {
-      setToastMessage({ type: "error", text: "删除时发生网络错误" });
+      alert("删除时发生网络错误");
     } finally {
       setDeleteLoading(false);
     }
@@ -436,11 +360,9 @@ export default function SettingsIntegrationsPage() {
 
   const handleEditCredentialSave = async (accountId: string) => {
     if (!editCredentialPassword) {
-      setToastMessage({ type: "error", text: "请输入新密码" });
+      alert("请输入新密码");
       return;
     }
-    setLoginLogs([]);
-    setToastMessage(null);
     setEditCredentialLoading(true);
     try {
       const response = await fetch("/api/platform-connections", {
@@ -450,18 +372,15 @@ export default function SettingsIntegrationsPage() {
           childId: platformAccounts.find((a) => a.id === accountId)?.child_id,
           platform: platformAccounts.find((a) => a.id === accountId)?.platform,
           username: platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
-          externalAccountRef: platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
           authMode: "auto_login",
           loginUsername: editCredentialUsername || platformAccounts.find((a) => a.id === accountId)?.external_account_ref,
           loginPassword: editCredentialPassword,
         }),
       });
 
-      const body = await response.json().catch(() => ({}));
-      setLoginLogs(body.logs ?? []);
-
       if (!response.ok) {
-        setToastMessage({ type: "error", text: body.error || "更新凭据失败" });
+        const body = await response.json().catch(() => ({}));
+        alert(mapAuthError(body.error || "更新凭据失败"));
         return;
       }
 
@@ -471,28 +390,71 @@ export default function SettingsIntegrationsPage() {
       if (parentId) {
         await refreshData(parentId);
       }
-      setToastMessage({ type: "success", text: "凭据更新成功" });
     } catch {
-      setToastMessage({ type: "error", text: "更新凭据时发生网络错误" });
+      alert("更新凭据时发生网络错误");
     } finally {
       setEditCredentialLoading(false);
     }
   };
 
-  const populateForm = (account: PlatformAccount) => {
-    setBindingForm({
-      childId: account.child_id,
-      platform: account.platform as SupportedPlatform,
-      username: account.external_account_ref,
-      externalAccountRef: account.external_account_ref,
-      authMode: (account.auth_mode as "auto_login" | "manual_session") ?? "manual_session",
-      loginUsername: "",
-      loginPassword: "",
-      managedSessionPayloadText: "",
-      managedSessionCapturedAt: "",
-    });
-    setManualSessionGuide(null);
+  const startEditAccount = (account: PlatformAccount) => {
+    setEditAccountId(account.id);
+    setEditAccountUsername(account.external_account_ref);
+    setEditAccountLoginUsername("");
+    setEditAccountPassword("");
+    setEditCredentialId(null);
     setBindingError(null);
+  };
+
+  const saveEditAccount = async (accountId: string, platform: string) => {
+    if (!editAccountUsername.trim()) {
+      setBindingError("请填写账号标识。");
+      return;
+    }
+
+    const isAutoPlatform = AUTO_LOGIN_PLATFORMS.has(platform as SupportedPlatform);
+    const hasPassword = Boolean(editAccountPassword);
+    const authMode = isAutoPlatform && hasPassword ? "auto_login" : "manual_session";
+
+    setEditAccountLoading(true);
+    setBindingError(null);
+
+    try {
+      const response = await fetch("/api/platform-connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          childId: platformAccounts.find((a) => a.id === accountId)?.child_id,
+          platform,
+          username: editAccountUsername.trim(),
+          externalAccountRef: editAccountUsername.trim(),
+          authMode,
+          loginUsername: editAccountLoginUsername.trim() || editAccountUsername.trim(),
+          loginPassword: editAccountPassword,
+        }),
+      });
+
+      const body = await response.json();
+
+      if (!response.ok) {
+        setBindingError(mapAuthError(body.error || "更新失败"));
+        return;
+      }
+
+      setEditAccountId(null);
+      if (parentId) await refreshData(parentId);
+
+      if (body.account?.status === "attention_required") {
+        setTakeoverAccountId(body.account.id);
+        setTakeoverPayload(
+          body.account.platform === "ixl"
+            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+            : '{"cookies":[{"name":"KAAS","value":""}]}'
+        );
+      }
+    } finally {
+      setEditAccountLoading(false);
+    }
   };
 
   const toggleExpand = (accountId: string) => {
@@ -525,36 +487,111 @@ export default function SettingsIntegrationsPage() {
     return status;
   };
 
+  const mapAuthError = (message: string) => {
+    if (/no kaas cookie/i.test(message)) return "登录失败：Khan Academy 未返回有效会话，可能需要验证码或手机验证。";
+    if (/no session cookie/i.test(message)) return "登录失败：平台未返回有效会话，请确认用户名和密码正确。";
+    if (/invalid.*credential|password.*incorrect|用户名.*密码/i.test(message)) return "用户名或密码不正确。";
+    if (/captcha|验证码|challenge/i.test(message)) return "平台要求验证码验证，请使用手动 Session 方式。";
+    if (/two.factor|2fa|verification/i.test(message)) return "平台要求二次验证，请使用手动 Session 方式。";
+    if (/timeout|timed out/i.test(message)) return "登录超时，平台可能暂时无法访问，请稍后重试。";
+    if (/cloudflare|blocked/i.test(message)) return "平台安全验证拦截了自动登录，请使用手动 Session 方式。";
+    return message;
+  };
+
+  const handleGroupAdd = async () => {
+    setGroupAddError(null);
+    if (!groupAddForm.recipientRef.trim()) {
+      setGroupAddError("请输入微信群标识。");
+      return;
+    }
+    setGroupAddLoading(true);
+    try {
+      const { error } = await supabase.from("wechat_groups").insert({
+        parent_id: parentId,
+        recipient_ref: groupAddForm.recipientRef.trim(),
+        display_name: groupAddForm.displayName.trim() || null,
+        source: "manual",
+      });
+      if (error) {
+        if (error.message.includes("duplicate")) {
+          setGroupAddError("这个群标识已经存在了。");
+        } else {
+          setGroupAddError(error.message);
+        }
+        return;
+      }
+      setGroupAddForm({ recipientRef: "", displayName: "" });
+      setShowGroupAddForm(false);
+      if (parentId) await refreshData(parentId);
+    } finally {
+      setGroupAddLoading(false);
+    }
+  };
+
+  const handleGroupEdit = async (groupId: string) => {
+    setGroupEditLoading(true);
+    try {
+      const { error } = await supabase
+        .from("wechat_groups")
+        .update({ display_name: groupEditName.trim() || null })
+        .eq("id", groupId);
+      if (!error) {
+        setGroupEditingId(null);
+        if (parentId) await refreshData(parentId);
+      }
+    } finally {
+      setGroupEditLoading(false);
+    }
+  };
+
+  const handleGroupDelete = async (groupId: string) => {
+    if (!confirm("确定要删除这个微信群吗？相关的消息路由也会失效。")) return;
+    await supabase.from("wechat_groups").delete().eq("id", groupId);
+    if (parentId) await refreshData(parentId);
+  };
+
   return (
     <SettingsShell
       title="孩子集成"
       description="这里管理孩子自己的学习平台账号和默认消息路由，不处理家庭级通知通道。"
-      backHref={hasChildContext ? "/children" : "/settings"}
+      backHref="/settings"
     >
-      {/* Toast notification */}
-      {toastMessage && (
-        <div
-          className={`mb-4 rounded-xl border px-4 py-3 text-sm font-medium shadow-sm transition-opacity ${
-            toastMessage.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : toastMessage.type === "error"
-                ? "border-rose-200 bg-rose-50 text-rose-800"
-                : "border-amber-200 bg-amber-50 text-amber-800"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span>{toastMessage.text}</span>
-            <button
-              type="button"
-              onClick={() => setToastMessage(null)}
-              className="ml-3 text-lg leading-none opacity-60 hover:opacity-100"
-              aria-label="关闭"
-            >
-              ×
-            </button>
+        {/* Child tab bar */}
+        {children.length > 1 && (
+          <div className="flex flex-wrap gap-2" role="tablist">
+            {children.map((child) => (
+              <button
+                key={child.id}
+                role="tab"
+                aria-selected={selectedChildId === child.id}
+                onClick={() => {
+                  setSelectedChildId(child.id);
+                  setBindingForm((prev) => ({
+                    ...prev,
+                    childId: child.id,
+                    username: "",
+                    loginPassword: "",
+                  }));
+                  setBindingError(null);
+                  router.replace(`/settings/integrations?childId=${child.id}`, { scroll: false });
+                }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  selectedChildId === child.id
+                    ? "bg-primary text-white"
+                    : "bg-forest-50 text-forest-600 hover:bg-forest-100"
+                }`}
+              >
+                {child.avatar} {child.name}
+              </button>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+
+        {!selectedChildId && (
+          <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-center text-sm text-forest-500">
+            请选择一个孩子开始配置
+          </div>
+        )}
 
       <Card id="platform-binding" className="scroll-mt-4">
         <div className="space-y-4">
@@ -566,70 +603,6 @@ export default function SettingsIntegrationsPage() {
           </div>
 
           <div className="space-y-4">
-            {/* Auth Mode Toggle */}
-            <div className="flex rounded-xl border-2 border-forest-200 p-1">
-              <button
-                type="button"
-                onClick={() =>
-                  setBindingForm((prev) =>
-                    AUTO_LOGIN_PLATFORMS.has(prev.platform)
-                      ? { ...prev, authMode: "auto_login" }
-                      : prev
-                  )
-                }
-                disabled={!AUTO_LOGIN_PLATFORMS.has(bindingForm.platform)}
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  bindingForm.authMode === "auto_login"
-                    ? "bg-primary text-white"
-                    : "text-forest-600 hover:bg-forest-50"
-                }`}
-              >
-                自动登录（IXL / Khan）
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setBindingForm((prev) => ({ ...prev, authMode: "manual_session" }))
-                }
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                  bindingForm.authMode === "manual_session"
-                    ? "bg-primary text-white"
-                    : "text-forest-600 hover:bg-forest-50"
-                }`}
-              >
-                手动 Session
-              </button>
-            </div>
-
-            {hasChildContext ? (
-              <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3">
-                <p className="text-sm font-medium text-forest-700">
-                  孩子：{children.find((c) => c.id === bindingForm.childId)?.name ?? "未选择"}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <label htmlFor="platform-child-id" className="mb-1 block text-sm font-medium text-forest-700">
-                  孩子
-                </label>
-                <select
-                  id="platform-child-id"
-                  value={bindingForm.childId}
-                  onChange={(e) =>
-                    setBindingForm((prev) => ({ ...prev, childId: e.target.value }))
-                  }
-                  className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-                >
-                  <option value="">请选择孩子</option>
-                  {children.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      {child.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div>
               <label htmlFor="platform-name" className="mb-1 block text-sm font-medium text-forest-700">
                 平台
@@ -638,16 +611,7 @@ export default function SettingsIntegrationsPage() {
                 id="platform-name"
                 value={bindingForm.platform}
                 onChange={(e) =>
-                  setBindingForm((prev) => {
-                    const platform = e.target.value as SupportedPlatform;
-                    return {
-                      ...prev,
-                      platform,
-                      authMode: AUTO_LOGIN_PLATFORMS.has(platform)
-                        ? prev.authMode
-                        : "manual_session",
-                    };
-                  })
+                  setBindingForm((prev) => ({ ...prev, platform: e.target.value as SupportedPlatform }))
                 }
                 className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
               >
@@ -659,155 +623,47 @@ export default function SettingsIntegrationsPage() {
             </div>
 
             <Input
-              label="用户名或账号标识"
+              label={AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? "账号标识 / 登录用户名" : "账号标识"}
               value={bindingForm.username}
               onChange={(e) =>
                 setBindingForm((prev) => ({ ...prev, username: e.target.value }))
               }
-              placeholder="例如 mia-family-account"
+              placeholder={AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? "同时也是平台的登录用户名" : "例如 mia-family-account"}
             />
 
-            <Input
-              label="外部账号标识（可选）"
-              value={bindingForm.externalAccountRef}
-              onChange={(e) =>
-                setBindingForm((prev) => ({
-                  ...prev,
-                  externalAccountRef: e.target.value,
-                }))
-              }
-              placeholder="默认会使用上面的用户名"
-            />
-
-            {bindingForm.authMode === "auto_login" ? (
-              <>
-                <Input
-                  label="登录用户名"
-                  value={bindingForm.loginUsername}
-                  onChange={(e) =>
-                    setBindingForm((prev) => ({ ...prev, loginUsername: e.target.value }))
-                  }
-                  placeholder="留空则使用上面的用户名或账号标识"
-                />
-                <Input
-                  label="登录密码"
-                  type="password"
-                  value={bindingForm.loginPassword}
-                  onChange={(e) =>
-                    setBindingForm((prev) => ({ ...prev, loginPassword: e.target.value }))
-                  }
-                  placeholder="平台登录密码"
-                />
-              </>
+            {AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? (
+              <Input
+                label="登录密码"
+                type="password"
+                value={bindingForm.loginPassword}
+                onChange={(e) =>
+                  setBindingForm((prev) => ({ ...prev, loginPassword: e.target.value }))
+                }
+                placeholder="平台登录密码"
+              />
             ) : (
-              <>
-                {!AUTO_LOGIN_PLATFORMS.has(bindingForm.platform) ? (
-                  <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                    {getPlatformDisplayName(bindingForm.platform)} 目前先接入手动
-                    Session 绑定，自动登录后续再补。请在 JSON 里同时提供活动页
-                    `activityUrl` 和登录后的 `cookies`。
-                  </div>
-                ) : null}
-                {manualSessionGuide ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    <p className="font-medium">{manualSessionGuide.message}</p>
-                    <ol className="mt-2 list-decimal space-y-1 pl-5">
-                      <li>先打开平台登录页并完成验证码或登录验证</li>
-                      <li>登录成功后，进入学习记录/活动页，并复制该页面 URL</li>
-                      <li>把活动页 URL 和当前浏览器里的 Cookie 按下面 JSON 结构粘贴回来</li>
-                      <li>保存后系统会优先复用这次 Session，减少后续打断</li>
-                    </ol>
-                    <a
-                      href={manualSessionGuide.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-3 inline-flex text-sm font-medium text-primary underline"
-                    >
-                      打开 {getPlatformDisplayName(manualSessionGuide.platform)} 登录页
-                    </a>
-                  </div>
-                ) : null}
-                <div>
-                  <label htmlFor="managed-session-payload" className="mb-1 block text-sm font-medium text-forest-700">
-                    Managed Session JSON
-                  </label>
-                  <textarea
-                    id="managed-session-payload"
-                    value={bindingForm.managedSessionPayloadText}
-                    onChange={(e) =>
-                      setBindingForm((prev) => ({
-                        ...prev,
-                        managedSessionPayloadText: e.target.value,
-                      }))
-                    }
-                    placeholder={
-                      bindingForm.platform === "epic" ||
-                      bindingForm.platform === "raz-kids"
-                        ? '例如 {"activityUrl":"https://...","cookies":[{"name":"session","value":"..."}]}'
-                        : '例如 {"cookies":[{"name":"PHPSESSID","value":"..."}]}'
-                    }
-                    className="min-h-28 w-full rounded-xl border-2 border-forest-200 px-4 py-3 focus:border-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="managed-session-captured-at" className="mb-1 block text-sm font-medium text-forest-700">
-                    Session 捕获时间（可选）
-                  </label>
-                  <input
-                    id="managed-session-captured-at"
-                    type="datetime-local"
-                    value={bindingForm.managedSessionCapturedAt}
-                    onChange={(e) =>
-                      setBindingForm((prev) => ({
-                        ...prev,
-                        managedSessionCapturedAt: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </>
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                {getPlatformDisplayName(bindingForm.platform)} 暂不支持自动登录，保存后可
+                通过卡片上的「更新 Session」手动录入。
+              </div>
             )}
 
             {bindingError ? <p className="text-sm text-rose-700">{bindingError}</p> : null}
 
             <div className="flex justify-end">
               <Button disabled={bindingLoading} onClick={handleBindingSubmit}>
-                {bindingLoading
-                  ? "绑定中..."
-                  : bindingForm.authMode === "auto_login"
-                    ? "测试登录并绑定"
-                    : "绑定账号"}
+                {bindingLoading ? "绑定中..." : "绑定"}
               </Button>
             </div>
-
-            {/* Auto-login logs */}
-            {loginLogs.length > 0 && (
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="mb-1.5 text-xs font-semibold text-slate-600">自动登录日志：</p>
-                <div className="space-y-0.5">
-                  {loginLogs.map((log, idx) => (
-                    <p key={idx} className="font-mono text-xs text-slate-600">
-                      {log}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="space-y-2">
             {(() => {
-              const filteredAccounts = hasChildContext
-                ? platformAccounts.filter((a) => a.child_id === selectedChildIdFromQuery)
-                : platformAccounts;
+              const filteredAccounts = platformAccounts.filter((a) => a.child_id === selectedChildId);
               if (filteredAccounts.length === 0) {
                 return (
                   <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
-                    {hasChildContext
-                      ? "这个孩子还没有绑定学习平台账号。"
-                      : "还没有孩子级平台账号绑定。"}
+                    {"这个孩子还没有绑定学习平台账号。"}
                   </div>
                 );
               }
@@ -830,7 +686,7 @@ export default function SettingsIntegrationsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => populateForm(account)}
+                        onClick={() => startEditAccount(account)}
                       >
                         编辑
                       </Button>
@@ -858,6 +714,48 @@ export default function SettingsIntegrationsPage() {
                     {hasCredentials ? " · 凭据已存储" : ""}
                   </p>
 
+                  {/* Inline edit account panel */}
+                  {editAccountId === account.id && (
+                    <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
+                      <p className="font-medium text-forest-700">编辑账号信息</p>
+                      <Input
+                        label={AUTO_LOGIN_PLATFORMS.has(account.platform as SupportedPlatform) ? "账号标识 / 登录用户名" : "账号标识"}
+                        value={editAccountUsername}
+                        onChange={(e) => setEditAccountUsername(e.target.value)}
+                        placeholder={account.external_account_ref}
+                      />
+                      {AUTO_LOGIN_PLATFORMS.has(account.platform as SupportedPlatform) && (
+                        <Input
+                          label="新密码（可选，留空不修改凭据）"
+                          type="password"
+                          value={editAccountPassword}
+                          onChange={(e) => setEditAccountPassword(e.target.value)}
+                          placeholder="输入新密码以更新自动登录"
+                        />
+                      )}
+                      {bindingError && <p className="text-sm text-rose-700">{bindingError}</p>}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          disabled={editAccountLoading}
+                          onClick={() => saveEditAccount(account.id, account.platform)}
+                        >
+                          {editAccountLoading ? "保存中..." : "保存"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setEditAccountId(null);
+                            setBindingError(null);
+                          }}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Expandable details */}
                   {isExpanded && (
                     <div className="mt-2 space-y-1 border-t border-forest-200 pt-2 text-xs text-forest-500">
@@ -884,182 +782,27 @@ export default function SettingsIntegrationsPage() {
                   )}
 
                   {account.last_sync_error_summary ? (
-                    <p className="mt-1 text-rose-600">{account.last_sync_error_summary}</p>
+                    <p className="mt-1 text-rose-600">{mapAuthError(account.last_sync_error_summary)}</p>
                   ) : null}
 
-                  {/* Action buttons for attention_required accounts */}
-                  {account.status === "attention_required" && (
-                    <div className="mt-2 flex items-center gap-1 border-t border-forest-200 pt-2">
-                      {account.auto_login_enabled && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleRefreshSession(account.id, account.platform)}
-                        >
-                          刷新登录
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          dismissedTakeovers.current.delete(account.id);
-                          setTakeoverAccountId(account.id);
-                          setTakeoverPayload(
-                            account.platform === "ixl"
-                              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                              : account.platform === "khan-academy"
-                                ? '{"cookies":[{"name":"KAAS","value":""}]}'
-                                : '{"activityUrl":"","cookies":[]}'
-                          );
-                        }}
-                      >
-                        手动补录
-                      </Button>
-                    </div>
-                  )}
-
-                  {/* Takeover panel */}
-                  {takeoverAccountId === account.id && (
-                    <div className="mt-3 space-y-3 border-t border-forest-200 pt-3">
-                      <p className="text-amber-800">
-                        自动登录不可用。请选择以下任一方式补录 Session：
-                      </p>
-
-                      <div className="flex rounded-lg border border-forest-200 p-0.5">
-                        <button
-                          type="button"
-                          onClick={() => setTakeoverMethod("script")}
-                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                            takeoverMethod === "script"
-                              ? "bg-primary text-white"
-                              : "text-forest-600 hover:bg-forest-50"
-                          }`}
-                        >
-                          方式一：本地脚本（推荐）
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTakeoverMethod("manual")}
-                          className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                            takeoverMethod === "manual"
-                              ? "bg-primary text-white"
-                              : "text-forest-600 hover:bg-forest-50"
-                          }`}
-                        >
-                          方式二：手动粘贴
-                        </button>
-                      </div>
-
-                      {takeoverMethod === "script" ? (
-                        <div className="space-y-3">
-                          <div className="rounded-lg bg-forest-50 px-3 py-2.5 text-xs text-forest-600">
-                            <p className="font-medium text-forest-700 mb-1">使用步骤：</p>
-                            <ol className="list-decimal space-y-0.5 pl-4">
-                              <li>在终端运行以下命令</li>
-                              <li>浏览器窗口会自动弹出</li>
-                              <li>手动完成登录（包括验证码）</li>
-                              <li>回到终端按 Enter，JSON 自动复制到剪贴板</li>
-                              <li>回到此页面，点击下方「我已获取，直接粘贴」</li>
-                            </ol>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <code className="flex-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-mono text-slate-700">
-                              npm run session:collect -- --platform={account.platform}
-                            </code>
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() => {
-                                navigator.clipboard.writeText(
-                                  `npm run session:collect -- --platform=${account.platform}`
-                                );
-                                setCopiedCommand(true);
-                                setTimeout(() => setCopiedCommand(false), 2000);
-                              }}
-                            >
-                              {copiedCommand ? "已复制" : "复制命令"}
-                            </Button>
-                          </div>
-
-                          <p className="text-xs text-forest-500">
-                            首次使用需要先安装 Playwright：
-                            <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">
-                              npm install playwright && npx playwright install chromium
-                            </code>
-                          </p>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                setTakeoverMethod("manual");
-                                setTakeoverPayload(
-                                  account.platform === "ixl"
-                                    ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
-                                    : account.platform === "khan-academy"
-                                      ? '{"cookies":[{"name":"KAAS","value":""}]}'
-                                      : '{"activityUrl":"","cookies":[]}'
-                                );
-                              }}
-                            >
-                              我已获取，直接粘贴
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                dismissedTakeovers.current.add(account.id);
-                                setTakeoverAccountId(null);
-                                setTakeoverPayload("");
-                              }}
-                            >
-                              取消
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <a
-                            href={getManualSessionLoginUrl(account.platform)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex text-sm font-medium text-primary underline"
-                          >
-                            打开 {getPlatformDisplayName(account.platform)} 登录页
-                          </a>
-                          <textarea
-                            value={takeoverPayload}
-                            onChange={(e) => setTakeoverPayload(e.target.value)}
-                            placeholder='{"cookies":[{"name":"PHPSESSID","value":"..."}]}'
-                            className="min-h-24 w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-800 focus:border-primary focus:outline-none"
-                          />
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              disabled={takeoverLoading}
-                              onClick={() => handleTakeoverSave(account.id)}
-                            >
-                              {takeoverLoading ? "保存中..." : "保存 Session"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={takeoverLoading}
-                              onClick={() => {
-                                dismissedTakeovers.current.add(account.id);
-                                setTakeoverAccountId(null);
-                                setTakeoverPayload("");
-                              }}
-                            >
-                              取消
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  <div className="mt-2 border-t border-forest-200 pt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setTakeoverAccountId(account.id);
+                        setTakeoverPayload(
+                          account.platform === "ixl"
+                            ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                            : account.platform === "khan-academy"
+                              ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                              : '{"activityUrl":"","cookies":[]}'
+                        );
+                      }}
+                    >
+                      更新 Session
+                    </Button>
+                  </div>
 
                   {/* Edit credentials panel */}
                   {editCredentialId === account.id && (
@@ -1093,26 +836,11 @@ export default function SettingsIntegrationsPage() {
                             setEditCredentialId(null);
                             setEditCredentialUsername("");
                             setEditCredentialPassword("");
-                            setLoginLogs([]);
                           }}
                         >
                           取消
                         </Button>
                       </div>
-
-                      {/* Edit credentials logs */}
-                      {editCredentialId === account.id && loginLogs.length > 0 && (
-                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                          <p className="mb-1.5 text-xs font-semibold text-slate-600">自动登录日志：</p>
-                          <div className="space-y-0.5">
-                            {loginLogs.map((log, idx) => (
-                              <p key={idx} className="font-mono text-xs text-slate-600">
-                                {log}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -1146,37 +874,213 @@ export default function SettingsIntegrationsPage() {
             })()}
           </div>
         </div>
+
+        {/* Session update modal */}
+        {takeoverAccountId && (() => {
+          const account = platformAccounts.find((a) => a.id === takeoverAccountId);
+          if (!account) return null;
+          return (
+            <Modal
+              isOpen
+              onClose={() => { setTakeoverAccountId(null); setTakeoverPayload(""); }}
+              title={`更新 Session — ${getPlatformDisplayName(account.platform)}`}
+              size="md"
+            >
+              <div className="space-y-4">
+                <div className="flex rounded-lg border border-forest-200 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setTakeoverMethod("auto")}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                      takeoverMethod === "auto"
+                        ? "bg-primary text-white"
+                        : "text-forest-600 hover:bg-forest-50"
+                    }`}
+                  >
+                    自动登录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTakeoverMethod("script")}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                      takeoverMethod === "script"
+                        ? "bg-primary text-white"
+                        : "text-forest-600 hover:bg-forest-50"
+                    }`}
+                  >
+                    本地脚本
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTakeoverMethod("manual")}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                      takeoverMethod === "manual"
+                        ? "bg-primary text-white"
+                        : "text-forest-600 hover:bg-forest-50"
+                    }`}
+                  >
+                    手动粘贴
+                  </button>
+                </div>
+
+                {takeoverMethod === "auto" ? (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
+                      <p className="font-medium mb-1">自动登录并抓取 Session</p>
+                      <p>系统将使用存储的凭据自动登录平台，完成后自动保存 Session。</p>
+                    </div>
+                    {account.auto_login_enabled ? (
+                      <Button
+                        onClick={() => {
+                          handleRefreshSession(account.id, account.platform);
+                          setTakeoverAccountId(null);
+                          setTakeoverPayload("");
+                        }}
+                      >
+                        开始自动登录
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                        该账号未存储登录凭据，无法使用自动登录。请先通过「编辑账号」填入密码，或切换到「本地脚本」方式。
+                      </p>
+                    )}
+                  </div>
+                ) : takeoverMethod === "script" ? (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-forest-50 px-3 py-2.5 text-xs text-forest-600">
+                      <p className="font-medium text-forest-700 mb-1">使用步骤：</p>
+                      <ol className="list-decimal space-y-0.5 pl-4">
+                        <li>在终端运行以下命令</li>
+                        <li>浏览器窗口会自动弹出</li>
+                        <li>手动完成登录（包括验证码）</li>
+                        <li>回到终端按 Enter，JSON 自动复制到剪贴板</li>
+                        <li>回到此页面，点击下方「我已获取，直接粘贴」</li>
+                      </ol>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-mono text-slate-700">
+                        npm run session:collect -- --platform={account.platform}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(
+                            `npm run session:collect -- --platform=${account.platform}`
+                          );
+                          setCopiedCommand(true);
+                          setTimeout(() => setCopiedCommand(false), 2000);
+                        }}
+                      >
+                        {copiedCommand ? "已复制" : "复制命令"}
+                      </Button>
+                    </div>
+
+                    <p className="text-xs text-forest-500">
+                      首次使用需要先安装 Playwright：
+                      <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">
+                        npm install playwright && npx playwright install chromium
+                      </code>
+                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setTakeoverMethod("manual");
+                          setTakeoverPayload(
+                            account.platform === "ixl"
+                              ? '{"cookies":[{"name":"PHPSESSID","value":""},{"name":"ixl_user","value":""}]}'
+                              : account.platform === "khan-academy"
+                                ? '{"cookies":[{"name":"KAAS","value":""}]}'
+                                : '{"activityUrl":"","cookies":[]}'
+                          );
+                        }}
+                      >
+                        我已获取，直接粘贴
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setTakeoverAccountId(null);
+                          setTakeoverPayload("");
+                        }}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <a
+                      href={getManualSessionLoginUrl(account.platform)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex text-sm font-medium text-primary underline"
+                    >
+                      打开 {getPlatformDisplayName(account.platform)} 登录页
+                    </a>
+                    <textarea
+                      value={takeoverPayload}
+                      onChange={(e) => setTakeoverPayload(e.target.value)}
+                      placeholder='{"cookies":[{"name":"PHPSESSID","value":"..."}]}'
+                      className="min-h-24 w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-800 focus:border-primary focus:outline-none"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        disabled={takeoverLoading}
+                        onClick={() => handleTakeoverSave(account.id)}
+                      >
+                        {takeoverLoading ? "保存中..." : "保存 Session"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={takeoverLoading}
+                        onClick={() => {
+                          setTakeoverAccountId(null);
+                          setTakeoverPayload("");
+                        }}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Modal>
+          );
+        })()}
       </Card>
 
-      <Card id="message-routing" className="scroll-mt-4">
-        <div className="space-y-4">
-          <div>
-            <h2 className="font-bold text-forest-700">孩子默认提交群</h2>
-            <p className="mt-1 text-sm text-forest-500">
-              这里定义孩子级默认目标群；作业级的单独覆盖，应该在作业创建或编辑时确定。
-            </p>
-          </div>
+      {selectedChildId && (
+        <Card id="default-group" className="scroll-mt-4">
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-bold text-forest-700">默认微信群</h2>
+              <p className="mt-1 text-sm text-forest-500">
+                孩子提交作业的默认目标微信群；作业级覆盖在作业编辑时确定。
+              </p>
+            </div>
 
-          <div className="space-y-3">
             {(() => {
-              const filteredChildren = hasChildContext
-                ? children.filter((c) => c.id === selectedChildIdFromQuery)
-                : children;
-              return filteredChildren.map((child) => (
-                <div
-                  key={child.id}
-                  className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4"
-                >
+              const child = children.find((c) => c.id === selectedChildId);
+              if (!child) return null;
+              return (
+                <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div className="flex-1">
                       <label
-                        htmlFor={`child-default-group-${child.id}`}
+                        htmlFor="default-group-select"
                         className="mb-1 block text-sm font-medium text-forest-700"
                       >
-                        {child.name} 默认微信群
+                        {child.name} 默认群
                       </label>
                       <select
-                        id={`child-default-group-${child.id}`}
+                        id="default-group-select"
                         value={childGroupSelections[child.id] ?? ""}
                         onChange={(e) =>
                           setChildGroupSelections((prev) => ({
@@ -1216,56 +1120,194 @@ export default function SettingsIntegrationsPage() {
                         }
                       }}
                     >
-                      {savingChildGroupId === child.id
-                        ? "保存中..."
-                        : `保存 ${child.name} 默认群`}
+                      {savingChildGroupId === child.id ? "保存中..." : "保存"}
                     </Button>
                   </div>
                 </div>
-              ));
+              );
             })()}
           </div>
+        </Card>
+      )}
 
-          {(() => {
-            const filteredRules = hasChildContext
-              ? routingRules.filter((r) => r.child_id === selectedChildIdFromQuery)
-              : routingRules;
-            if (filteredRules.length === 0) return null;
-            return (
-              <>
-                <div>
-                  <h3 className="font-medium text-forest-700">遗留路由规则</h3>
-                  <p className="mt-1 text-sm text-forest-500">
-                    以下规则来自旧版系统，仅做展示参考，不再支持新增和编辑。
-                  </p>
+      {selectedChildId && (
+        <Card id="wechat-groups" className="scroll-mt-4">
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-bold text-forest-700">微信群管理</h2>
+              <p className="mt-1 text-sm text-forest-500">
+                管理你的目标微信群，系统自动发现活跃群，也可以手动添加。
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {wechatGroups.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
+                  还没有微信群。点击下方「手动添加微信群」输入企业微信 chatid 即可添加。
                 </div>
-                <div className="space-y-2">
-                  {filteredRules.map((rule) => (
-                    <div
-                      key={rule.id}
-                      className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
-                    >
-                      <p className="font-medium text-forest-700">
-                        {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}
-                        {rule.channel === "telegram_chat" ? "Telegram" : "微信群"}
-                      </p>
-                      <p>
-                        {rule.homework_id
-                          ? `作业：${homeworkTitleById[rule.homework_id] ?? "未找到作业"}`
-                          : "作业：该孩子默认路由"}
-                      </p>
-                      <p>
-                        目标：{rule.recipient_label || rule.recipient_ref}
-                        {rule.recipient_label ? ` (${rule.recipient_ref})` : ""}
-                      </p>
-                    </div>
-                  ))}
+              ) : (
+                wechatGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="flex items-center justify-between rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3"
+                  >
+                    {groupEditingId === group.id ? (
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          type="text"
+                          value={groupEditName}
+                          onChange={(e) => setGroupEditName(e.target.value)}
+                          placeholder="群显示名称"
+                          className="flex-1 rounded-lg border border-forest-200 px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          disabled={groupEditLoading}
+                          onClick={() => handleGroupEdit(group.id)}
+                        >
+                          {groupEditLoading ? "保存中..." : "保存"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setGroupEditingId(null)}
+                        >
+                          取消
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-sm">
+                          <p className="font-medium text-forest-700">
+                            {group.display_name || "未命名群"}
+                          </p>
+                          <p className="mt-0.5 text-xs text-forest-500">
+                            {group.source === "manual" ? "手动添加" : "自动发现"}
+                            {group.last_seen_at ? " · 最近已连接" : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setGroupEditingId(group.id);
+                              setGroupEditName(group.display_name || "");
+                            }}
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-500"
+                            onClick={() => handleGroupDelete(group.id)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {showGroupAddForm ? (
+              <div className="rounded-xl border border-forest-200 bg-white p-4 space-y-3">
+                <p className="text-sm font-medium text-forest-700">手动添加微信群</p>
+                <Input
+                  label="微信群标识"
+                  value={groupAddForm.recipientRef}
+                  onChange={(e) =>
+                    setGroupAddForm((prev) => ({ ...prev, recipientRef: e.target.value }))
+                  }
+                  placeholder="例如 wxid_xxx@chatroom"
+                />
+                <Input
+                  label="显示名称（可选）"
+                  value={groupAddForm.displayName}
+                  onChange={(e) =>
+                    setGroupAddForm((prev) => ({ ...prev, displayName: e.target.value }))
+                  }
+                  placeholder="例如 Mia 数学群"
+                />
+                {groupAddError ? (
+                  <p className="text-sm text-rose-700">{groupAddError}</p>
+                ) : null}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" disabled={groupAddLoading} onClick={handleGroupAdd}>
+                    {groupAddLoading ? "添加中..." : "添加"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setShowGroupAddForm(false);
+                      setGroupAddForm({ recipientRef: "", displayName: "" });
+                      setGroupAddError(null);
+                    }}
+                  >
+                    取消
+                  </Button>
                 </div>
-              </>
-            );
-          })()}
-        </div>
-      </Card>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowGroupAddForm(true)}
+              >
+                + 手动添加微信群
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {selectedChildId && (
+        <Card id="message-routing" className="scroll-mt-4">
+          <div className="space-y-4">
+            {(() => {
+              const filteredRules = routingRules.filter((r) => r.child_id === selectedChildId);
+              if (filteredRules.length === 0) return null;
+              return (
+                <>
+                  <div>
+                    <h3 className="font-medium text-forest-700">遗留路由规则</h3>
+                    <p className="mt-1 text-sm text-forest-500">
+                      以下规则来自旧版系统，仅做展示参考，不再支持新增和编辑。
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {filteredRules.map((rule) => (
+                      <div
+                        key={rule.id}
+                        className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
+                      >
+                        <p className="font-medium text-forest-700">
+                          {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}
+                          {rule.channel === "telegram_chat" ? "Telegram" : "微信群"}
+                        </p>
+                        <p>
+                          {rule.homework_id
+                            ? `作业：${homeworkTitleById[rule.homework_id] ?? "未找到作业"}`
+                            : "作业：该孩子默认路由"}
+                        </p>
+                        <p>
+                          目标：{rule.recipient_label || rule.recipient_ref}
+                          {rule.recipient_label ? ` (${rule.recipient_ref})` : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </Card>
+      )}
     </SettingsShell>
   );
 }

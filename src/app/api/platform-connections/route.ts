@@ -4,7 +4,6 @@ import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
 import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
 import { NextResponse } from "next/server";
 
-
 const SUPPORTED_PLATFORMS = new Set([
   "ixl",
   "khan-academy",
@@ -144,7 +143,6 @@ export async function POST(request: Request) {
     : "attention_required";
   let loginCredentialsEncrypted: string | null = null;
   let autoLoginEnabled = false;
-  let autoLoginLogs: string[] | undefined;
 
   // Auto-login mode
   if (authMode === "auto_login" && loginPassword) {
@@ -154,45 +152,24 @@ export async function POST(request: Request) {
           ? await simulateIxlLogin(loginUsername || username, loginPassword)
           : await simulateKhanLogin(loginUsername || username, loginPassword);
 
-      autoLoginLogs = loginResult.logs;
-
       if (loginResult.success) {
         finalManagedSessionPayload = {
           cookies: loginResult.cookies,
         };
         finalManagedSessionCapturedAt = new Date().toISOString();
         finalStatus = "active";
-      } else if (
-        loginResult.reason === "captcha_required" ||
-        loginResult.reason === "two_factor_required" ||
-        loginResult.reason === "unsupported"
-      ) {
-        finalStatus = "attention_required";
-        return NextResponse.json(
-          {
-            error: loginResult.message,
-            reason: loginResult.reason,
-            logs: loginResult.logs,
-            hint: "请切换到手动 Session 模式完成绑定。",
-            ...getManualSessionGuide(platform),
-          },
-          { status: 400 }
-        );
-      } else if (loginResult.reason === "invalid_credentials") {
-        return NextResponse.json(
-          { error: loginResult.message, reason: loginResult.reason, logs: loginResult.logs },
-          { status: 401 }
-        );
       } else {
+        if (loginResult.reason === "invalid_credentials") {
+          return NextResponse.json(
+            { error: loginResult.message, reason: loginResult.reason },
+            { status: 401 }
+          );
+        }
+
+        // captcha_required / two_factor_required / unsupported / other:
+        // save credentials and mark attention_required so user can retry
+        // or complete via manual session later
         finalStatus = "attention_required";
-        return NextResponse.json(
-          {
-            error: loginResult.message,
-            reason: loginResult.reason,
-            logs: loginResult.logs,
-          },
-          { status: 400 }
-        );
       }
     } catch (error) {
       return NextResponse.json(
@@ -267,7 +244,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, account: updatedAccount, logs: autoLoginLogs });
+    return NextResponse.json({ success: true, account: updatedAccount });
   }
 
   const { data: account, error: insertError } = await supabase
@@ -294,5 +271,5 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json({ success: true, account, logs: autoLoginLogs });
+  return NextResponse.json({ success: true, account });
 }
