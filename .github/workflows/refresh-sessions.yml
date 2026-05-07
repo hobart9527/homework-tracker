@@ -1,0 +1,36 @@
+name: Refresh Platform Sessions
+
+on:
+  schedule:
+    # 每周一 08:00 UTC = 16:00 CST (星期一放学后刷新)
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+    # 支持手动触发
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Refresh managed sessions
+        run: node scripts/refresh-managed-sessions.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PLATFORM_CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.PLATFORM_CREDENTIALS_ENCRYPTION_KEY }}
