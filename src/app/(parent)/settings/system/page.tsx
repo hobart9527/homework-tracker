@@ -56,9 +56,9 @@ export default function SettingsSystemPage() {
     failedCount: number;
     skippedCount: number;
   } | null>(null);
-  const [eveningSyncLoading, setEveningSyncLoading] = useState(false);
-  const [eveningSyncMessage, setEveningSyncMessage] = useState<string | null>(null);
-  const [eveningSyncTone, setEveningSyncTone] = useState<"success" | "danger" | "neutral">("neutral");
+  const [manualSyncLoading, setManualSyncLoading] = useState(false);
+  const [manualSyncMessage, setManualSyncMessage] = useState<string | null>(null);
+  const [manualSyncTone, setManualSyncTone] = useState<"success" | "danger" | "neutral">("neutral");
   const [readingRefreshLoading, setReadingRefreshLoading] = useState(false);
   const [readingRefreshMessage, setReadingRefreshMessage] = useState<string | null>(null);
   const [readingRefreshTone, setReadingRefreshTone] = useState<"success" | "danger" | "neutral">("neutral");
@@ -238,54 +238,52 @@ export default function SettingsSystemPage() {
       <Card className="scroll-mt-4">
         <div className="space-y-4">
           <div>
-            <h2 className="font-bold text-forest-700">平台晚间同步</h2>
+            <h2 className="font-bold text-forest-700">平台手动同步</h2>
             <p className="mt-1 text-sm text-forest-500">
-              手动触发晚间 20:00 窗口的平台学习记录同步（IXL、Khan Academy 等）。
-              日常同步由定时任务在每天 15:30 至凌晨 00:00 间每半小时自动执行，这里用于补漏或排障。
+              手动触发所有已绑定平台的学习记录同步（IXL、Khan Academy 等）。
+              系统会遍历孩子的平台账号，拉取最新活动数据并自动匹配作业。
             </p>
           </div>
           <Button
             size="sm"
             variant="secondary"
-            disabled={eveningSyncLoading}
+            disabled={manualSyncLoading}
             onClick={async () => {
-              setEveningSyncLoading(true);
-              setEveningSyncMessage(null);
+              setManualSyncLoading(true);
+              setManualSyncMessage(null);
               try {
-                const response = await fetch(
-                  "/api/platform-sync/run?scheduleWindow=evening-review"
-                );
+                const response = await fetch("/api/platform-sync/run");
                 const body = await response.json();
                 if (response.ok) {
-                  setEveningSyncMessage(
-                    `同步完成：处理 ${body.processedCount ?? 0} 个账号，成功 ${body.successCount ?? 0}，失败 ${body.failureCount ?? 0}`
+                  setManualSyncMessage(
+                    `同步完成：处理 ${body.totalAccounts ?? body.processedCount ?? 0} 个账号`
                   );
-                  setEveningSyncTone("success");
+                  setManualSyncTone("success");
                 } else {
-                  setEveningSyncMessage(body.error ?? "同步请求失败");
-                  setEveningSyncTone("danger");
+                  setManualSyncMessage(body.error ?? "同步请求失败");
+                  setManualSyncTone("danger");
                 }
               } catch {
-                setEveningSyncMessage("网络错误，请稍后重试");
-                setEveningSyncTone("danger");
+                setManualSyncMessage("网络错误，请稍后重试");
+                setManualSyncTone("danger");
               } finally {
-                setEveningSyncLoading(false);
+                setManualSyncLoading(false);
               }
             }}
           >
-            {eveningSyncLoading ? "同步中..." : "立即运行晚间同步"}
+            {manualSyncLoading ? "同步中..." : "立即同步"}
           </Button>
-          {eveningSyncMessage ? (
+          {manualSyncMessage ? (
             <p
               className={`text-sm ${
-                eveningSyncTone === "success"
+                manualSyncTone === "success"
                   ? "text-emerald-700"
-                  : eveningSyncTone === "danger"
+                  : manualSyncTone === "danger"
                     ? "text-rose-700"
                     : "text-forest-600"
               }`}
             >
-              {eveningSyncMessage}
+              {manualSyncMessage}
             </p>
           ) : null}
         </div>
