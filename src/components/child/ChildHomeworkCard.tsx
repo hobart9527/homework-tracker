@@ -155,8 +155,8 @@ export function ChildHomeworkCard({
   return (
     <>
       <Card
-        className={`${isCompleted ? "bg-forest-50 border-2 border-primary" : ""} ${
-          isOverdue && !isCompleted ? "border-2 border-accent" : ""
+        className={`${isCompleted ? "bg-cream-50 border-2 border-primary" : ""} ${
+          isOverdue && !isCompleted ? "border-2 border-coral-500" : ""
         }`}
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -166,46 +166,46 @@ export function ChildHomeworkCard({
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="truncate font-semibold text-forest-700">{homework.title}</h3>
                 {isOverdue && !isCompleted ? (
-                  <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-accent">
+                  <span className="rounded-full bg-coral-50 px-2.5 py-0.5 text-xs font-medium text-coral-500">
                     已超时
                   </span>
                 ) : !isCompleted ? (
-                  <span className="rounded-full bg-forest-100 px-2.5 py-0.5 text-xs font-medium text-forest-600">
+                  <span className="rounded-full bg-cream-100 px-2.5 py-0.5 text-xs font-medium text-forest-600">
                     待完成
                   </span>
                 ) : null}
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-forest-500">
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-500">
                 {homework.estimated_minutes != null ? (
-                  <span className="rounded-full bg-forest-50 px-3 py-1">
+                  <span className="rounded-full bg-cream-50 px-3 py-1">
                     ⏱️ {homework.estimated_minutes}分钟
                   </span>
                 ) : null}
-                <span className="rounded-full bg-forest-50 px-3 py-1">⭐ {homework.point_value}积分</span>
+                <span className="rounded-full bg-cream-50 px-3 py-1">⭐ {homework.point_value}积分</span>
               </div>
               {homework.daily_cutoff_time && (
-                <p className="mt-2 text-xs text-forest-400">📍 截止 {homework.daily_cutoff_time}</p>
+                <p className="mt-2 text-xs text-ink-400">📍 截止 {homework.daily_cutoff_time}</p>
               )}
               {homework.required_checkpoint_type && attachments.length === 0 && (
-                <p className="mt-1 text-xs text-forest-400">需要{proofLabel[homework.required_checkpoint_type]}</p>
+                <p className="mt-1 text-xs text-ink-400">需要{proofLabel[homework.required_checkpoint_type]}</p>
               )}
               {shouldShowAttachmentEntry && (
                 <button
                   type="button"
                   onClick={() => void handleViewAttachments()}
-                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary shadow-sm transition hover:bg-primary/15"
+                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary shadow-elevation-raised transition hover:bg-primary/15"
                 >
                   <span aria-hidden="true">📎</span>
                   查看已提交附件
                 </button>
               )}
               {attachmentUploadStatus && attachmentUploadStatus.state !== "uploaded" ? (
-                <div className="mt-3 rounded-2xl bg-forest-50 p-3">
+                <div className="mt-3 rounded-radius-lg bg-cream-50 p-3">
                   <div className="flex items-center justify-between gap-3 text-xs font-medium">
                     <span
                       className={
                         attachmentUploadStatus.state === "failed"
-                          ? "text-rose-600"
+                          ? "text-coral-600"
                           : "text-forest-600"
                       }
                     >
@@ -214,7 +214,7 @@ export function ChildHomeworkCard({
                           ? "录音上传失败"
                           : "录音上传中")}
                     </span>
-                    <span className="text-forest-500">
+                    <span className="text-ink-500">
                       {Math.round(attachmentUploadStatus.progress)}%
                     </span>
                   </div>
@@ -222,7 +222,7 @@ export function ChildHomeworkCard({
                     <div
                       className={`h-full rounded-full transition-all ${
                         attachmentUploadStatus.state === "failed"
-                          ? "bg-rose-400"
+                          ? "bg-coral-400"
                           : "bg-primary"
                       }`}
                       style={{
@@ -236,7 +236,7 @@ export function ChildHomeworkCard({
                 </div>
               ) : null}
               {shouldShowStatusText && (
-                <p className="mt-1 text-xs font-medium text-forest-500">{statusText}</p>
+                <p className="mt-1 text-xs font-medium text-ink-500">{statusText}</p>
               )}
             </div>
           </div>

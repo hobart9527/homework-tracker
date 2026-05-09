@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface ArticleCardProps {
   id: string;
   title: string;
@@ -8,62 +10,82 @@ interface ArticleCardProps {
   difficulty: number;
   wordCount: number;
   estimatedMinutes: number;
+  coverImageUrl?: string;
   isRecommended?: boolean;
   isCompleted?: boolean;
   score?: number;
+  language?: "zh" | "en";
   onClick: () => void;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
   时事: "bg-sky-100 text-sky-700",
-  历史: "bg-amber-100 text-amber-700",
+  历史: "bg-honey-100 text-honey-700",
   科学: "bg-indigo-100 text-indigo-700",
-  人物: "bg-rose-100 text-rose-700",
+  人物: "bg-coral-100 text-coral-700",
   自然: "bg-emerald-100 text-emerald-700",
   文化: "bg-purple-100 text-purple-700",
+  成语故事: "bg-rose-100 text-rose-700",
+  寓言: "bg-amber-100 text-amber-700",
+  现代文: "bg-teal-100 text-teal-700",
+  科普: "bg-cyan-100 text-cyan-700",
 };
 
 function getCategoryStyle(category: string): string {
   return CATEGORY_COLORS[category] || "bg-forest-100 text-forest-700";
 }
 
-function DifficultyStars({ difficulty }: { difficulty: number }) {
-  const clamped = Math.max(1, Math.min(5, Math.round(difficulty)));
-  return (
-    <span className="inline-flex items-center gap-0.5" aria-label={`难度 ${clamped}/5`}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <span
-          key={i}
-          className={`text-xs ${i < clamped ? "text-amber-400" : "text-gray-200"}`}
-        >
-          ★
-        </span>
-      ))}
-    </span>
-  );
-}
-
 export function ArticleCard({
   title,
   gradeLevel,
   category,
-  difficulty,
   wordCount,
   estimatedMinutes,
+  coverImageUrl,
   isRecommended,
   isCompleted,
   score,
+  language,
   onClick,
 }: ArticleCardProps) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  const thumbnailUrl = coverImageUrl
+    ? `${coverImageUrl}?width=400&format=webp&quality=70`
+    : null;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="relative w-full text-left rounded-2xl bg-white shadow-sm ring-1 ring-forest-100 transition-all hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary overflow-hidden"
+      className="relative w-full text-left rounded-xl bg-white shadow-elevation-raised ring-1 ring-cream-200/40 transition-all hover:shadow-elevation-floating hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary overflow-hidden"
     >
+      {/* Cover image */}
+      {thumbnailUrl ? (
+        <div className="relative aspect-[3/2] w-full bg-ink-100">
+          {!imgLoaded && (
+            <div className="absolute inset-0 animate-pulse bg-ink-100" />
+          )}
+          <img
+            src={thumbnailUrl}
+            alt={title}
+            onLoad={() => setImgLoaded(true)}
+            className={`h-full w-full object-cover rounded-t-xl transition-opacity duration-300 ${
+              imgLoaded ? "opacity-100" : "opacity-0"
+            }`}
+          />
+        </div>
+      ) : (
+        <div className="relative aspect-[3/2] w-full flex items-center justify-center bg-gradient-to-br from-forest-100 to-cream-200">
+          <span className="text-5xl opacity-40">
+            {category.charAt(0)}
+          </span>
+        </div>
+      )}
+
       {/* Recommended banner */}
       {isRecommended && (
-        <div className="flex items-center gap-1.5 bg-gradient-to-r from-amber-300 to-orange-400 px-4 py-1.5 text-xs font-semibold text-white">
+        <div className="flex items-center gap-1.5 bg-gradient-to-r from-honey-300 to-coral-400 px-4 py-1.5 text-xs font-semibold text-white">
           <span>🎯</span>
           <span>今日推荐</span>
         </div>
@@ -71,21 +93,30 @@ export function ArticleCard({
 
       <div className="p-4">
         {/* Top row: category tag + grade level */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
           <span
             className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${getCategoryStyle(category)}`}
           >
             {category}
           </span>
-          <span className="inline-block rounded-full bg-forest-50 px-2.5 py-0.5 text-xs font-medium text-forest-600">
+          <span className="inline-block rounded-full bg-cream-50 px-2.5 py-0.5 text-xs font-medium text-ink-600">
             G{gradeLevel}
           </span>
           {isCompleted && (
-            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
               <span>✓</span>
               <span>已完成</span>
             </span>
           )}
+          {language === "en" ? (
+            <span className="ml-auto text-[10px] font-medium text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded">
+              EN
+            </span>
+          ) : language === "zh" ? (
+            <span className="ml-auto text-[10px] font-medium text-coral-600 bg-coral-50 px-1.5 py-0.5 rounded">
+              中文
+            </span>
+          ) : null}
         </div>
 
         {/* Title */}
@@ -101,14 +132,13 @@ export function ArticleCard({
         )}
 
         {/* Bottom row: metadata */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-forest-500">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
           <span className="inline-flex items-center gap-1">
             📝 {wordCount}字
           </span>
           <span className="inline-flex items-center gap-1">
             ⏱️ {estimatedMinutes}分钟
           </span>
-          <DifficultyStars difficulty={difficulty} />
         </div>
       </div>
     </button>

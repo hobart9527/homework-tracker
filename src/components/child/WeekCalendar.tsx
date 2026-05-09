@@ -28,8 +28,8 @@ function getDayTone(
   if (!completion || completion.total === 0) {
     return {
       label: "无任务",
-      ringColor: "rgb(203 213 225)",
-      textColor: "text-slate-400",
+      ringColor: "rgb(218 220 224)",
+      textColor: "text-ink-400",
     };
   }
 
@@ -55,20 +55,20 @@ function getDayTone(
       return {
         label: "逾期进行中",
         ringColor: "rgb(34 197 94)",
-        textColor: "text-rose-500",
+        textColor: "text-coral-500",
       };
     }
     return {
       label: "未完成",
-      ringColor: "rgb(248 113 113)",
-      textColor: "text-rose-500",
+      ringColor: "rgb(242 96 51)",
+      textColor: "text-coral-500",
     };
   }
 
   return {
     label: "未开始",
-    ringColor: "rgb(203 213 225)",
-    textColor: "text-slate-400",
+    ringColor: "rgb(218 220 224)",
+    textColor: "text-ink-400",
   };
 }
 
@@ -97,7 +97,7 @@ function DayRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgb(238 242 235)"
+          stroke="rgb(232 234 237)"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -133,16 +133,16 @@ export function WeekCalendar({
   const todayStr = formatDateKey(new Date());
 
   return (
-    <div className="rounded-card bg-white p-5 shadow-md ring-1 ring-forest-100">
+    <div className="rounded-radius-xl bg-white p-5 shadow-elevation-floating ring-1 ring-cream-200">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium text-forest-500">{t("child.weekCalendar.title")}</h3>
+          <h3 className="text-sm font-medium text-ink-500">{t("child.weekCalendar.title")}</h3>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => onSelectDate(formatDateKey(shiftDateByDays(selectedDateObject, -7)))}
-            className="rounded-full bg-forest-50 px-3 py-1 text-xs font-medium text-forest-700 transition hover:bg-forest-100"
+            className="rounded-full bg-cream-50 px-3 py-1 text-xs font-medium text-forest-700 transition hover:bg-cream-100"
           >
             {t("child.weekCalendar.previousWeek")}
           </button>
@@ -158,20 +158,20 @@ export function WeekCalendar({
             disabled={!canMoveForward}
             className={`rounded-full px-3 py-1 text-xs font-medium transition ${
               canMoveForward
-                ? "bg-forest-50 text-forest-700 hover:bg-forest-100"
-                : "cursor-not-allowed bg-forest-50 text-forest-300"
+                ? "bg-cream-50 text-forest-700 hover:bg-cream-100"
+                : "cursor-not-allowed bg-cream-50 text-ink-300"
             }`}
           >
             {t("child.weekCalendar.nextWeek")}
           </button>
-          <span className="rounded-full bg-forest-100 px-3 py-1 text-xs font-medium text-forest-600">
+          <span className="rounded-full bg-cream-100 px-3 py-1 text-xs font-medium text-forest-600">
             {selectedDate}
           </span>
         </div>
       </div>
-      <div className="mb-3 flex items-center gap-4 text-[10px] text-slate-400">
+      <div className="mb-3 flex items-center gap-4 text-[10px] text-ink-400">
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full ring-1 ring-slate-200" />
+          <span className="h-2 w-2 rounded-full ring-1 ring-ink-200" />
           {t("child.weekCalendar.notStarted")}
         </span>
         <span className="flex items-center gap-1">
@@ -179,7 +179,7 @@ export function WeekCalendar({
           {t("child.weekCalendar.inProgress")}
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-rose-400" />
+          <span className="h-2 w-2 rounded-full bg-coral-400" />
           {t("child.weekCalendar.overdue")}
         </span>
       </div>
@@ -208,8 +208,8 @@ export function WeekCalendar({
               }`}
               className={`flex flex-col items-center gap-1 rounded-xl px-2 py-2.5 transition-all min-h-[44px] min-w-[44px] ${
                 isSelected
-                  ? "bg-forest-50 shadow-sm"
-                  : "hover:bg-forest-50/50"
+                  ? "bg-cream-50 shadow-elevation-raised"
+                  : "hover:bg-cream-50/50"
               }`}
             >
               <span className={`text-[10px] font-medium ${tone.textColor}`}>
@@ -227,7 +227,7 @@ export function WeekCalendar({
                   </span>
                 </DayRing>
                 {isToday && (
-                  <span className="absolute -bottom-2 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-primary shadow-sm ring-2 ring-white" />
+                  <span className="absolute -bottom-2 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-primary shadow-elevation-raised ring-2 ring-white" />
                 )}
               </div>
             </button>

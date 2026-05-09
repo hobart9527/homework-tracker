@@ -699,12 +699,12 @@ export function CheckInModal({
           </h3>
           <p className="text-primary font-semibold">+{homework.point_value} 积分</p>
           {homework.required_checkpoint_type && (
-            <p className="mt-2 text-sm text-forest-500">
+            <p className="mt-2 text-sm text-ink-500">
               需要{requiredProofLabel}
             </p>
           )}
           {homework.required_checkpoint_type === "photo" && (
-            <p className="mt-1 text-xs text-forest-400">
+            <p className="mt-1 text-xs text-ink-400">
               可以拍照，或上传已有图片
             </p>
           )}
@@ -747,13 +747,13 @@ export function CheckInModal({
         ) : null}
 
         {recording ? (
-          <p className="text-center text-xs text-amber-600">
+          <p className="text-center text-xs text-honey-500">
             请先停止录音，再提交本次作业
           </p>
         ) : null}
 
         {homework.required_checkpoint_type && attachments.length === 0 ? (
-          <p className="text-center text-xs text-rose-500">
+          <p className="text-center text-xs text-coral-500">
             请先添加{requiredProofLabel}，再提交本次作业
           </p>
         ) : null}
@@ -764,7 +764,7 @@ export function CheckInModal({
             {attachments.map((att, index) => (
               <div
                 key={`${att.file.name}-${index}`}
-                className={`rounded-xl border border-forest-100 bg-forest-50/70 p-2 ${att.type === "audio" ? "col-span-2" : ""}`}
+                className={`rounded-xl border border-cream-200 bg-cream-50/70 p-2 ${att.type === "audio" ? "col-span-2" : ""}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -772,7 +772,7 @@ export function CheckInModal({
                       {att.type === "photo" ? "已添加照片" : "已添加录音"}
                     </p>
                     {att.type === "audio" && att.durationSeconds != null ? (
-                      <p className="mt-1 text-xs text-forest-500">
+                      <p className="mt-1 text-xs text-ink-500">
                         录音时长 {formatDuration(att.durationSeconds)}
                       </p>
                     ) : null}
@@ -796,14 +796,14 @@ export function CheckInModal({
                       );
                       setSubmissionState("idle");
                     }}
-                    className="shrink-0 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                    className="shrink-0 text-coral-500 hover:bg-coral-50 hover:text-coral-600"
                   >
                     {att.type === "photo" ? "删除" : "删除重录"}
                   </Button>
                 </div>
 
                 {att.type === "photo" ? (
-                  <div className="mt-2 aspect-square w-full overflow-hidden rounded-lg bg-forest-100">
+                  <div className="mt-2 aspect-square w-full overflow-hidden rounded-lg bg-cream-100">
                     <img
                       src={att.previewUrl}
                       alt={att.file.name}
@@ -830,7 +830,7 @@ export function CheckInModal({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="可以写点备注..."
-            className="w-full px-4 py-3 rounded-xl border-2 border-forest-200 focus:border-primary focus:outline-none"
+            className="w-full px-4 py-3 rounded-xl border-2 border-cream-200 focus:border-primary focus:outline-none"
             rows={2}
             disabled={loading}
           />
@@ -883,10 +883,10 @@ export function CheckInModal({
               submissionState === "submitting"
                 ? "bg-sky-50 text-sky-700"
                 : submissionState === "error"
-                ? "bg-rose-50 text-rose-700"
+                ? "bg-coral-50 text-coral-700"
                 : submissionState === "success"
                 ? "bg-emerald-50 text-emerald-700"
-                : "bg-forest-50 text-forest-700"
+                : "bg-cream-50 text-forest-700"
             }`}
           >
             {feedback}
@@ -894,12 +894,12 @@ export function CheckInModal({
         )}
 
         {uploadStatus ? (
-          <div className="rounded-xl bg-forest-50 p-2.5">
+          <div className="rounded-xl bg-cream-50 p-2.5">
             <div className="flex items-center justify-between gap-3 text-xs font-medium">
               <span
                 className={
                   uploadStatus.state === "failed"
-                    ? "text-rose-600"
+                    ? "text-coral-600"
                     : uploadStatus.state === "uploaded"
                       ? "text-primary"
                       : "text-forest-600"
@@ -912,14 +912,14 @@ export function CheckInModal({
                       ? "已保存"
                       : "上传中")}
               </span>
-              <span className="text-forest-500">
+              <span className="text-ink-500">
                 {Math.round(uploadStatus.progress)}%
               </span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
               <div
                 className={`h-full rounded-full transition-all ${
-                  uploadStatus.state === "failed" ? "bg-rose-400" : "bg-primary"
+                  uploadStatus.state === "failed" ? "bg-coral-400" : "bg-primary"
                 }`}
                 style={{
                   width: `${Math.max(0, Math.min(100, uploadStatus.progress))}%`,

@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from("reading_articles")
-    .select("id, title, category, grade_level, difficulty, word_count, estimated_minutes, topic_key, source")
+    .select("id, title, category, grade_level, difficulty, word_count, estimated_minutes, topic_key, source, cover_image_url")
     .eq("status", "published")
     .order("grade_level", { ascending: true })
     .order("created_at", { ascending: false });

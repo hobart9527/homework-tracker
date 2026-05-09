@@ -68,10 +68,10 @@ export default function ParentLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-forest-100 to-forest-50">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-forest-50">
       <div className="text-6xl mb-4">🦊</div>
-      <h1 className="text-3xl font-bold text-forest-700 mb-2">作业小管家</h1>
-      <p className="text-forest-500 mb-8">家长请输入密码登录</p>
+      <h1 className="text-3xl font-bold text-ink-800 mb-2">作业小管家</h1>
+      <p className="text-ink-500 mb-8">家长请输入密码登录</p>
 
       <PasscodeInput
         onComplete={handlePasscodeComplete}
@@ -79,7 +79,7 @@ export default function ParentLoginPage() {
       />
 
       {loading && (
-        <p className="text-forest-500 mt-4">登录中...</p>
+        <p className="text-ink-500 mt-4">登录中...</p>
       )}
     </div>
   );

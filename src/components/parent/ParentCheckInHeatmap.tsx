@@ -14,18 +14,18 @@ function formatHour(hour: number) {
 
 function getBucketClasses(intensity: number) {
   if (intensity <= 0) {
-    return "bg-forest-100 text-forest-400";
+    return "bg-ink-100 text-ink-400";
   }
 
   if (intensity < 0.34) {
-    return "bg-emerald-200 text-emerald-900";
+    return "bg-success-200 text-success-900";
   }
 
   if (intensity < 0.67) {
-    return "bg-emerald-400 text-white";
+    return "bg-success-400 text-white";
   }
 
-  return "bg-emerald-600 text-white";
+  return "bg-success-600 text-white";
 }
 
 export function ParentCheckInHeatmap({
@@ -51,51 +51,53 @@ export function ParentCheckInHeatmap({
       <div className="flex items-end justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-forest-800">{title}</h3>
-          <p className="text-sm text-forest-500">{description}</p>
+          <p className="text-sm text-ink-500">{description}</p>
         </div>
         {peakBucket && peakBucket.count > 0 ? (
-          <span className="rounded-full bg-forest-100 px-3 py-1 text-xs font-medium text-forest-600">
+          <span className="rounded-full bg-forest-50 px-3 py-1 text-xs font-medium text-ink-600">
             峰值 {peakBucket.hour.toString().padStart(2, "0")}:00
           </span>
         ) : null}
       </div>
 
       {populatedBuckets.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-center text-sm text-forest-400">
+        <div className="rounded-xl border border-dashed border-ink-200 bg-forest-50 px-4 py-5 text-center text-sm text-ink-400">
           本月还没有打卡记录，热力图会在第一次完成作业后出现
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-4 gap-3 sm:grid-cols-6 xl:grid-cols-8">
-            {buckets.map((bucket) => {
-              const intensity = peak === 0 ? 0 : bucket.count / peak;
-              return (
-                <div key={bucket.hour} className="space-y-1 text-center">
-                  <div
-                    className={`mx-auto aspect-square w-full max-w-[52px] rounded-2xl shadow-sm ${getBucketClasses(intensity)}`}
-                    aria-label={`${formatHour(bucket.hour)} ${bucket.count} 次`}
-                    title={`${formatHour(bucket.hour)} · ${bucket.count} 次`}
-                  />
-                  <p className="text-[11px] font-medium leading-4 text-forest-500">
-                    {formatHour(bucket.hour)}
-                  </p>
-                  <p className="text-xs text-forest-400">{bucket.count} 次</p>
-                </div>
-              );
-            })}
+          <div className="overflow-x-auto -mx-1 px-1">
+            <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 min-w-[320px]">
+              {buckets.map((bucket) => {
+                const intensity = peak === 0 ? 0 : bucket.count / peak;
+                return (
+                  <div key={bucket.hour} className="space-y-1 text-center">
+                    <div
+                      className={`mx-auto aspect-square w-full min-w-[36px] max-w-[52px] rounded-xl shadow-elevation-raised ${getBucketClasses(intensity)}`}
+                      aria-label={`${formatHour(bucket.hour)} ${bucket.count} 次`}
+                      title={`${formatHour(bucket.hour)} · ${bucket.count} 次`}
+                    />
+                    <p className="text-[11px] font-medium leading-4 text-ink-500">
+                      {formatHour(bucket.hour)}
+                    </p>
+                    <p className="text-xs text-ink-400">{bucket.count} 次</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-forest-500">
-            <span className="rounded-full bg-forest-100 px-2.5 py-1 text-forest-500">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-500">
+            <span className="rounded-full bg-ink-100 px-2.5 py-1 text-ink-500">
               较少
             </span>
-            <span className="rounded-full bg-emerald-200 px-2.5 py-1 text-emerald-900">
+            <span className="rounded-full bg-success-200 px-2.5 py-1 text-success-900">
               一般
             </span>
-            <span className="rounded-full bg-emerald-400 px-2.5 py-1 text-white">
+            <span className="rounded-full bg-success-400 px-2.5 py-1 text-white">
               较多
             </span>
-            <span className="rounded-full bg-emerald-600 px-2.5 py-1 text-white">
+            <span className="rounded-full bg-success-600 px-2.5 py-1 text-white">
               高峰
             </span>
           </div>

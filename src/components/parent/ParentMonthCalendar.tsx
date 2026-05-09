@@ -43,7 +43,7 @@ function buildProgressRing(day: ParentCalendarDay) {
   const degrees = Math.round(ratio * 360);
   const color = getDayTone(day).ringColor;
   return {
-    background: `conic-gradient(${color} ${degrees}deg, rgb(226 232 240) ${degrees}deg 360deg)`,
+    background: `conic-gradient(${color} ${degrees}deg, #E8EAED ${degrees}deg 360deg)`,
   };
 }
 
@@ -58,10 +58,10 @@ function getDayTone(day: ParentCalendarDay) {
   if (day.totalCount === 0) {
     return {
       label: "无任务",
-      ringColor: "rgb(148 163 184)",
-      bgClass: "bg-slate-50",
-      textClass: "text-slate-400",
-      dotClass: "bg-slate-300",
+      ringColor: "#9AA0A6",
+      bgClass: "bg-ink-50",
+      textClass: "text-ink-400",
+      dotClass: "bg-ink-300",
     };
   }
 
@@ -69,48 +69,48 @@ function getDayTone(day: ParentCalendarDay) {
     if (day.lateCompletedCount > 0) {
       return {
         label: "补做完成",
-        ringColor: "rgb(245 158 11)",
-        bgClass: "bg-amber-50",
-        textClass: "text-amber-700",
-        dotClass: "bg-amber-400",
+        ringColor: "#F5B41A",
+        bgClass: "bg-honey-50",
+        textClass: "text-honey-700",
+        dotClass: "bg-honey-400",
       };
     }
 
     return {
       label: "已完成",
-      ringColor: "rgb(34 197 94)",
-      bgClass: "bg-emerald-50",
-      textClass: "text-emerald-700",
-      dotClass: "bg-emerald-500",
+      ringColor: "#10B981",
+      bgClass: "bg-success-50",
+      textClass: "text-success-700",
+      dotClass: "bg-success-500",
     };
   }
 
   if (day.completedCount > 0) {
     return {
       label: "进行中",
-      ringColor: "rgb(59 130 246)",
-      bgClass: "bg-sky-50",
-      textClass: "text-sky-700",
-      dotClass: "bg-sky-500",
+      ringColor: "#3B82F6",
+      bgClass: "bg-info-50",
+      textClass: "text-info-700",
+      dotClass: "bg-info-500",
     };
   }
 
   if (day.date < todayKey) {
     return {
       label: "未完成",
-      ringColor: "rgb(244 63 94)",
-      bgClass: "bg-rose-50",
-      textClass: "text-rose-700",
-      dotClass: "bg-rose-500",
+      ringColor: "#F43F5E",
+      bgClass: "bg-danger-50",
+      textClass: "text-danger-700",
+      dotClass: "bg-danger-500",
     };
   }
 
   return {
     label: "未开始",
-    ringColor: "rgb(107 114 128)",
-    bgClass: "bg-slate-50",
-    textClass: "text-slate-500",
-    dotClass: "bg-slate-400",
+    ringColor: "#80868B",
+    bgClass: "bg-ink-50",
+    textClass: "text-ink-500",
+    dotClass: "bg-ink-400",
   };
 }
 
@@ -132,8 +132,8 @@ function StatChip({
   value: string | number;
 }) {
   return (
-    <div className="rounded-xl bg-forest-50/80 px-3 py-2">
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-forest-400">
+    <div className="rounded-xl bg-forest-50 px-3 py-2">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-400">
         {label}
       </p>
       <p className="mt-0.5 text-base font-bold text-forest-800">{value}</p>
@@ -161,7 +161,7 @@ export function ParentMonthCalendar({
   const todayKey = new Date().toISOString().slice(0, 10);
 
   return (
-    <section className="space-y-4 rounded-2xl border border-forest-200 bg-white/95 p-4 shadow-sm">
+    <section className="space-y-4 rounded-2xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -185,7 +185,7 @@ export function ParentMonthCalendar({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatChip label="完成率" value={formatPercent(safeStats.completionRate)} />
         <StatChip label="准时率" value={formatPercent(safeStats.onTimeRate)} />
         <StatChip label="累计积分" value={safeStats.totalPoints} />
@@ -194,7 +194,7 @@ export function ParentMonthCalendar({
 
       {/* Calendar Grid */}
       <div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-forest-400">
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-ink-400">
           {WEEKDAY_LABELS.map((label) => (
             <div key={label} className="py-1">
               周{label}
@@ -225,7 +225,7 @@ export function ParentMonthCalendar({
                 className={`relative flex h-11 min-w-[44px] flex-col items-center justify-center rounded-lg transition-all ${tone.bgClass} ${
                   isSelected
                     ? "ring-2 ring-primary ring-offset-1"
-                    : "hover:ring-1 hover:ring-forest-200"
+                    : "hover:ring-1 hover:ring-ink-200"
                 }`}
                 title={
                   day.tooltip
@@ -244,7 +244,7 @@ export function ParentMonthCalendar({
                     </span>
                   )}
                   {day.lateCompletedCount > 0 && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-honey-400" />
                   )}
                 </div>
 
@@ -261,21 +261,21 @@ export function ParentMonthCalendar({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-forest-50 pt-2 text-[10px] text-forest-400">
+      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-ink-100 pt-2 text-[10px] text-ink-400">
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" /> 已完成
+          <span className="h-2 w-2 rounded-full bg-success-500" /> 已完成
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-sky-500" /> 进行中
+          <span className="h-2 w-2 rounded-full bg-info-500" /> 进行中
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-slate-400" /> 未开始
+          <span className="h-2 w-2 rounded-full bg-ink-400" /> 未开始
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-rose-500" /> 未完成
+          <span className="h-2 w-2 rounded-full bg-danger-500" /> 未完成
         </span>
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full bg-amber-400" /> 补做
+          <span className="h-2 w-2 rounded-full bg-honey-400" /> 补做
         </span>
       </div>
     </section>

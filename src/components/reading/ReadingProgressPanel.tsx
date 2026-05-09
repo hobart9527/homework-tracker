@@ -63,25 +63,25 @@ export function ReadingProgressPanel({ childId }: ReadingProgressPanelProps) {
 
   if (loading) {
     return (
-      <section className="rounded-3xl border border-forest-100 bg-white/90 p-5 shadow-sm">
-        <div className="mb-4 h-5 w-24 animate-pulse rounded bg-gray-200" />
+      <section className="rounded-2xl border border-cream-200/40 bg-white/90 p-5 shadow-elevation-raised">
+        <div className="mb-4 h-5 w-24 animate-pulse rounded bg-ink-100" />
         <div className="mb-4 grid grid-cols-3 gap-3">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="animate-pulse rounded-2xl bg-forest-50/70 p-3">
-              <div className="mx-auto mb-1 h-6 w-6 rounded bg-gray-200" />
-              <div className="mx-auto mb-1 h-7 w-10 rounded bg-gray-200" />
-              <div className="mx-auto h-3 w-12 rounded bg-gray-200" />
+            <div key={i} className="animate-pulse rounded-xl bg-cream-50/70 p-3">
+              <div className="mx-auto mb-1 h-6 w-6 rounded bg-ink-100" />
+              <div className="mx-auto mb-1 h-7 w-10 rounded bg-ink-100" />
+              <div className="mx-auto h-3 w-12 rounded bg-ink-100" />
             </div>
           ))}
         </div>
         <div className="space-y-2">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="animate-pulse flex items-center justify-between rounded-xl bg-forest-50/50 px-3 py-2">
+            <div key={i} className="animate-pulse flex items-center justify-between rounded-xl bg-cream-50/50 px-3 py-2">
               <div className="flex-1 space-y-1">
-                <div className="h-4 w-32 rounded bg-gray-200" />
-                <div className="h-3 w-16 rounded bg-gray-200" />
+                <div className="h-4 w-32 rounded bg-ink-100" />
+                <div className="h-3 w-16 rounded bg-ink-100" />
               </div>
-              <div className="ml-2 h-5 w-10 rounded-full bg-gray-200" />
+              <div className="ml-2 h-5 w-10 rounded-full bg-ink-100" />
             </div>
           ))}
         </div>
@@ -95,9 +95,9 @@ export function ReadingProgressPanel({ childId }: ReadingProgressPanelProps) {
 
   if (data.totalRead === 0) {
     return (
-      <section className="rounded-3xl border border-forest-100 bg-white/90 p-5 shadow-sm">
+      <section className="rounded-2xl border border-cream-200/40 bg-white/90 p-5 shadow-elevation-raised">
         <h2 className="mb-4 text-xl font-bold text-forest-800">阅读情况</h2>
-        <div className="rounded-2xl border border-dashed border-forest-200 bg-forest-50 py-10 text-center text-forest-400">
+        <div className="rounded-xl border border-dashed border-cream-300 bg-cream-50 py-10 text-center text-ink-400">
           本月暂无阅读记录
         </div>
       </section>
@@ -105,24 +105,24 @@ export function ReadingProgressPanel({ childId }: ReadingProgressPanelProps) {
   }
 
   return (
-    <section className="rounded-3xl border border-forest-100 bg-white/90 p-5 shadow-sm">
+    <section className="rounded-2xl border border-cream-200/40 bg-white/90 p-5 shadow-elevation-raised">
       <h2 className="mb-4 text-xl font-bold text-forest-800">阅读情况</h2>
 
       <div className="mb-4 grid grid-cols-3 gap-3">
-        <div className="rounded-2xl bg-forest-50/70 p-3 text-center">
+        <div className="rounded-xl bg-cream-50/70 p-3 text-center">
           <div className="text-2xl">📚</div>
           <div className="text-2xl font-bold text-forest-700">{data.totalRead}</div>
-          <div className="text-xs text-forest-500">本月阅读</div>
+          <div className="text-xs text-ink-500">本月阅读</div>
         </div>
-        <div className="rounded-2xl bg-forest-50/70 p-3 text-center">
+        <div className="rounded-xl bg-cream-50/70 p-3 text-center">
           <div className="text-2xl">✅</div>
           <div className="text-2xl font-bold text-forest-700">{data.avgScore}%</div>
-          <div className="text-xs text-forest-500">平均正确率</div>
+          <div className="text-xs text-ink-500">平均正确率</div>
         </div>
-        <div className="rounded-2xl bg-forest-50/70 p-3 text-center">
+        <div className="rounded-xl bg-cream-50/70 p-3 text-center">
           <div className="text-2xl">⭐</div>
           <div className="text-2xl font-bold text-forest-700">{data.totalPoints}</div>
-          <div className="text-xs text-forest-500">阅读积分</div>
+          <div className="text-xs text-ink-500">阅读积分</div>
         </div>
       </div>
 
@@ -133,13 +133,13 @@ export function ReadingProgressPanel({ childId }: ReadingProgressPanelProps) {
             {data.recent.slice(0, 5).map((item, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between rounded-xl bg-forest-50/50 px-3 py-2"
+                className="flex items-center justify-between rounded-xl bg-cream-50/50 px-3 py-2"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-forest-700">
                     {item.title}
                   </p>
-                  <span className="text-xs text-forest-400">{item.category}</span>
+                  <span className="text-xs text-ink-400">{item.category}</span>
                 </div>
                 <span className="ml-2 shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                   {item.score}/{item.total}

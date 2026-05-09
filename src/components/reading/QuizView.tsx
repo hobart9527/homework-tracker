@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { CompletionStamp } from "./CompletionStamp";
 
 export interface QuizViewQuestion {
   id: string;
@@ -62,6 +63,7 @@ export function QuizView({
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<QuizResult | null>(null);
+  const [showStamp, setShowStamp] = useState(false);
   const startTimeRef = useRef(Date.now());
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const answersRef = useRef<Record<string, string>>({});
@@ -122,6 +124,7 @@ export function QuizView({
         };
         setResult(mappedResult);
         setPhase("results");
+        setShowStamp(true);
         onComplete(mappedResult);
       } catch {
         setSubmitError("提交失败，请重试");
@@ -175,6 +178,13 @@ export function QuizView({
 
     return (
       <div className="flex flex-col items-center gap-8 py-8">
+        {/* Completion stamp */}
+        <CompletionStamp
+          show={showStamp}
+          message={percentage === 100 ? "太棒了!" : "已完成!"}
+          onDismiss={() => setShowStamp(false)}
+        />
+
         {/* Score circle */}
         <div className="flex h-36 w-36 items-center justify-center rounded-full bg-primary/10 ring-4 ring-primary/20">
           <div className="text-center">
@@ -190,7 +200,7 @@ export function QuizView({
         {/* Encouragement and points */}
         <div className="text-center">
           <p className="text-xl font-bold text-forest-800">{encouragement}</p>
-          <p className="mt-2 text-lg text-forest-600">
+          <p className="mt-2 text-lg text-ink-600">
             {"获得"}{" "}
             <span className="font-bold text-primary">
               {result.pointsEarned}
@@ -203,7 +213,7 @@ export function QuizView({
         <button
           type="button"
           onClick={() => router.push("/reading")}
-          className="rounded-full bg-forest-100 px-6 py-3 text-base font-medium text-forest-700 transition hover:bg-forest-200 active:scale-95"
+          className="rounded-full bg-cream-50 px-6 py-3 text-base font-medium text-ink-700 transition hover:bg-cream-100 active:scale-95"
         >
           {"返回文章列表"}
         </button>
@@ -216,8 +226,8 @@ export function QuizView({
     return (
       <div className="flex flex-col items-center gap-6 py-20">
         {submitError ? (
-          <div className="rounded-xl bg-red-50 p-6 text-center">
-            <p className="text-red-600">{submitError}</p>
+          <div className="rounded-xl bg-coral-50 p-6 text-center">
+            <p className="text-coral-600">{submitError}</p>
             <button
               type="button"
               onClick={() => submitQuiz(answersRef.current)}
@@ -228,8 +238,8 @@ export function QuizView({
           </div>
         ) : (
           <>
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-forest-200 border-t-primary" />
-            <p className="text-forest-600">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-ink-200 border-t-primary" />
+            <p className="text-ink-600">
               {"提交中..."}
             </p>
           </>
@@ -251,7 +261,7 @@ export function QuizView({
     <div className="flex flex-col gap-6">
       {/* Progress bar */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm text-forest-500">
+        <div className="flex items-center justify-between text-sm text-ink-500">
           <span>
             {"第"}
             {currentIndex + 1}/{totalQuestions}
@@ -259,7 +269,7 @@ export function QuizView({
           </span>
           <span>{Math.round(progressPercent)}%</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-forest-100">
+        <div className="h-2 overflow-hidden rounded-full bg-cream-100">
           <div
             className="h-full rounded-full bg-primary transition-all duration-500"
             style={{ width: `${progressPercent}%` }}
@@ -270,12 +280,12 @@ export function QuizView({
       {/* Question */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-forest-100 px-3 py-1 text-xs font-medium text-forest-600">
+          <span className="rounded-full bg-cream-50 px-3 py-1 text-xs font-medium text-ink-600">
             {typeLabels[currentQuestion.question_type] ||
               currentQuestion.question_type}
           </span>
           {currentQuestion.difficulty > 0 && (
-            <span className="text-xs text-forest-400">
+            <span className="text-xs text-ink-400">
               {"★".repeat(currentQuestion.difficulty)}
             </span>
           )}
@@ -298,14 +308,14 @@ export function QuizView({
               className={`flex w-full items-center gap-3 rounded-xl border-2 p-4 text-left transition-all active:scale-[0.98] disabled:cursor-default ${
                 isSelected
                   ? "border-primary bg-primary/10"
-                  : "border-forest-200 bg-white hover:border-forest-300"
+                  : "border-ink-200 bg-white hover:border-ink-300"
               }`}
             >
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${
                   isSelected
                     ? "bg-primary text-white"
-                    : "bg-forest-100 text-forest-600"
+                    : "bg-cream-50 text-ink-600"
                 }`}
               >
                 {option.label}

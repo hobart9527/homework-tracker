@@ -31,8 +31,8 @@ function MetricCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-2xl border border-forest-100 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-[0.2em] text-forest-400">
+    <div className="rounded-xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
+      <p className="text-xs font-medium uppercase tracking-[0.2em] text-ink-400">
         {label}
       </p>
       <p className="mt-2 text-2xl font-bold text-forest-800">{value}</p>
@@ -47,7 +47,7 @@ export function ParentDayDetailPanel({
   onReminderStateChange,
 }: ParentDayDetailPanelProps) {
   return (
-    <section className="space-y-5 rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
+    <section className="space-y-5 rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div>
@@ -60,32 +60,32 @@ export function ParentDayDetailPanel({
           </div>
 
           <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/10 text-3xl">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-3xl">
               {detail.summary.avatar || "🦊"}
             </div>
             <div>
-              <p className="text-sm font-medium text-forest-500">
+              <p className="text-sm font-medium text-ink-500">
                 {formatSelectedDate(selectedDate)}
               </p>
-              <p className="mt-1 text-base text-forest-600">{detail.summary.topNotice}</p>
+              <p className="mt-1 text-base text-ink-600">{detail.summary.topNotice}</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-forest-100 bg-forest-50/80 px-5 py-4 text-right">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-forest-400">
+        <div className="rounded-2xl border border-ink-200 bg-forest-50 px-5 py-4 text-right">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-400">
             今日完成率
           </p>
           <p className="mt-2 text-4xl font-bold text-forest-800">
             {formatPercent(detail.summary.completedCount, detail.summary.totalCount)}
           </p>
-          <p className="mt-1 text-sm text-forest-500">
+          <p className="mt-1 text-sm text-ink-500">
             {detail.summary.completedCount}/{detail.summary.totalCount} 项完成
           </p>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard label="当天任务" value={detail.summary.totalCount} />
         <MetricCard label="当天积分" value={detail.summary.todayPoints} />
         <MetricCard label="待完成" value={detail.summary.outstandingCount} />

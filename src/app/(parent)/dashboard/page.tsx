@@ -288,185 +288,152 @@ export default function ParentDashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <header className="bg-white/80 backdrop-blur-md border-b border-forest-100 p-4 sticky top-0 z-10">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-            <div className="h-7 w-40 animate-pulse rounded bg-gray-200" />
-            <div className="flex gap-2">
-              <div className="h-8 w-20 animate-pulse rounded bg-gray-200" />
-              <div className="h-8 w-16 animate-pulse rounded bg-gray-200" />
-              <div className="h-8 w-12 animate-pulse rounded bg-gray-200" />
-              <div className="h-8 w-12 animate-pulse rounded bg-gray-200" />
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        {/* ChildSelector skeleton — row of circular avatars */}
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="animate-pulse flex shrink-0 flex-col items-center gap-1.5">
+              <div className="h-14 w-14 rounded-full bg-ink-100" />
+              <div className="h-3 w-14 rounded bg-ink-100" />
+            </div>
+          ))}
+        </div>
+
+        {/* 12-col grid skeleton */}
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+          {/* Left column: calendar + insights + heatmap */}
+          <div className="space-y-6 lg:col-span-6 xl:col-span-7">
+            {/* MonthCalendar skeleton — 7-col grid */}
+            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="h-4 w-8 rounded bg-ink-100" />
+                <div className="h-5 w-24 rounded bg-ink-100" />
+                <div className="h-4 w-8 rounded bg-ink-100" />
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={i} className="mx-auto h-3 w-3 rounded bg-ink-100" />
+                ))}
+                {Array.from({ length: 28 }).map((_, i) => (
+                  <div key={`cal-${i}`} className="mx-auto h-8 w-8 rounded-full bg-ink-100" />
+                ))}
+              </div>
+            </div>
+            {/* MonthlyInsights skeleton */}
+            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
+              <div className="mb-3 h-4 w-20 rounded bg-ink-100" />
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-ink-100" />
+                    <div className="h-3 flex-1 rounded bg-ink-100" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Heatmap skeleton */}
+            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised">
+              <div className="mb-3 h-4 w-24 rounded bg-ink-100" />
+              <div className="grid grid-cols-7 gap-1">
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={i} className="h-3 w-full rounded bg-ink-100" />
+                ))}
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <div key={`row2-${i}`} className="h-3 w-full rounded bg-ink-100" />
+                ))}
+              </div>
             </div>
           </div>
-        </header>
-        <main className="mx-auto max-w-6xl space-y-6 p-4">
-          {/* ChildSelector skeleton — row of circular avatars */}
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="animate-pulse flex shrink-0 flex-col items-center gap-1.5">
-                <div className="h-14 w-14 rounded-full bg-gray-200" />
-                <div className="h-3 w-14 rounded bg-gray-200" />
+
+          {/* Right column: TodayOverview sticky */}
+          <div className="space-y-6 lg:col-span-6 xl:col-span-5">
+            {/* TodayOverview card skeleton */}
+            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised lg:sticky lg:top-6">
+              <div className="mb-4 h-5 w-32 rounded bg-ink-100" />
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-ink-100" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-4 w-36 rounded bg-ink-100" />
+                      <div className="h-3 w-24 rounded bg-ink-100" />
+                    </div>
+                    <div className="h-7 w-16 rounded-full bg-ink-100" />
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-
-          {/* Grid: left today+heatmap, right calendar+insights */}
-          <section className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start">
-            {/* Left column */}
-            <div className="space-y-6">
-              {/* TodayOverview card skeleton */}
-              <div className="animate-pulse rounded-3xl border border-forest-100 bg-white/90 p-5 shadow-sm">
-                <div className="mb-4 h-5 w-32 rounded bg-gray-200" />
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-gray-200" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-4 w-36 rounded bg-gray-200" />
-                        <div className="h-3 w-24 rounded bg-gray-200" />
-                      </div>
-                      <div className="h-7 w-16 rounded-full bg-gray-200" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* Heatmap skeleton */}
-              <div className="animate-pulse rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
-                <div className="mb-3 h-4 w-24 rounded bg-gray-200" />
-                <div className="grid grid-cols-7 gap-1">
-                  {Array.from({ length: 7 }).map((_, i) => (
-                    <div key={i} className="h-3 w-full rounded bg-gray-200" />
-                  ))}
-                  {Array.from({ length: 7 }).map((_, i) => (
-                    <div key={`row2-${i}`} className="h-3 w-full rounded bg-gray-200" />
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Right column */}
-            <div className="space-y-6">
-              {/* MonthCalendar skeleton — 7-col grid */}
-              <div className="animate-pulse rounded-3xl border border-forest-100 bg-white/90 p-4 shadow-sm">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="h-4 w-8 rounded bg-gray-200" />
-                  <div className="h-5 w-24 rounded bg-gray-200" />
-                  <div className="h-4 w-8 rounded bg-gray-200" />
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {Array.from({ length: 7 }).map((_, i) => (
-                    <div key={i} className="mx-auto h-3 w-3 rounded bg-gray-200" />
-                  ))}
-                  {Array.from({ length: 28 }).map((_, i) => (
-                    <div key={`cal-${i}`} className="mx-auto h-8 w-8 rounded-full bg-gray-200" />
-                  ))}
-                </div>
-              </div>
-              {/* MonthlyInsights skeleton */}
-              <div className="animate-pulse rounded-3xl border border-forest-100 bg-white/90 p-4 shadow-sm">
-                <div className="mb-3 h-4 w-20 rounded bg-gray-200" />
-                <div className="space-y-2">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="h-3 w-3 rounded-full bg-gray-200" />
-                      <div className="h-3 flex-1 rounded bg-gray-200" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        </main>
+        </section>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-white/80 backdrop-blur-md border-b border-forest-100 text-forest-800 p-4 sticky top-0 z-10">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <h1 className="text-xl font-bold">{t('parent.dashboard.title')}</h1>
-          <div className="flex gap-2">
-            <Link href="/homework">
-              <Button size="sm" variant="primary">
-                {t('parent.dashboard.homeworkManage')}
-              </Button>
-            </Link>
-            <Link href="/children">
-              <Button size="sm" variant="ghost">
-                {t('parent.dashboard.children')}
-              </Button>
-            </Link>
-            <Link href="/settings">
-              <Button size="sm" variant="ghost">
-                设置
-              </Button>
-            </Link>
-            <Button size="sm" variant="ghost" onClick={handleLogout}>
+    <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      {dashboard.summaries.length === 0 ? (
+        <div className="py-12 text-center">
+          <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-honey-50 to-orange-100 shadow-elevation-floating ring-1 ring-honey-200/40">
+            <span className="text-7xl">🦊</span>
+          </div>
+          <h2 className="text-xl font-bold text-forest-700">
+            {t('parent.dashboard.noChildren')}
+          </h2>
+          <p className="mt-2 text-ink-500">
+            {t('parent.dashboard.noChildrenHint')}
+          </p>
+          <Link href="/children">
+            <Button className="mt-5">{t('parent.dashboard.addChild')}</Button>
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-forest-800">{t('parent.dashboard.title')}</h1>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
               {t('common.logout')}
             </Button>
           </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl space-y-6 p-4">
-        {dashboard.summaries.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-amber-50 to-orange-100 shadow-[0_0_48px_rgba(251,146,60,0.12)] ring-1 ring-amber-200/40">
-              <span className="text-7xl">🦊</span>
+          <ChildSelector
+            summaries={dashboard.summaries}
+            selectedId={activeChildId}
+            onSelect={setSelectedChildId}
+          />
+          {/* 12-col grid: left calendar+insights+heatmap, right TodayOverview sticky */}
+          <section className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+            {/* 左侧：月度日历 + 薄弱类型 + 时段热力图 */}
+            <div className="space-y-6 lg:col-span-6 xl:col-span-7">
+              <ParentMonthCalendar
+                days={dashboard.calendarDays}
+                selectedDate={selectedDate}
+                selectedMonth={selectedMonth}
+                monthlyStats={dashboard.monthlyStats}
+                onSelectDate={handleSelectDate}
+                onPreviousMonth={() => handleChangeMonth(-1)}
+                onNextMonth={() => handleChangeMonth(1)}
+              />
+              <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
+              <div className="rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised">
+                <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
+              </div>
+              {activeChildId && <ReadingProgressPanel childId={activeChildId} />}
             </div>
-            <h2 className="text-xl font-bold text-forest-700">
-              {t('parent.dashboard.noChildren')}
-            </h2>
-            <p className="mt-2 text-forest-500">
-              {t('parent.dashboard.noChildrenHint')}
-            </p>
-            <Link href="/children">
-              <Button className="mt-5">{t('parent.dashboard.addChild')}</Button>
-            </Link>
-          </div>
-        ) : (
-          <>
-            <ChildSelector
-              summaries={dashboard.summaries}
-              selectedId={activeChildId}
-              onSelect={setSelectedChildId}
-            />
-            {/* 左右两栏布局：左边任务+热力图，右边日历+薄弱类型 */}
-            <section className="grid gap-6 xl:grid-cols-[1fr_380px] xl:items-start">
-              {/* 左侧：当天任务 + 时段热力图 */}
-              <div className="space-y-6">
-                {selectedDetail ? (
+            {/* 右侧：当天概览（sticky） */}
+            <div className="space-y-6 lg:col-span-6 xl:col-span-5">
+              {selectedDetail ? (
+                <div className="lg:sticky lg:top-6">
                   <TodayOverview
                     detail={selectedDetail}
                     selectedDate={selectedDate}
                     reminderStates={reminderStates}
                     onReminderStateChange={handleReminderStateChange}
                   />
-                ) : null}
-                <div className="rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
-                  <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
                 </div>
-              </div>
-              {/* 右侧：月度日历 + 薄弱类型 */}
-              <div className="space-y-6">
-                <ParentMonthCalendar
-                  days={dashboard.calendarDays}
-                  selectedDate={selectedDate}
-                  selectedMonth={selectedMonth}
-                  monthlyStats={dashboard.monthlyStats}
-                  onSelectDate={handleSelectDate}
-                  onPreviousMonth={() => handleChangeMonth(-1)}
-                  onNextMonth={() => handleChangeMonth(1)}
-                />
-                <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
-                {activeChildId && <ReadingProgressPanel childId={activeChildId} />}
-              </div>
-            </section>
-          </>
-        )}
-      </main>
+              ) : null}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

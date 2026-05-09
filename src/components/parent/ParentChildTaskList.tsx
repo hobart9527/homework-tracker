@@ -144,11 +144,11 @@ export function ParentChildTaskList({
     <section className="space-y-3">
       <div>
         <h3 className="text-lg font-semibold text-forest-800">任务清单</h3>
-        <p className="text-sm text-forest-500">点击日历切换日期后，这里会同步更新当天的作业情况</p>
+        <p className="text-sm text-ink-500">点击日历切换日期后，这里会同步更新当天的作业情况</p>
       </div>
 
       {tasks.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-forest-200 bg-white py-10 text-center text-forest-400">
+        <div className="rounded-xl border border-dashed border-ink-200 bg-white py-10 text-center text-ink-400">
           <span className="text-4xl">🎉</span>
           <p className="mt-2">今天没有任务</p>
         </div>
@@ -180,7 +180,7 @@ export function ParentChildTaskList({
                         📎 附件
                       </Button>
                     ) : (
-                      <span className="text-[10px] text-forest-400">完成后查看附件</span>
+                      <span className="text-[10px] text-ink-400">完成后查看附件</span>
                     )}
                     <ReminderActionButton
                       homeworkId={taskHomeworkId}
@@ -208,22 +208,22 @@ export function ParentChildTaskList({
       <Modal isOpen={previewOpen} onClose={closePreview} title="附件预览" size="xl">
         <div className="space-y-4">
           <div>
-            <p className="text-sm text-forest-500">{previewTaskTitle}</p>
-            <p className="mt-1 text-xs text-forest-400">
+            <p className="text-sm text-ink-500">{previewTaskTitle}</p>
+            <p className="mt-1 text-xs text-ink-400">
               图片可直接查看，音频可在下方播放器里试听
             </p>
           </div>
 
           {previewLoading ? (
-            <div className="rounded-2xl border border-dashed border-forest-200 bg-forest-50 py-10 text-center text-forest-400">
+            <div className="rounded-xl border border-dashed border-ink-200 bg-forest-50 py-10 text-center text-ink-400">
               正在加载附件...
             </div>
           ) : previewError ? (
-            <div className="rounded-2xl border border-dashed border-forest-200 bg-forest-50 py-8 text-center text-forest-500">
+            <div className="rounded-xl border border-dashed border-ink-200 bg-forest-50 py-8 text-center text-ink-500">
               {previewError}
             </div>
           ) : previewAttachments.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-forest-200 bg-forest-50 py-8 text-center text-forest-400">
+            <div className="rounded-xl border border-dashed border-ink-200 bg-forest-50 py-8 text-center text-ink-400">
               暂时没有可预览的附件
             </div>
           ) : (
@@ -231,9 +231,9 @@ export function ParentChildTaskList({
               {previewAttachments.map((attachment, index) => (
                 <div
                   key={attachment.id}
-                  className="space-y-3 rounded-2xl border border-forest-100 bg-forest-50/60 p-3"
+                  className="space-y-3 rounded-xl border border-ink-200 bg-forest-50/60 p-3"
                 >
-                  <div className="flex items-center justify-between text-sm text-forest-500">
+                  <div className="flex items-center justify-between text-sm text-ink-500">
                     <span>{attachment.type === "photo" ? "照片" : "音频"}</span>
                     <span>附件 {index + 1}</span>
                   </div>
@@ -242,7 +242,7 @@ export function ParentChildTaskList({
                     <img
                       src={attachment.previewUrl}
                       alt={`${previewTaskTitle} 附件 ${index + 1}`}
-                      className="h-64 w-full rounded-2xl object-cover"
+                      className="h-64 w-full rounded-xl object-cover"
                     />
                   ) : (
                     <AudioPlayer

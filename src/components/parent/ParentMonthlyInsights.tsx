@@ -14,16 +14,16 @@ export function ParentMonthlyInsights({
   weakestTypes,
 }: ParentMonthlyInsightsProps) {
   return (
-    <section className="h-full rounded-3xl border border-forest-200 bg-white/90 p-5 shadow-sm">
+    <section className="h-full rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised">
       <div>
         <h2 className="text-xl font-bold text-forest-800">本月薄弱类型</h2>
-        <p className="text-sm text-forest-500">
+        <p className="text-sm text-ink-500">
           按本月完成率从低到高排序，优先关注最需要跟进的作业类型
         </p>
       </div>
 
       {weakestTypes.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-forest-200 bg-forest-50 py-10 text-center text-forest-400">
+        <div className="mt-4 rounded-xl border border-dashed border-ink-200 bg-forest-50 py-10 text-center text-ink-400">
           本月还没有作业类型数据
         </div>
       ) : (
@@ -31,10 +31,10 @@ export function ParentMonthlyInsights({
           {weakestTypes.map((item, index) => (
             <li
               key={item.typeName}
-              className="flex items-center justify-between gap-4 rounded-2xl border border-forest-100 bg-forest-50/80 px-4 py-3"
+              className="flex items-center justify-between gap-4 rounded-xl border border-ink-200 bg-forest-50 px-4 py-3"
             >
               <div>
-                <p className="text-sm text-forest-400">#{index + 1} 重点关注</p>
+                <p className="text-sm text-ink-400">#{index + 1} 重点关注</p>
                 <p className="text-lg font-semibold text-forest-800">
                   {item.typeName}
                 </p>
@@ -43,7 +43,7 @@ export function ParentMonthlyInsights({
                 <p className="text-lg font-bold text-forest-800">
                   {formatPercent(item.completionRate)}
                 </p>
-                <p className="text-sm text-forest-500">
+                <p className="text-sm text-ink-500">
                   {item.completedCount}/{item.assignedCount} 完成
                 </p>
               </div>

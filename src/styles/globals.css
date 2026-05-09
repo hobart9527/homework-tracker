@@ -1,9 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Reader Theme CSS Variables ─────────────────────────────────── */
+:root[data-reader-theme="light"] {
+  --reader-bg: white;
+  --reader-surface: white;
+  --reader-text: #202124;
+  --reader-text-muted: #80868B;
+  --reader-accent: #56AB91;
+  --reader-border: #E8EAED;
+}
+
+:root[data-reader-theme="sepia"] {
+  --reader-bg: #F1E8D2;
+  --reader-surface: #FAF6EC;
+  --reader-text: #202124;
+  --reader-text-muted: #5F6368;
+  --reader-accent: #3D8B76;
+  --reader-border: #E5D4AB;
+}
+
+:root[data-reader-theme="dark"] {
+  --reader-bg: #0A1B14;
+  --reader-surface: #143328;
+  --reader-text: #FDFCF8;
+  --reader-text-muted: #9AA0A6;
+  --reader-accent: #A8E6CF;
+  --reader-border: #1F4D3F;
+}
+
+/* ── Legacy CSS Variables (backward compatible) ─────────────────── */
 :root {
   --color-primary: #56AB91;
   --color-primary-light: #A8E6CF;
@@ -11,12 +40,13 @@
   --color-background: #F8FFF8;
 }
 
+/* ── Base Body Styles ───────────────────────────────────────────── */
 body {
   background-color: var(--color-background);
-  font-family: 'Nunito', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
 }
 
-/* Custom scrollbar */
+/* ── Custom Scrollbar ───────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -31,7 +61,32 @@ body {
   border-radius: 4px;
 }
 
-/* Animation utilities */
+/* ── Animation Utilities ────────────────────────────────────────── */
+@keyframes hover-lift {
+  0% { transform: translateY(0); box-shadow: 0 1px 2px rgba(10,27,20,0.04); }
+  100% { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(10,27,20,0.08), 0 0 0 1px rgba(232,234,237,0.5); }
+}
+
+@keyframes card-active {
+  0% { transform: scale(1); }
+  100% { transform: scale(0.98); }
+}
+
+@keyframes stamp-reveal {
+  0% { transform: scale(0.5) rotate(-12deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes page-turn {
+  0% { transform: perspective(1000px) rotateY(0deg); }
+  100% { transform: perspective(1000px) rotateY(-180deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 @keyframes star-burst {
   0% { transform: scale(0) rotate(0deg); opacity: 1; }
   100% { transform: scale(2) rotate(180deg); opacity: 0; }
@@ -42,6 +97,27 @@ body {
   100% { transform: translateY(-50px); opacity: 0; }
 }
 
+.animate-hover-lift {
+  animation: hover-lift 150ms cubic-bezier(.16, 1, .3, 1) forwards;
+}
+
+.animate-card-active {
+  animation: card-active 150ms cubic-bezier(.16, 1, .3, 1) forwards;
+}
+
+.animate-stamp-reveal {
+  animation: stamp-reveal 360ms cubic-bezier(.34, 1.56, .64, 1) forwards;
+}
+
+.animate-page-turn {
+  animation: page-turn 600ms cubic-bezier(.65, 0, .35, 1) forwards;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s linear infinite;
+  background-size: 200% 100%;
+}
+
 .animate-star-burst {
   animation: star-burst 0.6s ease-out forwards;
 }
@@ -50,9 +126,16 @@ body {
   animation: float-up 1s ease-out forwards;
 }
 
+/* ── Reduced Motion ─────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+  .animate-hover-lift,
+  .animate-card-active,
+  .animate-stamp-reveal,
+  .animate-page-turn,
+  .animate-shimmer,
   .animate-star-burst,
   .animate-float-up {
     animation: none !important;
+    transform: none !important;
   }
 }

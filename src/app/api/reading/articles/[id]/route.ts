@@ -31,5 +31,15 @@ export async function GET(
     .eq("article_id", id)
     .order("order_index", { ascending: true });
 
-  return NextResponse.json({ article, questions: questions || [] });
+  const { data: illustrations } = await supabase
+    .from("reading_article_illustrations")
+    .select("paragraph_index, image_url, scene_description")
+    .eq("article_id", id)
+    .order("paragraph_index", { ascending: true });
+
+  return NextResponse.json({
+    article,
+    questions: questions || [],
+    illustrations: illustrations || [],
+  });
 }

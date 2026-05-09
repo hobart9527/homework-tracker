@@ -8,6 +8,7 @@ import { ParentDayDetailPanel } from "@/components/parent/ParentDayDetailPanel";
 import { ParentMonthCalendar } from "@/components/parent/ParentMonthCalendar";
 import { TodayOverview } from "@/components/parent/TodayOverview";
 import ParentDashboardPage from "@/app/(parent)/dashboard/page";
+import ParentLayout from "@/app/(parent)/layout";
 import { createClient } from "@/lib/supabase/client";
 import { buildParentDashboard, getDefaultSelectedChildId } from "@/lib/parent-dashboard";
 
@@ -843,18 +844,18 @@ describe("ParentDashboardPage wiring", () => {
     expect(screen.getByText("完成率")).toBeInTheDocument();
     expect(heatmapHeading).toBeInTheDocument();
     expect(weakestTypesHeading).toBeInTheDocument();
-    // 新布局：左侧为当天任务+热力图，右侧为日历+薄弱类型
-    // DOM顺序：当天任务 -> 热力图 -> 日历 -> 薄弱类型
-    expect(
-      todayHeading.compareDocumentPosition(heatmapHeading) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
-    expect(
-      heatmapHeading.compareDocumentPosition(calendarHeading) &
-        Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
+    // 当前布局：左侧为日历+薄弱类型+热力图，右侧为当天任务
+    // DOM顺序（单栏）：日历 -> 薄弱类型 -> 热力图 -> 当天任务
     expect(
       calendarHeading.compareDocumentPosition(weakestTypesHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      weakestTypesHeading.compareDocumentPosition(heatmapHeading) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      heatmapHeading.compareDocumentPosition(todayHeading) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
@@ -1474,7 +1475,41 @@ describe("ParentDashboardPage wiring", () => {
         if (table === "children") {
           return {
             select: () => ({
+              eq: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      id: "child-1",
+                      parent_id: "parent-1",
+                      name: "Ivy",
+                      avatar: "🦊",
+                      age: null,
+                      gender: null,
+                      password_hash: "hash",
+                      points: 0,
+                      streak_days: 0,
+                      last_check_in: null,
+                      created_at: "2026-04-01T00:00:00.000Z",
+                    },
+                  ],
+                }),
+            }),
+          };
+        }
+
+        if (table === "homeworks") {
+          return {
+            select: () => ({
               eq: () => Promise.resolve({ data: [] }),
+            }),
+          };
+        }
+
+        if (table === "check_ins") {
+          return {
+            select: () => ({
+              eq: () => Promise.resolve({ data: [] }),
+              in: () => Promise.resolve({ data: [] }),
             }),
           };
         }
@@ -1485,7 +1520,7 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    render(createElement(ParentDashboardPage));
+    render(createElement(ParentLayout, null, createElement(ParentDashboardPage)));
 
     fireEvent.click(await screen.findByRole("button", { name: "退出登录" }));
 
@@ -1540,13 +1575,11 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    render(createElement(ParentDashboardPage));
-    await screen.findByRole("link", { name: "设置" });
+    render(createElement(ParentLayout, null, createElement(ParentDashboardPage)));
+    const settingsLinks = await screen.findAllByRole("link", { name: "设置" });
 
-    expect(screen.getByRole("link", { name: "设置" })).toHaveAttribute(
-      "href",
-      "/settings"
-    );
+    expect(settingsLinks.length).toBeGreaterThanOrEqual(1);
+    expect(settingsLinks[0]).toHaveAttribute("href", "/settings");
   });
 });
 

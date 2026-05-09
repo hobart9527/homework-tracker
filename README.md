@@ -62,6 +62,19 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
   - Recording homework queued for WeChat group delivery
   - 通过独立桥接服务发送到指定微信群
   - Delivered via independent bridge service to teacher groups
+- 分级阅读 / Graded Reading
+  - 统一中英文内容生成管线（从 reading_topics 表读取主题，OpenAI/MiniMax 生成内容）
+  - Unified Chinese/English content generation pipeline (reads topics from reading_topics table, generates content via OpenAI/MiniMax)
+  - 分级难度适配（按年级生成不同难度文章）
+  - Grade-adaptive difficulty (different article complexity per grade level)
+  - 中文拼音注音（pinyin-pro 服务器端生成，前端用 <ruby>+<rt> 渲染）
+  - Chinese pinyin annotation (server-side via pinyin-pro, rendered with <ruby>+<rt> tags)
+  - 封面与段落插图生成（MiniMax image-01 主源 + Pollinations 兜底，Supabase Storage 持久化）
+  - Cover and paragraph illustration generation (MiniMax image-01 primary + Pollinations fallback, persisted to Supabase Storage)
+  - 质量门控自动发布（7 项检查，通过则 published，不通过则 draft）
+  - Quality-gate auto-publish (7 checks; passes → published, fails → draft)
+  - 题库自动生成（每篇文章配套阅读理解题）
+  - Auto-generated reading comprehension questions per article
 
 ### 孩子端 Child Experience
 
@@ -85,6 +98,8 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
 - Tailwind CSS
 - Supabase
 - Vitest + Testing Library
+- pinyin-pro（中文拼音生成 / Chinese pinyin generation）
+- MiniMax image-01 + Pollinations.ai（AI 图像生成 / AI image generation）
 
 ## 目录结构 Project Structure
 
@@ -165,6 +180,18 @@ npm run supabase:migrate
 npm run supabase:generate-types
 ```
 
+### 阅读功能相关表 Reading-related tables
+
+- `reading_topics` — 主题目录源表（中英文主题统一管理）
+  - Topic catalog source table (unified Chinese/English topic management)
+- `reading_article_illustrations` — 文章段落插图表
+  - In-article illustration table per paragraph
+- `reading_image_quota_daily` — MiniMax 每日配额计数表
+  - MiniMax daily image generation quota counter
+
+> 需要运行迁移 035-037 才能启用阅读功能。  
+> Run migrations 035-037 to enable the reading feature.
+
 ## 常用命令 Useful Commands
 
 ```bash
@@ -177,6 +204,9 @@ npm run supabase:generate-types
 npm run test:auto-login          # 测试自动登录
 npm run sync:ixl                 # 手动同步 IXL 学习记录
 npm run sync:khan                # 手动同步 Khan Academy 学习记录
+npx tsx scripts/reading-content-pipeline.ts  # 英文阅读内容生成管道（cron 兼容）
+npx tsx scripts/seed-chinese-reading-content.ts  # 中文阅读内容种子
+curl /api/reading/refresh-news   # 手动触发内容刷新 API
 ```
 
 ## 首发集成运行说明 Release-One Integration Notes
@@ -361,6 +391,7 @@ This project is a good fit for families that want one simple workflow for assign
 - Telegram 家庭日报和即时通知的稳定性
 - 录音类作业微信群推送桥接的试点运行
 - 学习记录去重、凭据过期处理和自动打卡依据的可解释性
+- 分级阅读内容生成管道（中英文统一管线、质量门控、自动插图与封面生成）
 
 ### English
 
@@ -370,6 +401,7 @@ The project is under active iteration. Current focus areas include:
 - Telegram household daily summaries and instant notification reliability
 - pilot operation of WeChat voice-push bridge for recording homework
 - learning-event deduplication, credential expiry handling, and auto-completion auditability
+- graded reading content pipeline (unified Chinese/English generation, quality gate, auto illustration and cover generation)
 
 ## 贡献与协作 Contributing
 
