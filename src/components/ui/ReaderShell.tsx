@@ -209,18 +209,22 @@ export default function ReaderShell({
           <>
             {/* Backdrop */}
             <div
-              className="fixed inset-0 bg-ink-900/40 z-40"
+              className="fixed inset-0 bg-ink-900/30 backdrop-blur-sm z-40"
               onClick={() => setLeftOpen(false)}
               aria-hidden="true"
             />
             {/* Drawer */}
             <div
-              className="fixed bottom-0 left-0 right-0 z-50 rounded-t-radius-xl max-h-[70vh] overflow-y-auto"
+              className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl max-h-[70vh] overflow-y-auto"
               style={{
                 backgroundColor: "var(--reader-surface)",
                 borderTop: "1px solid var(--reader-border)",
               }}
             >
+              {/* Grab handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-ink-300" />
+              </div>
               <div className="p-4">{leftRail}</div>
             </div>
           </>
@@ -230,18 +234,22 @@ export default function ReaderShell({
           <>
             {/* Backdrop */}
             <div
-              className="fixed inset-0 bg-ink-900/40 z-40"
+              className="fixed inset-0 bg-ink-900/30 backdrop-blur-sm z-40"
               onClick={() => setRightOpen(false)}
               aria-hidden="true"
             />
             {/* Drawer */}
             <div
-              className="fixed bottom-0 left-0 right-0 z-50 rounded-t-radius-xl max-h-[70vh] overflow-y-auto"
+              className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl max-h-[70vh] overflow-y-auto"
               style={{
                 backgroundColor: "var(--reader-surface)",
                 borderTop: "1px solid var(--reader-border)",
               }}
             >
+              {/* Grab handle */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-ink-300" />
+              </div>
               <div className="p-4">{isValidElement(rightRail) ? cloneElement(rightRail, { onClose: () => setRightOpen(false) } as any) : rightRail}</div>
             </div>
           </>

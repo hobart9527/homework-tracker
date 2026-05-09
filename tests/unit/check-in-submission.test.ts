@@ -86,6 +86,7 @@ function makeSupabaseClient(overrides: {
             points_earned: 3,
             note: null,
             created_at: "2026-04-11T19:00:00.000Z",
+            is_late: false,
           },
           error: overrides.legacyInsertError ?? null,
         }),

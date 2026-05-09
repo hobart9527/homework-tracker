@@ -5,6 +5,7 @@ import ReaderShell from "@/components/ui/ReaderShell";
 import {
   ReaderThemeProvider,
   useReaderTheme,
+  resolveTheme,
 } from "@/components/reading/ReaderThemeContext";
 import ReaderSettingsPanel from "@/components/reading/ReaderSettingsPanel";
 
@@ -13,7 +14,7 @@ function ReaderLayoutInner({ children }: { children: ReactNode }) {
   return (
     <ReaderShell
       readerContent={children}
-      theme={theme}
+      theme={resolveTheme(theme)}
       rightRail={<ReaderSettingsPanel />}
       showRightRail
     />
