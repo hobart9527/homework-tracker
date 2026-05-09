@@ -184,6 +184,8 @@ const config: Config = {
         "elevation-floating": "0 8px 24px rgba(10,27,20,0.08), 0 0 0 1px rgba(232,234,237,0.5)",
         "elevation-modal": "0 24px 48px rgba(10,27,20,0.12)",
         parchment: "0 1px 0 rgba(0,0,0,0.04) inset, 0 -1px 0 rgba(0,0,0,0.04) inset, 0 0 32px rgba(0,0,0,0.06)",
+        "reader-glow": "0 0 20px rgba(86, 171, 145, 0.15)",
+        "reader-float": "0 8px 32px rgba(10, 27, 20, 0.12), 0 0 0 1px rgba(232, 234, 237, 0.3)",
       },
 
       // ── Transition Duration ───────────────────────────────────────
@@ -231,6 +233,22 @@ const config: Config = {
           "0%": { transform: "translateY(0)", opacity: "1" },
           "100%": { transform: "translateY(-50px)", opacity: "0" },
         },
+        "page-curl": {
+          "0%": { transform: "perspective(1000px) rotateY(0deg)", transformOrigin: "left center" },
+          "100%": { transform: "perspective(1000px) rotateY(-180deg)", transformOrigin: "left center" },
+        },
+        "fade-in-up": {
+          "0%": { opacity: "0", transform: "translateY(20px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "sound-wave": {
+          "0%, 100%": { height: "4px" },
+          "50%": { height: "16px" },
+        },
+        "liquid-fill": {
+          "0%": { transform: "scaleX(0)", transformOrigin: "left" },
+          "100%": { transform: "scaleX(1)", transformOrigin: "left" },
+        },
       },
       animation: {
         "hover-lift": "hover-lift 150ms cubic-bezier(.16, 1, .3, 1) forwards",
@@ -240,6 +258,10 @@ const config: Config = {
         shimmer: "shimmer 2s linear infinite",
         "star-burst": "star-burst 0.6s ease-out forwards",
         "float-up": "float-up 1s ease-out forwards",
+        "page-curl": "page-curl 600ms cubic-bezier(.65, 0, .35, 1) forwards",
+        "fade-in-up": "fade-in-up 500ms cubic-bezier(.16, 1, .3, 1) forwards",
+        "sound-wave": "sound-wave 1s ease-in-out infinite",
+        "liquid-fill": "liquid-fill 300ms cubic-bezier(.16, 1, .3, 1) forwards",
       },
     },
   },

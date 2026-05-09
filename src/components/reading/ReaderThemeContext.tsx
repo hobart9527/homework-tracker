@@ -11,7 +11,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────
 
-export type ReaderTheme = "light" | "sepia" | "dark";
+export type ReaderTheme = "light" | "sepia" | "dark" | "auto";
 
 export type FontSize = "small" | "medium" | "large";
 export type LineHeight = "compact" | "standard" | "loose";
@@ -42,6 +42,18 @@ const DEFAULT_SETTINGS: ReaderSettings = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────
+
+export function getSystemTheme(): "light" | "dark" {
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+export function resolveTheme(theme: ReaderTheme): "light" | "sepia" | "dark" {
+  if (theme === "auto") return getSystemTheme();
+  return theme;
+}
 
 function loadSettings(): ReaderSettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
@@ -108,6 +120,18 @@ export function ReaderThemeProvider({ children }: { children: ReactNode }) {
     const next = loadSettings();
     setSettings(next);
   }, []);
+
+  // Listen for system theme changes when in auto mode
+  useEffect(() => {
+    if (theme !== "auto") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => {
+      // Force re-render by updating settings with same value
+      setSettings((prev) => ({ ...prev }));
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [theme]);
 
   return (
     <ReaderThemeContext.Provider
