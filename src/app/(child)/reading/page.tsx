@@ -41,6 +41,20 @@ const EN_CATEGORIES = [
   { key: "culture", label: "Culture" },
 ];
 
+// Helper to detect language from article content/title
+function inferLanguage(article: Article): "zh" | "en" {
+  if (article.language) return article.language;
+  // If category is in English list, it's English
+  if (["news", "history", "science", "biography", "nature", "culture"].includes(article.category)) {
+    return "en";
+  }
+  // If title/content has mostly ASCII, it's English
+  const text = article.title || "";
+  if (text.length === 0) return "zh";
+  const asciiRatio = text.replace(/[^\x00-\x7F]/g, "").length / text.length;
+  return asciiRatio > 0.7 ? "en" : "zh";
+}
+
 function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-xl bg-white shadow-elevation-raised ring-1 ring-cream-200/40 overflow-hidden">
@@ -140,7 +154,8 @@ export default function ReadingBrowserPage() {
     activeLanguage === "zh" ? ZH_CATEGORIES : EN_CATEGORIES;
 
   const filteredArticles = articles.filter((a) => {
-    const langMatch = (a.language || "zh") === activeLanguage;
+    const lang = inferLanguage(a);
+    const langMatch = lang === activeLanguage;
     const categoryMatch = !activeCategory || a.category === activeCategory;
     return langMatch && categoryMatch;
   });

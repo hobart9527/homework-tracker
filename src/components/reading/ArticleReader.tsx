@@ -370,50 +370,51 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         `
       }} />
 
-      {/* Unified Header Bar */}
+      {/* Minimal header - just back and quiz with TTS */}
       <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-cream-200 -mx-4 px-4 py-2">
         <div className="flex items-center justify-between">
-          {/* Left: Back + Title (truncated) */}
-          <div className="flex items-center gap-2 min-w-0">
-            <button
-              onClick={() => router.back()}
-              className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-cream-100"
-            >
-              ←
-            </button>
-            <span className="text-sm font-medium text-forest-700 truncate max-w-[180px]">
-              {article.title}
-            </span>
-          </div>
-
-          {/* Right: TTS + Quiz buttons */}
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1 text-sm text-forest-600 hover:text-forest-800"
+          >
+            ← 返回
+          </button>
           <div className="flex items-center gap-2">
             {isLowerGrade && ttsSupported && (
               <button
                 onClick={handleTTS}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cream-100 text-sm font-medium text-ink-700 hover:bg-cream-200 transition"
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xl shadow-md transition-all active:scale-95 ${
+                  ttsPlaying && !ttsPaused
+                    ? "bg-forest-600 text-white shadow-forest-200"
+                    : "bg-primary text-white shadow-primary/30 hover:bg-primary-dark"
+                }`}
+                aria-label={ttsPlaying && !ttsPaused ? "暂停" : "朗读"}
               >
-                {ttsPlaying && !ttsPaused ? "⏸️" : "🔊"}
-                <span>{ttsPlaying && !ttsPaused ? "暂停" : "朗读"}</span>
+                {ttsPlaying && !ttsPaused ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
               </button>
             )}
             <button
               onClick={onStartQuiz}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-sm font-medium text-white hover:bg-primary-dark transition"
             >
-              📝
-              <span>答题</span>
+              📝 答题
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Progress bar below */}
-        <div className="mt-2 h-1 bg-cream-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+      {/* Progress bar - thin */}
+      <div className="h-0.5 bg-cream-100">
+        <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
       </div>
 
       {/* Dictionary Popup */}
@@ -446,42 +447,54 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           isLowerGrade={isLowerGrade}
         />
       ) : (
-        <div className="max-w-2xl mx-auto px-4 py-6">
-          {/* Cover image - smaller and inline */}
-          {article.coverImageUrl && (
-            <div className="mb-4">
-              <img
-                src={`${article.coverImageUrl}?width=400&format=webp&quality=70`}
-                alt={article.title}
-                className="h-32 w-full object-cover rounded-lg"
-              />
+        <div className="max-w-3xl mx-auto px-4 py-8 lg:px-8">
+          {/* Title section - prominent, outside header */}
+          <div className="mb-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                {/* Language badge */}
+                <div className="mb-2">
+                  <span className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium ${
+                    article.language === "en"
+                      ? "bg-sky-100 text-sky-700"
+                      : "bg-coral-100 text-coral-700"
+                  }`}>
+                    {article.language === "en" ? "English" : "中文"}
+                  </span>
+                  <span className="ml-2 rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
+                    {article.category}
+                  </span>
+                </div>
+                {/* Large title */}
+                <h1 className="text-3xl font-bold text-forest-800 leading-tight">
+                  {article.title}
+                </h1>
+                {/* Meta info */}
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-ink-500">
+                  <span>G{article.gradeLevel}</span>
+                  <span>{article.wordCount} words</span>
+                  <span>{article.estimatedMinutes} min read</span>
+                </div>
+              </div>
             </div>
-          )}
 
-          {/* Title area */}
-          <div className="space-y-3 mb-6">
-            <h1 className="text-2xl font-bold text-forest-800">
-              {article.title}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-ink-500">
-              <span className="rounded-full bg-primary/10 px-3 py-0.5 font-medium text-primary">
-                {article.category}
-              </span>
-              <span>G{article.gradeLevel}</span>
-              <span>{article.wordCount} 词</span>
-              <span>预计 {article.estimatedMinutes} 分钟</span>
-            </div>
+            {/* Classical quote */}
+            {article.classicalQuote && (
+              <div className="mt-4 py-3 px-4 rounded-xl bg-gradient-to-r from-honey-50 to-cream-50 border border-honey-100">
+                <p className="text-lg font-medium text-forest-800">{article.classicalQuote.original}</p>
+                <p className="mt-1 text-sm text-ink-400">{article.classicalQuote.pinyin}</p>
+              </div>
+            )}
           </div>
 
-          {/* Classical quote - minimal styling */}
-          {article.classicalQuote && (
-            <div className="mb-6 py-3 border-y border-cream-200">
-              <p className="text-lg font-medium text-forest-800">
-                {article.classicalQuote.original}
-              </p>
-              <p className="mt-1 text-sm text-ink-400">
-                {article.classicalQuote.pinyin}
-              </p>
+          {/* Cover image - smaller, optional */}
+          {article.coverImageUrl && (
+            <div className="mb-6 -mx-4 lg:mx-0">
+              <img
+                src={`${article.coverImageUrl}?width=800&format=webp&quality=70`}
+                alt={article.title}
+                className="w-full max-h-48 object-cover"
+              />
             </div>
           )}
 
