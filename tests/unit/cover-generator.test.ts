@@ -5,7 +5,7 @@
  * No real network or Storage calls.
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 // --- Mock infrastructure --------------------------------------------------
 
@@ -73,6 +73,13 @@ beforeEach(() => {
   // Stub console.warn to keep test output clean while still letting us
   // observe fallback log messages via spy if needed.
   vi.spyOn(console, "warn").mockImplementation(() => {});
+  // Force retry backoff to 1ms (jittered range 0.5-1.5ms) so retry tests
+  // don't introduce real wait time. Production default is 500ms.
+  process.env.COVER_RETRY_BASE_DELAY_MS = "1";
+});
+
+afterEach(() => {
+  delete process.env.COVER_RETRY_BASE_DELAY_MS;
 });
 
 // --- buildCoverPrompt -----------------------------------------------------
@@ -279,6 +286,59 @@ describe("generateCover - Pollinations failure throws", () => {
     );
     // MiniMax attempted once, then Pollinations attempted once via uploader
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// --- generateCover: Pollinations retry on transient failures -------------
+//
+// Retry contract (Wave 1 frozen contract):
+//   - maxAttempts: 4 (1 original + up to 3 retries)
+//   - baseDelayMs: 500 in prod; tests force 1ms via COVER_RETRY_BASE_DELAY_MS
+//     env var (set in beforeEach, cleared in afterEach) so the suite stays
+//     fast without real-clock waiting.
+//   - retriable errors: HTTP 429 / 5xx / network / timeout / abort.
+//   - non-retriable errors (e.g. 4xx other than 429) are thrown immediately.
+
+describe("generateCover - Pollinations retry on transient failures", () => {
+  it("retries on 429 then succeeds (Pollinations path, source=pollinations)", async () => {
+    setQuota(false); // skip MiniMax → straight to Pollinations
+    downloadAndUploadMock
+      .mockRejectedValueOnce(new Error("fetch failed: 429"))
+      .mockResolvedValueOnce({
+        url: "https://example.supabase.co/storage/v1/object/public/reading-media/covers/art-123.webp",
+        bytes: 7777,
+      });
+
+    const result = await generateCover(defaultOpts());
+
+    expect(result.source).toBe("pollinations");
+    expect(result.url).toContain("reading-media/covers/art-123.webp");
+    expect(result.bytes).toBe(7777);
+    // Original call + 1 retry = 2 invocations
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws after maxAttempts (4) consecutive 429 retriable failures", async () => {
+    setQuota(false); // skip MiniMax → straight to Pollinations
+    downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 429"));
+
+    await expect(generateCover(defaultOpts())).rejects.toThrow(
+      /cover generation failed: fetch failed: 429/
+    );
+    // maxAttempts = 4 → uploader invoked exactly 4 times before the
+    // outer try/catch wraps the final error.
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("does NOT retry on non-retriable 4xx (e.g. 400) and throws immediately", async () => {
+    setQuota(false);
+    downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 400"));
+
+    await expect(generateCover(defaultOpts())).rejects.toThrow(
+      /cover generation failed: fetch failed: 400/
+    );
+    // No retries → exactly 1 invocation
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(1);
   });
 });

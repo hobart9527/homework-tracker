@@ -3,7 +3,16 @@
  *
  * All downloadAndUploadFromUrl + buildCoverPrompt + fetch interactions are mocked.
  * No real network or Storage calls.
+ *
+ * Wave 1 task wave-1-2 added retry tests. To avoid real waiting we set
+ * ILLUSTRATION_RETRY_BASE_DELAY_MS=0 before importing the module — this drives
+ * computed backoff delays to 0ms so retries resolve effectively instantly.
+ * (Approach picked over fake timers because the production loop awaits
+ * setTimeout sequentially and fake timers would require manually advancing
+ * inside an async generator, which adds noise without changing semantics.)
  */
+
+process.env.ILLUSTRATION_RETRY_BASE_DELAY_MS = "0";
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
@@ -164,9 +173,12 @@ describe("generateIllustrations - empty scenes", () => {
 
 describe("generateIllustrations - downloadAndUploadFromUrl failure", () => {
   it("skips a failed scene and continues to the next", async () => {
-    // First scene fails
+    // First scene fails with a non-retryable error so we don't burn the
+    // second-scene mock on retries. (Anything not matching the retry
+    // predicate's substrings — 429, 5xx, "fetch failed", "network",
+    // "timeout", "abort" — is non-retryable.)
     downloadAndUploadMock.mockRejectedValueOnce(
-      new Error("fetch failed: 502")
+      new Error("storage rejected upload (400)")
     );
     // Second scene succeeds
     downloadAndUploadMock.mockResolvedValueOnce({
@@ -180,12 +192,15 @@ describe("generateIllustrations - downloadAndUploadFromUrl failure", () => {
     expect(result[0].paragraph_index).toBe(2);
     expect(result[0].bytes).toBe(8192);
 
-    // Both scenes were attempted
+    // Both scenes were attempted (scene 0 once, scene 2 once).
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns empty array when all scenes fail", async () => {
-    downloadAndUploadMock.mockRejectedValue(new Error("network error"));
+    // Non-retryable so the call count is one per scene rather than maxAttempts.
+    downloadAndUploadMock.mockRejectedValue(
+      new Error("storage rejected upload (400)")
+    );
 
     const result = await generateIllustrations(defaultOpts());
 
@@ -224,5 +239,80 @@ describe("generateIllustrations - buildCoverPrompt failure", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].paragraph_index).toBe(2);
+  });
+});
+
+// --- Retry / backoff (Wave 1 wave-1-2) ------------------------------------
+//
+// These tests rely on ILLUSTRATION_RETRY_BASE_DELAY_MS=0 (set at the top of
+// this file before importing the module) so the exponential-backoff sleeps
+// resolve immediately. Real-world defaults are 500ms / 8000ms / jitter 0.5
+// with maxAttempts=4.
+
+describe("generateIllustrations - retry behaviour", () => {
+  it("single scene retries on 429 then succeeds", async () => {
+    // First attempt 429 → retry → second attempt succeeds.
+    downloadAndUploadMock.mockRejectedValueOnce(
+      new Error("fetch failed: 429")
+    );
+    downloadAndUploadMock.mockResolvedValueOnce({
+      url: "https://example.supabase.co/storage/v1/object/public/reading-media/illustrations/art-123/0.webp",
+      bytes: 4242,
+    });
+
+    const result = await generateIllustrations({
+      articleId: "art-123",
+      language: "zh",
+      category: "科学",
+      scenes: [{ paragraphIndex: 0, sceneDescription: "atoms orbiting" }],
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].paragraph_index).toBe(0);
+    expect(result[0].bytes).toBe(4242);
+    // Two underlying calls: 1 failure + 1 success.
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("scene fails after maxAttempts but other scenes still succeed", async () => {
+    // Scene 0: four consecutive 429s → exhaust retries → swallowed.
+    // Scene 2: one success on first attempt.
+    downloadAndUploadMock
+      .mockRejectedValueOnce(new Error("fetch failed: 429"))
+      .mockRejectedValueOnce(new Error("fetch failed: 429"))
+      .mockRejectedValueOnce(new Error("fetch failed: 429"))
+      .mockRejectedValueOnce(new Error("fetch failed: 429"))
+      .mockResolvedValueOnce({
+        url: "https://example.supabase.co/storage/v1/object/public/reading-media/illustrations/art-123/2.webp",
+        bytes: 9001,
+      });
+
+    const result = await generateIllustrations(defaultOpts());
+
+    expect(result).toHaveLength(1);
+    expect(result[0].paragraph_index).toBe(2);
+    expect(result[0].bytes).toBe(9001);
+    // 4 retries on scene 0 + 1 success on scene 2 = 5 calls.
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(5);
+  });
+
+  it("non-retryable errors (e.g. 4xx 400) do not trigger retries", async () => {
+    // Use a message that does NOT contain any of the retry predicate's
+    // substrings (429, 5xx, "fetch failed", "network", "timeout", "abort").
+    downloadAndUploadMock.mockRejectedValueOnce(
+      new Error("storage rejected upload (400)")
+    );
+    downloadAndUploadMock.mockResolvedValueOnce({
+      url: "https://example.supabase.co/storage/v1/object/public/reading-media/illustrations/art-123/2.webp",
+      bytes: 1234,
+    });
+
+    const result = await generateIllustrations(defaultOpts());
+
+    // Scene 0 fails immediately (no retry); scene 2 succeeds.
+    expect(result).toHaveLength(1);
+    expect(result[0].paragraph_index).toBe(2);
+    // 1 call for scene 0 (no retry) + 1 call for scene 2.
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(2);
   });
 });

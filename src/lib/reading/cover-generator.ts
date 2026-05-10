@@ -46,6 +46,104 @@ export interface CoverResult {
 const MINIMAX_TIMEOUT_MS = 60_000;
 const DEFAULT_DAILY_QUOTA = 50;
 
+// --- Retry helper (private; not exported) ---------------------------------
+//
+// Indexed exponential backoff with jitter for the Pollinations path only.
+// MiniMax path is intentionally NOT wrapped — quota is single-shot and a
+// retry would compound state mismatch.
+//
+// Algorithm (frozen contract, mirrored verbatim in illustration-generator
+// per Wave 1 plan; do NOT cross-import — each file inlines its own copy):
+//   - attempt counter starts at 1; first call has no pre-wait.
+//   - before attempt N (N >= 2):
+//       expected = min(baseDelayMs * 2^(N-2), maxDelayMs)
+//       actual   = expected * (1 + jitterRatio * (Math.random() - 0.5) * 2)
+//   - shouldRetry default: HTTP 429 / 5xx / fetch-network / timeout / Abort.
+//   - exhaustion: rethrow the last error.
+
+interface RetryOptions {
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  jitterRatio: number;
+  shouldRetry?: (err: unknown) => boolean;
+}
+
+function defaultShouldRetry(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+  // HTTP 429 (rate limit) — retriable.
+  if (/\b429\b/.test(msg)) return true;
+  // HTTP 5xx — retriable. Match standalone 3-digit codes starting with 5,
+  // e.g. "500", "fetch failed: 502". Avoids matching arbitrary numbers.
+  if (/\b5\d{2}\b/.test(msg)) return true;
+  // Genuine transport-level signals — retriable.
+  if (lower.includes("network")) return true;
+  if (lower.includes("timeout")) return true;
+  if (lower.includes("aborterror") || lower.includes("abort")) return true;
+  // Note: bare "fetch failed: <status>" is NOT auto-retried — the status
+  // code regexes above decide. Non-retriable 4xx (e.g. 400/401/403/404)
+  // therefore propagate immediately.
+  return false;
+}
+
+function computeBackoffDelayMs(
+  attempt: number, // attempt about to start (>= 2 for waits)
+  baseDelayMs: number,
+  maxDelayMs: number,
+  jitterRatio: number,
+  random: () => number = Math.random
+): number {
+  const expected = Math.min(baseDelayMs * 2 ** (attempt - 2), maxDelayMs);
+  const actual = expected * (1 + jitterRatio * (random() - 0.5) * 2);
+  return Math.max(0, actual);
+}
+
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  opts: RetryOptions
+): Promise<T> {
+  const shouldRetry = opts.shouldRetry ?? defaultShouldRetry;
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= opts.maxAttempts; attempt++) {
+    if (attempt > 1) {
+      const delay = computeBackoffDelayMs(
+        attempt,
+        opts.baseDelayMs,
+        opts.maxDelayMs,
+        opts.jitterRatio
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= opts.maxAttempts || !shouldRetry(err)) {
+        throw err;
+      }
+    }
+  }
+  // Unreachable in practice (loop either returns or throws), but keeps TS
+  // exhaustiveness happy.
+  throw lastErr;
+}
+
+// Default retry parameters for the Pollinations path. Tests may override
+// via the COVER_RETRY_BASE_DELAY_MS env var to keep CI fast.
+function pollinationsRetryOptions(): RetryOptions {
+  const baseFromEnv = process.env.COVER_RETRY_BASE_DELAY_MS;
+  const parsedBase = baseFromEnv ? parseInt(baseFromEnv, 10) : NaN;
+  const baseDelayMs =
+    Number.isFinite(parsedBase) && parsedBase >= 0 ? parsedBase : 500;
+  return {
+    maxAttempts: 4,
+    baseDelayMs,
+    maxDelayMs: 8000,
+    jitterRatio: 0.5,
+  };
+}
+
 function todayUtcDate(): string {
   // YYYY-MM-DD; matches the `date` Postgres type used by
   // reading_image_quota_daily.
@@ -147,10 +245,14 @@ async function generateViaPollinations(opts: {
     opts.positive
   )}?width=800&height=533&seed=${seed}&nologo=true`;
 
-  const upload = await downloadAndUploadFromUrl({
-    externalUrl,
-    path: `covers/${opts.articleId}.webp`,
-  });
+  const upload = await retryWithBackoff(
+    () =>
+      downloadAndUploadFromUrl({
+        externalUrl,
+        path: `covers/${opts.articleId}.webp`,
+      }),
+    pollinationsRetryOptions()
+  );
 
   return {
     url: upload.url,
