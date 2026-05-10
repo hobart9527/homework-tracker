@@ -41,10 +41,16 @@ export interface GenerateArticleOptions {
 
 export interface GenerateReadingOptions {
   topicKey: string;
-  language: "zh" | "en";
+  language: "zh" | "en"; // never 'zh+en' per Q6 (single-language enforcement)
   category: string;
-  gradeLevel: number;
+  gradeLevel: number; // primary grade kept for backward-compat
   sourceText?: string; // optional for zh
+  // NEW (W0a) — all OPTIONAL for backward-compat:
+  recommendedLevels?: string[]; // e.g., ['L4','L5'] — RAZ level codes; upper bound used to derive effective grade
+  contentWarnings?: string[]; // e.g., ['war','death','politics'] — triggers age-gate clause when gradeLevel<5
+  packId?: string;
+  packOrder?: number; // 1-based position within pack
+  previousTopicSummary?: string; // narrative continuity hint when packOrder>1
 }
 
 export interface GeneratedIllustration {
@@ -56,12 +62,70 @@ export interface GeneratedIllustration {
 // Prompt builders
 // ---------------------------------------------------------------------------
 
+/**
+ * Behavior A — derive an effective grade from `recommendedLevels` if present.
+ * Parses RAZ level codes (e.g., 'L5' → 5) and returns the upper bound (more
+ * challenging side). Falls back to the explicit gradeLevel when the array is
+ * empty/undefined or contains no parseable level codes.
+ */
+function deriveEffectiveGrade(options: GenerateReadingOptions): number {
+  const levels = options.recommendedLevels;
+  if (!levels || levels.length === 0) return options.gradeLevel;
+  const nums = levels
+    .map((l) => {
+      const m = /^L(\d+)$/i.exec(l.trim());
+      return m ? parseInt(m[1], 10) : NaN;
+    })
+    .filter((n) => Number.isFinite(n));
+  if (nums.length === 0) return options.gradeLevel;
+  return Math.max(...nums);
+}
+
+/** Behavior B — age-appropriateness clause (only when raw gradeLevel < 5 AND warnings present). */
+function buildAgeGateClauseEn(options: GenerateReadingOptions): string {
+  if (options.gradeLevel >= 5) return "";
+  const warnings = options.contentWarnings;
+  if (!warnings || warnings.length === 0) return "";
+  return `\n\nAGE-APPROPRIATENESS: This article must be suitable for a Grade ${options.gradeLevel} child. The topic involves [${warnings.join(", ")}]. Use a kid-friendly, calm tone. Do NOT include graphic violence, political controversy, or anything frightening. Focus on factual context and human resilience.`;
+}
+
+function buildAgeGateClauseZh(options: GenerateReadingOptions): string {
+  if (options.gradeLevel >= 5) return "";
+  const warnings = options.contentWarnings;
+  if (!warnings || warnings.length === 0) return "";
+  return `\n\n适龄性要求：本文须适合${options.gradeLevel}年级孩子阅读。题材涉及 [${warnings.join("、")}]。使用儿童友好、平和的语气。禁止血腥暴力描写、政治争议或令人恐惧的内容。聚焦于事实背景和人类的坚韧。`;
+}
+
+/** Behavior C — narrative-continuity clause (only when packOrder>1 AND previousTopicSummary present). */
+function buildPackContinuityClauseEn(options: GenerateReadingOptions): string {
+  if (!options.packOrder || options.packOrder <= 1) return "";
+  if (!options.previousTopicSummary) return "";
+  return `\n\nNARRATIVE CONTINUITY: This is article ${options.packOrder} in a series. The previous article covered: "${options.previousTopicSummary}". Build on that context naturally without re-explaining basics.`;
+}
+
+function buildPackContinuityClauseZh(options: GenerateReadingOptions): string {
+  if (!options.packOrder || options.packOrder <= 1) return "";
+  if (!options.previousTopicSummary) return "";
+  return `\n\n叙事连贯性：这是系列中的第 ${options.packOrder} 篇。上一篇内容为："${options.previousTopicSummary}"。请自然延续语境，不要从头解释基础概念。`;
+}
+
+/** Behavior D — single-language lock clause (Q6, ALWAYS injected). */
+const LANGUAGE_LOCK_EN =
+  "\n\nLANGUAGE LOCK: Produce ONLY English. Do NOT include parallel Chinese translations, glossary entries, or summaries in another language.";
+const LANGUAGE_LOCK_ZH =
+  "\n\n语言锁定：仅输出中文。请勿夹带英文翻译、术语对照表或其他语言的摘要。注：classical_quote 字段中的 pinyin 和 translation 子字段是允许保留的例外。";
+
 export function buildEnglishPrompt(options: GenerateReadingOptions): string {
-  const wordLimit = options.gradeLevel <= 4 ? "300-450 words" : "500-800 words";
-  const questionCount = options.gradeLevel <= 4 ? 5 : 8;
-  const focusAreas = options.gradeLevel <= 4
+  // Behavior A: effective grade drives wordLimit / questionCount / focusAreas.
+  const effectiveGrade = deriveEffectiveGrade(options);
+  const wordLimit = effectiveGrade <= 4 ? "300-450 words" : "500-800 words";
+  const questionCount = effectiveGrade <= 4 ? 5 : 8;
+  const focusAreas = effectiveGrade <= 4
     ? "Detail and vocabulary questions (easier)"
     : "Main idea and inference questions (more analytical)";
+
+  const ageGateClause = buildAgeGateClauseEn(options);
+  const continuityClause = buildPackContinuityClauseEn(options);
 
   return `You are adapting a reading passage for a Grade ${options.gradeLevel} student (age ${options.gradeLevel + 5}).
 
@@ -82,7 +146,7 @@ Difficulty scale: 1 (easiest) to 5 (hardest).
 
 In addition, provide:
 - scene_description: a single vivid sentence describing a key scene from the article (used for cover image generation)
-- illustrations: an array of 1-2 objects, each with { paragraph_index, scene_description } for in-article images
+- illustrations: an array of 1-2 objects, each with { paragraph_index, scene_description } for in-article images${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}
 
 Return STRICT JSON (no markdown, no code fences):
 {
@@ -109,25 +173,37 @@ Return STRICT JSON (no markdown, no code fences):
 }
 
 export function buildChinesePrompt(options: GenerateReadingOptions): string {
-  const charLimit = options.gradeLevel <= 3
+  // Behavior A: effective grade drives charLimit / questionCount / focusAreas.
+  const effectiveGrade = deriveEffectiveGrade(options);
+  const charLimit = effectiveGrade <= 3
     ? "150-220"
-    : options.gradeLevel === 4
+    : effectiveGrade === 4
       ? "180-280"
-      : options.gradeLevel === 5
+      : effectiveGrade === 5
         ? "220-350"
-        : options.gradeLevel === 6
+        : effectiveGrade === 6
           ? "280-420"
           : "350-500";
-  const questionCount = options.gradeLevel <= 4 ? 5 : 8;
-  const focusAreas = options.gradeLevel <= 4
+  const questionCount = effectiveGrade <= 4 ? 5 : 8;
+  const focusAreas = effectiveGrade <= 4
     ? "Detail and vocabulary questions (easier)"
     : "Main idea and inference questions (more analytical)";
+
+  // Trim sourceText to avoid Chinese prompts blowing past ~4000 tokens
+  // (1 zh char ≈ 1 token); cap at 4000 chars instead of 6000 for zh.
+  const trimmedSource = (options.sourceText || "").slice(0, 4000);
+  const sourcePassageBlock = trimmedSource
+    ? `\n原文参考：\n${trimmedSource}\n`
+    : "";
+
+  const ageGateClause = buildAgeGateClauseZh(options);
+  const continuityClause = buildPackContinuityClauseZh(options);
 
   return `你是一位专业的中文儿童阅读内容创作专家。请为${options.gradeLevel}年级学生创作一篇阅读文章。
 
 主题：${options.topicKey}
 类别：${options.category}
-
+${sourcePassageBlock}
 要求：
 - 字数范围：${charLimit}字
 - 适合${options.gradeLevel}年级学生的词汇和句子复杂度
@@ -143,7 +219,7 @@ export function buildChinesePrompt(options: GenerateReadingOptions): string {
 此外，请提供：
 - scene_description：一句话描述文章中的关键场景（用于封面图生成）
 - classical_quote：包含 { original, pinyin, translation } 的对象
-- illustrations：1-2个插图对象数组，每个包含 { paragraph_index, scene_description }
+- illustrations：1-2个插图对象数组，每个包含 { paragraph_index, scene_description }${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
 
 返回严格的JSON格式（不要markdown，不要代码块）：
 {

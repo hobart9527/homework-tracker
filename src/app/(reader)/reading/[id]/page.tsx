@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ArticleReader } from "@/components/reading/ArticleReader";
 import type { ArticleReaderArticle, ArticleReaderRef } from "@/components/reading/ArticleReader";
 import { ReaderToolbar } from "@/components/reading/ReaderToolbar";
+import { ReadAlong } from "@/components/reading/ReadAlong";
 import { QuizView } from "@/components/reading/QuizView";
 import type { QuizViewQuestion } from "@/components/reading/QuizView";
 
@@ -26,6 +27,8 @@ interface ApiArticle {
   };
   language?: "zh" | "en";
   scene_description?: string;
+  audio_zh_url?: string | null;
+  audio_zh_voice?: string | null;
 }
 
 interface ApiQuestion {
@@ -58,6 +61,10 @@ export default function ReadingArticlePage({
   const assignmentId = searchParams?.get("assignmentId") ?? null;
 
   const [article, setArticle] = useState<ArticleReaderArticle | null>(null);
+  const [audioInfo, setAudioInfo] = useState<{
+    url: string | null;
+    voice: string | null;
+  }>({ url: null, voice: null });
   const [questions, setQuestions] = useState<QuizViewQuestion[]>([]);
   const [childId, setChildId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,6 +124,11 @@ export default function ReadingArticlePage({
         classicalQuote: data.article.classical_quote,
         language: data.article.language,
         illustrations: data.illustrations,
+      });
+
+      setAudioInfo({
+        url: data.article.audio_zh_url ?? null,
+        voice: data.article.audio_zh_voice ?? null,
       });
 
       setQuestions(data.questions || []);
@@ -218,6 +230,17 @@ export default function ReadingArticlePage({
 
           {/* Main reading content */}
           <div className="flex-1 min-w-0">
+            {article.language === "zh" && audioInfo.url ? (
+              <ReadAlong
+                audioUrl={audioInfo.url}
+                voice={audioInfo.voice ?? undefined}
+                className="mb-4"
+              />
+            ) : article.language === "zh" && !audioInfo.url ? (
+              <div className="mb-4 rounded-md bg-forest-50 px-4 py-3 text-sm text-forest-700">
+                {"音频生成中…"}
+              </div>
+            ) : null}
             <ArticleReader
               ref={articleReaderRef}
               article={article}
