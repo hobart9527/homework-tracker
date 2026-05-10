@@ -75,6 +75,45 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
   - Quality-gate auto-publish (7 checks; passes → published, fails → draft)
   - 题库自动生成（每篇文章配套阅读理解题）
   - Auto-generated reading comprehension questions per article
+  - 主题矩阵 v2 / Topic Matrix v2
+    - 18 个分类、153 个主题、约 30 个 topic_packs（系列化包），覆盖中国史三段、人文、传记、科技、现实世界等
+    - 18 categories, 153 topics, ~30 `topic_packs` (serialized packs) covering the China-history triplet, humanities, biography, science/tech, and real-world domains
+    - Schema 由 supabase migrations `038` 与 `039` 引入（新增 `topic_packs` 表，扩展 `reading_topics` 字段：`pack_id` / `pack_order` / `recommended_levels` / `category_v2` / `freshness_until` / `age_min_level` / `content_warnings`；扩展 `children` 字段：`reading_level_en` / `reading_level_zh` / `audio_zh_enabled` / `pinyin_enabled` / `category_priorities` / `interest_signal`）
+    - Schema introduced by Supabase migrations `038` & `039` (new `topic_packs` table; extends `reading_topics` with `pack_id` / `pack_order` / `recommended_levels` / `category_v2` / `freshness_until` / `age_min_level` / `content_warnings`; extends `children` with `reading_level_en` / `reading_level_zh` / `audio_zh_enabled` / `pinyin_enabled` / `category_priorities` / `interest_signal`)
+    - 通过 `scripts/seed-topic-matrix-v2.ts` 幂等 upsert（`--dry-run` 默认，`--execute` 写入）；详细映射见 `.planning/topic-matrix-v2.md`
+    - Idempotent upsert via `scripts/seed-topic-matrix-v2.ts` (`--dry-run` default, `--execute` to write); detailed mapping in `.planning/topic-matrix-v2.md`
+  - 中文跟读音频 / Chinese Read-Along Audio
+    - Azure Neural Voice TTS 合成（默认 `zh-CN-XiaoxiaoNeural`，可切换 `zh-CN-YunxiNeural`），输出 mp3 + 字符级时间戳对齐 JSON
+    - Azure Neural Voice TTS synthesis (default `zh-CN-XiaoxiaoNeural`, alternate `zh-CN-YunxiNeural`); outputs mp3 plus character-level alignment JSON
+    - 音频持久化到 Supabase Storage `reading-audios` 桶；前端 `<ReadAlong>` 组件按字符高亮同步播放
+    - Audio persisted to Supabase Storage `reading-audios` bucket; the front-end `<ReadAlong>` component highlights characters in sync with playback
+    - Schema 由 migration `040` 引入（在 `reading_articles` 增加 `audio_zh_url` / `audio_zh_alignment` / `audio_zh_voice` / `content_warnings` 列）
+    - Schema introduced by migration `040` (adds `audio_zh_url` / `audio_zh_alignment` / `audio_zh_voice` / `content_warnings` columns on `reading_articles`)
+    - 批量回填脚本 `scripts/synthesize-chinese-audio.ts`（支持 `--grade` 和 `--topic-key` 过滤；`AZURE_SPEECH_KEY` 缺失时安全跳过）
+    - Batch backfill script `scripts/synthesize-chinese-audio.ts` (supports `--grade` and `--topic-key` filters; cleanly skips when `AZURE_SPEECH_KEY` is absent)
+  - 家长投递新闻 / Parent-Fed News Pipeline
+    - 家长在 `设置 → 阅读新闻 / settings → reading-news` 页面提交时事 URL（建议每周 1-2 篇）
+    - Parents submit timely news URLs (1-2/week recommended) from the `Settings → Reading News` page
+    - LLM 自动改写为孩子分级版本（按 grade 同时生成中英文改写），落入常规生成管线
+    - LLM rewrites each submission into per-grade child-friendly versions (both Chinese and English) and feeds them into the standard generation pipeline
+    - 时效到期自动归档：`scripts/archive-stale-news.ts` 将 `category_v2='时事'` 且 `freshness_until` 已过期的主题置 `archived`，对应 `reading_articles` 从 `published` 降级为 `draft`，从而退出推荐池
+    - Auto-archive once stale: `scripts/archive-stale-news.ts` flips `category_v2='时事'` topics with expired `freshness_until` to `archived`, demoting their `reading_articles` from `published` to `draft` so they exit the recommend pool
+  - 逐孩子推荐 v2 + 自动分级 / Per-Child Recommendation v2 + Auto-Leveling
+    - 推荐评分综合 `reading_level_en` / `reading_level_zh`、`category_priorities`、`interest_signal` 以及 recency
+    - Recommendation scoring combines `reading_level_en` / `reading_level_zh`, `category_priorities`, `interest_signal`, and recency
+    - 自动升级：累计 ≥15 篇且持续 ≥80% 正确率 → 阅读等级 +1
+    - Auto level-up: 15+ articles with sustained ≥80% accuracy → reading level +1
+    - 自动降级：连续 2 篇 <60% 正确率 → 阅读等级 -1
+    - Auto level-down: 2 consecutive articles below 60% accuracy → reading level -1
+    - 逐孩子统计 dashboard API 暴露等级演进、正确率、分类覆盖；现有 `recommend/route.ts` 已迁移到新评分管线
+    - Per-child stats dashboard API exposes level progression, accuracy, and category coverage; existing `recommend/route.ts` migrated to the new scoring pipeline
+  - Pollinations 重试 / Pollinations Retry
+    - `cover-generator` 与 `illustration-generator` 的 `downloadAndUploadFromUrl` 调用已包裹指数退避（`maxAttempts=4`、`baseDelayMs=500`、`maxDelayMs=8000`、`jitterRatio=0.5`）
+    - `cover-generator` and `illustration-generator` now wrap `downloadAndUploadFromUrl` with exponential backoff (`maxAttempts=4`, `baseDelayMs=500`, `maxDelayMs=8000`, `jitterRatio=0.5`)
+    - 仅对 `429` / `5xx` / 网络 / 超时 重试；其他 `4xx` 立即失败；MiniMax 路径未受影响
+    - Retries `429` / `5xx` / network / timeout only; other `4xx` fails fast; the MiniMax path is untouched
+    - 显著缓解 Pollinations 高峰期 429（封面失败率 ~40% → 显著下降；段落插图失败率 ~90% → 显著下降）
+    - Significantly mitigates Pollinations peak-time 429s (cover failure rate ~40% and illustration failure rate ~90% both substantially reduced)
 
 ### 孩子端 Child Experience
 
@@ -100,6 +139,26 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
 - Vitest + Testing Library
 - pinyin-pro（中文拼音生成 / Chinese pinyin generation）
 - MiniMax image-01 + Pollinations.ai（AI 图像生成 / AI image generation）
+
+## 设计系统 Design System
+
+### 中文
+
+近期完成了从 Stage 1 到 Stage 3 的视觉与交互改造。核心要点如下，详细规范见 [`.planning/design-system.md`](./.planning/design-system.md) 与 [`.planning/task_plan.md`](./.planning/task_plan.md)。
+
+- **Token 系统**：统一调色板 `forest` / `cream` / `coral` / `honey` / `ink`，统一字体三件套 `Inter`（拉丁正文）/ `LXGW WenKai`（中文正文与跟读）/ `Fraunces`（标题与品牌强调）。所有间距、圆角、阴影、过渡时长全部走 token，禁止 ad-hoc 数值。
+- **iPad-first 布局**：家长端为侧栏导航 + 主区结构；孩子端为英雄区 + 当日任务卡片；阅读端为 3-pane 结构（封面/文章/侧栏工具）。所有视图按 iPad 横竖屏优先布局，向桌面与手机降级。
+- **阅读模式独立路由**：阅读体验以独立路由组 `(reader)` 隔离，包含 3 个主题（`light` / `sepia` / `dark`）、设置面板、中文字符级跟读高亮、完成印章动画。阅读路由有独立的工具栏与手势层。
+- **改造里程碑**：Stage 1（token 系统与视觉基线）、Stage 2（iPad 布局重构）、Stage 3（阅读模式独立模块）已全部落地，对应 commit 历史记录在 [`CHANGELOG.md`](./CHANGELOG.md) 的 `Design Overhaul` 节。
+
+### English
+
+The Stage 1 → Stage 3 visual and interaction overhaul has shipped. Key points below; full spec lives in [`.planning/design-system.md`](./.planning/design-system.md) and [`.planning/task_plan.md`](./.planning/task_plan.md).
+
+- **Token system**: unified palette `forest` / `cream` / `coral` / `honey` / `ink`, unified font trio `Inter` (Latin body), `LXGW WenKai` (Chinese body and read-along), `Fraunces` (headings and brand accent). All spacing, radius, shadow, and motion durations go through tokens — no ad-hoc values.
+- **iPad-first layout**: parent surfaces use a side-nav + main-pane shell; child surfaces lead with a hero block plus today's task cards; the reading experience uses a three-pane shell (cover, article, side tools). All views are designed iPad-first across landscape and portrait, then degraded for desktop and phone.
+- **Reading mode as an independent module**: the reading experience is isolated under the `(reader)` route group, with 3 themes (`light` / `sepia` / `dark`), a settings panel, character-level Chinese read-along highlighting, and a completion-stamp animation. The reader has its own toolbar and gesture layer.
+- **Overhaul milestones**: Stage 1 (token system + visual baseline), Stage 2 (iPad layout restructure), Stage 3 (reading mode independent module) have all landed; commit history is captured in the `Design Overhaul` section of [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## 目录结构 Project Structure
 
@@ -151,8 +210,29 @@ VOICE_PUSH_BRIDGE_URL=...
 VOICE_PUSH_BRIDGE_TOKEN=...
 ```
 
-也可以直接参考仓库里的 [`.env.example`](/Users/haobo/codex/homework-tracker/.env.example)。  
-You can also start from [`.env.example`](/Users/haobo/codex/homework-tracker/.env.example).
+#### 阅读模块新增环境变量 / Reading-Module Env Vars
+
+近期阅读模块迭代新增以下环境变量，仅列出 stub；完整说明见 [`.env.example`](./.env.example)。  
+The recent reading-module iterations introduce the following environment variables; stubs only — full reference lives in [`.env.example`](./.env.example).
+
+```bash
+# Azure Neural Voice TTS — 中文跟读音频必需 / required for Chinese read-along audio
+AZURE_SPEECH_KEY=
+AZURE_SPEECH_REGION=eastus           # 默认 eastus / defaults to eastus
+
+# MiniMax 每日封面图配额 / MiniMax daily cover-image quota
+MINIMAX_DAILY_QUOTA=50               # 默认 50 / defaults to 50
+```
+
+- `AZURE_SPEECH_KEY` — Azure Cognitive Services Speech key；缺失时 `scripts/synthesize-chinese-audio.ts` 与跟读管线安全跳过（exit 0）
+- `AZURE_SPEECH_KEY` — Azure Cognitive Services Speech key; when absent, `scripts/synthesize-chinese-audio.ts` and the read-along pipeline cleanly skip (exit 0)
+- `AZURE_SPEECH_REGION` — Azure Speech 区域，默认 `eastus`
+- `AZURE_SPEECH_REGION` — Azure Speech region, defaults to `eastus`
+- `MINIMAX_DAILY_QUOTA` — MiniMax `image-01` 每日封面图配额上限，默认 `50`，配额耗尽会切换到 Pollinations 路径
+- `MINIMAX_DAILY_QUOTA` — MiniMax `image-01` daily cover-image quota cap, defaults to `50`; once exhausted the pipeline routes to the Pollinations path
+
+也可以直接参考仓库里的 [`.env.example`](./.env.example)。  
+You can also start from [`.env.example`](./.env.example).
 
 ### 3. 启动开发环境 Start the development server
 
@@ -188,9 +268,13 @@ npm run supabase:generate-types
   - In-article illustration table per paragraph
 - `reading_image_quota_daily` — MiniMax 每日配额计数表
   - MiniMax daily image generation quota counter
+- `topic_packs` — 主题系列包目录（migration 038 引入）
+  - Topic pack catalog (introduced by migration 038)
+- `reading_articles.audio_zh_*` — 中文跟读音频列（migration 040 引入：`audio_zh_url` / `audio_zh_alignment` / `audio_zh_voice` / `content_warnings`）
+  - Chinese read-along audio columns (introduced by migration 040: `audio_zh_url` / `audio_zh_alignment` / `audio_zh_voice` / `content_warnings`)
 
-> 需要运行迁移 035-037 才能启用阅读功能。  
-> Run migrations 035-037 to enable the reading feature.
+> 需要运行迁移 035-037 才能启用基础阅读功能；运行迁移 038-040 启用主题矩阵 v2 与中文跟读音频。  
+> Run migrations 035-037 to enable the base reading feature; run migrations 038-040 to enable Topic Matrix v2 and Chinese read-along audio.
 
 ## 常用命令 Useful Commands
 
