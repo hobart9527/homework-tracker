@@ -4,863 +4,1293 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
-      parents: {
-        Row: {
-          id: string;
-          passcode: string;
-          reminder_cutoff_time: string | null;
-          auto_remind_parent: boolean | null;
-          auto_remind_child: boolean | null;
-          quiet_hours_start: string | null;
-          quiet_hours_end: string | null;
-          telegram_bot_token: string | null;
-          telegram_chat_id: string | null;
-          telegram_recipient_label: string | null;
-          created_at: string | null;
-        };
-        Insert: {
-          id: string;
-          passcode: string;
-          reminder_cutoff_time?: string | null;
-          auto_remind_parent?: boolean | null;
-          auto_remind_child?: boolean | null;
-          quiet_hours_start?: string | null;
-          quiet_hours_end?: string | null;
-          telegram_bot_token?: string | null;
-          telegram_chat_id?: string | null;
-          telegram_recipient_label?: string | null;
-          created_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          passcode?: string;
-          reminder_cutoff_time?: string | null;
-          auto_remind_parent?: boolean | null;
-          auto_remind_child?: boolean | null;
-          quiet_hours_start?: string | null;
-          quiet_hours_end?: string | null;
-          telegram_bot_token?: string | null;
-          telegram_chat_id?: string | null;
-          telegram_recipient_label?: string | null;
-          created_at?: string | null;
-        };
-      };
-      children: {
-        Row: {
-          id: string;
-          parent_id: string;
-          name: string;
-          avatar: string | null;
-          age: number | null;
-          gender: "female" | "male" | null;
-          password_hash: string;
-          points: number | null;
-          streak_days: number | null;
-          reading_grade_level: number | null;
-          last_check_in: string | null;
-          default_wechat_group_id: string | null;
-          created_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          parent_id: string;
-          name: string;
-          avatar?: string | null;
-          age?: number | null;
-          gender?: "female" | "male" | null;
-          password_hash: string;
-          points?: number | null;
-          streak_days?: number | null;
-          reading_grade_level?: number | null;
-          last_check_in?: string | null;
-          default_wechat_group_id?: string | null;
-          created_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          parent_id?: string;
-          name?: string;
-          avatar?: string | null;
-          age?: number | null;
-          gender?: "female" | "male" | null;
-          password_hash?: string;
-          points?: number | null;
-          streak_days?: number | null;
-          reading_grade_level?: number | null;
-          last_check_in?: string | null;
-          default_wechat_group_id?: string | null;
-          created_at?: string | null;
-        };
-      };
-      custom_homework_types: {
-        Row: {
-          id: string;
-          parent_id: string;
-          name: string;
-          icon: string | null;
-          default_points: number | null;
-          created_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          parent_id: string;
-          name: string;
-          icon?: string | null;
-          default_points?: number | null;
-          created_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          parent_id?: string;
-          name?: string;
-          icon?: string | null;
-          default_points?: number | null;
-          created_at?: string | null;
-        };
-      };
-      homeworks: {
-        Row: {
-          id: string;
-          child_id: string;
-          type_id: string | null;
-          type_name: string;
-          type_icon: string | null;
-          title: string;
-          description: string | null;
-          repeat_type: "daily" | "weekly" | "interval" | "once";
-          repeat_days: number[] | null;
-          repeat_interval: number | null;
-          repeat_start_date: string | null;
-          repeat_end_date: string | null;
-          point_value: number | null;
-          point_deduction: number | null;
-          estimated_minutes: number | null;
-          daily_cutoff_time: string | null;
-          is_active: boolean | null;
-          required_checkpoint_type: "photo" | "audio" | null;
-          send_to_wechat: boolean;
-          wechat_group_id: string | null;
-          platform_binding_platform: string | null;
-          platform_binding_source_ref: string | null;
-          created_by: string | null;
-          created_at: string | null;
-          deleted_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          child_id: string;
-          type_id?: string | null;
-          type_name: string;
-          type_icon?: string | null;
-          title: string;
-          description?: string | null;
-          repeat_type: "daily" | "weekly" | "interval" | "once";
-          repeat_days?: number[] | null;
-          repeat_interval?: number | null;
-          repeat_start_date?: string | null;
-          repeat_end_date?: string | null;
-          point_value?: number | null;
-          point_deduction?: number | null;
-          estimated_minutes?: number | null;
-          daily_cutoff_time?: string | null;
-          is_active?: boolean | null;
-          required_checkpoint_type?: "photo" | "audio" | null;
-          send_to_wechat?: boolean;
-          wechat_group_id?: string | null;
-          platform_binding_platform?: string | null;
-          platform_binding_source_ref?: string | null;
-          created_by?: string | null;
-          created_at?: string | null;
-          deleted_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          child_id?: string;
-          type_id?: string | null;
-          type_name?: string;
-          type_icon?: string | null;
-          title?: string;
-          description?: string | null;
-          repeat_type?: "daily" | "weekly" | "interval" | "once";
-          repeat_days?: number[] | null;
-          repeat_interval?: number | null;
-          repeat_start_date?: string | null;
-          repeat_end_date?: string | null;
-          point_value?: number | null;
-          point_deduction?: number | null;
-          estimated_minutes?: number | null;
-          daily_cutoff_time?: string | null;
-          is_active?: boolean | null;
-          required_checkpoint_type?: "photo" | "audio" | null;
-          send_to_wechat?: boolean;
-          wechat_group_id?: string | null;
-          platform_binding_platform?: string | null;
-          platform_binding_source_ref?: string | null;
-          created_by?: string | null;
-          created_at?: string | null;
-          deleted_at?: string | null;
-        };
-      };
-      check_ins: {
-        Row: {
-          id: string;
-          homework_id: string;
-          child_id: string;
-          completed_at: string | null;
-          submitted_at: string | null;
-          points_earned: number;
-          awarded_points: number;
-          is_scored: boolean;
-          is_late: boolean;
-          proof_type: "photo" | "audio" | null;
-          audio_duration_seconds: number | null;
-          note: string | null;
-          created_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          homework_id: string;
-          child_id: string;
-          completed_at?: string | null;
-          submitted_at?: string | null;
-          points_earned: number;
-          awarded_points?: number;
-          is_scored?: boolean;
-          is_late?: boolean;
-          proof_type?: "photo" | "audio" | null;
-          audio_duration_seconds?: number | null;
-          note?: string | null;
-          created_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          homework_id?: string;
-          child_id?: string;
-          completed_at?: string | null;
-          submitted_at?: string | null;
-          points_earned?: number;
-          awarded_points?: number;
-          is_scored?: boolean;
-          is_late?: boolean;
-          proof_type?: "photo" | "audio" | null;
-          audio_duration_seconds?: number | null;
-          note?: string | null;
-          created_at?: string | null;
-        };
-      };
-      homework_auto_matches: {
-        Row: {
-          id: string;
-          homework_id: string;
-          learning_event_id: string;
-          match_rule: string;
-          match_result:
-            | "auto_completed"
-            | "partially_completed"
-            | "unmatched"
-            | "supporting_evidence"
-            | "already_completed";
-          is_primary: boolean;
-          triggered_check_in_id: string | null;
-          matched_at: string;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          homework_id: string;
-          learning_event_id: string;
-          match_rule: string;
-          match_result:
-            | "auto_completed"
-            | "partially_completed"
-            | "unmatched"
-            | "supporting_evidence"
-            | "already_completed";
-          is_primary?: boolean;
-          triggered_check_in_id?: string | null;
-          matched_at?: string;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          homework_id?: string;
-          learning_event_id?: string;
-          match_rule?: string;
-          match_result?:
-            | "auto_completed"
-            | "partially_completed"
-            | "unmatched"
-            | "supporting_evidence"
-            | "already_completed";
-          is_primary?: boolean;
-          triggered_check_in_id?: string | null;
-          matched_at?: string;
-          created_at?: string;
-        };
-      };
-      homework_reminders: {
-        Row: {
-          id: string;
-          parent_id: string;
-          child_id: string;
-          homework_id: string;
-          target_date: string;
-          status: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
-          escalation_channel: string;
-          initial_sent_at: string | null;
-          escalated_at: string | null;
-          resolved_at: string | null;
-          failure_reason: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          parent_id: string;
-          child_id: string;
-          homework_id: string;
-          target_date: string;
-          status: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
-          escalation_channel?: string;
-          initial_sent_at?: string | null;
-          escalated_at?: string | null;
-          resolved_at?: string | null;
-          failure_reason?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          parent_id?: string;
-          child_id?: string;
-          homework_id?: string;
-          target_date?: string;
-          status?: "pending_initial" | "sent_sms" | "resolved_completed" | "escalated_call" | "failed";
-          escalation_channel?: string;
-          initial_sent_at?: string | null;
-          escalated_at?: string | null;
-          resolved_at?: string | null;
-          failure_reason?: string | null;
-          created_at?: string;
-        };
-      };
       attachments: {
         Row: {
-          id: string;
-          check_in_id: string;
-          type: "photo" | "audio";
-          storage_path: string;
-          created_at: string | null;
-        };
+          check_in_id: string
+          created_at: string | null
+          id: string
+          storage_path: string
+          type: string
+        }
         Insert: {
-          id?: string;
-          check_in_id: string;
-          type: "photo" | "audio";
-          storage_path: string;
-          created_at?: string | null;
-        };
+          check_in_id: string
+          created_at?: string | null
+          id?: string
+          storage_path: string
+          type: string
+        }
         Update: {
-          id?: string;
-          check_in_id?: string;
-          type?: "photo" | "audio";
-          storage_path?: string;
-          created_at?: string | null;
-        };
-      };
-      platform_accounts: {
+          check_in_id?: string
+          created_at?: string | null
+          id?: string
+          storage_path?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_check_in_id_fkey"
+            columns: ["check_in_id"]
+            isOneToOne: false
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      check_ins: {
         Row: {
-          id: string;
-          child_id: string;
-          platform: "ixl" | "khan-academy" | "raz-kids" | "epic";
-          external_account_ref: string;
-          auth_mode: string;
-          status: "attention_required" | "active" | "syncing" | "failed";
-          last_synced_at: string | null;
-          managed_session_payload: Json | null;
-          managed_session_captured_at: string | null;
-          managed_session_expires_at: string | null;
-          last_sync_error_summary: string | null;
-          login_credentials_encrypted: string | null;
-          auto_login_enabled: boolean;
-          created_at: string | null;
-        };
+          audio_duration_seconds: number | null
+          child_id: string
+          completed_at: string
+          created_at: string | null
+          homework_id: string
+          id: string
+          note: string | null
+          points_earned: number
+        }
         Insert: {
-          id?: string;
-          child_id: string;
-          platform: "ixl" | "khan-academy" | "raz-kids" | "epic";
-          external_account_ref: string;
-          auth_mode?: string;
-          status?: "attention_required" | "active" | "syncing" | "failed";
-          last_synced_at?: string | null;
-          managed_session_payload?: Json | null;
-          managed_session_captured_at?: string | null;
-          managed_session_expires_at?: string | null;
-          last_sync_error_summary?: string | null;
-          login_credentials_encrypted?: string | null;
-          auto_login_enabled?: boolean;
-          created_at?: string | null;
-        };
+          audio_duration_seconds?: number | null
+          child_id: string
+          completed_at?: string
+          created_at?: string | null
+          homework_id: string
+          id?: string
+          note?: string | null
+          points_earned: number
+        }
         Update: {
-          id?: string;
-          child_id?: string;
-          platform?: "ixl" | "khan-academy" | "raz-kids" | "epic";
-          external_account_ref?: string;
-          auth_mode?: string;
-          status?: "attention_required" | "active" | "syncing" | "failed";
-          last_synced_at?: string | null;
-          managed_session_payload?: Json | null;
-          managed_session_captured_at?: string | null;
-          managed_session_expires_at?: string | null;
-          last_sync_error_summary?: string | null;
-          login_credentials_encrypted?: string | null;
-          auto_login_enabled?: boolean;
-          created_at?: string | null;
-        };
-      };
-      platform_sync_jobs: {
+          audio_duration_seconds?: number | null
+          child_id?: string
+          completed_at?: string
+          created_at?: string | null
+          homework_id?: string
+          id?: string
+          note?: string | null
+          points_earned?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "check_ins_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "check_ins_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      children: {
         Row: {
-          id: string;
-          platform_account_id: string;
-          trigger_mode: "scheduled" | "manual";
-          status: "running" | "completed" | "failed" | "attention_required";
-          window_key: string;
-          started_at: string;
-          finished_at: string | null;
-          error_summary: string | null;
-          retry_count: number;
-          next_retry_at: string | null;
-          raw_summary: Json;
-          created_at: string | null;
-        };
+          age: number | null
+          audio_zh_enabled: boolean | null
+          avatar: string | null
+          category_priorities: Json | null
+          created_at: string | null
+          default_wechat_group_id: string | null
+          gender: string | null
+          id: string
+          interest_signal: Json | null
+          last_categories: string[] | null
+          last_check_in: string | null
+          name: string
+          parent_id: string
+          password_hash: string
+          pinyin_enabled: boolean | null
+          points: number | null
+          reading_grade_level: number | null
+          reading_level: string | null
+          reading_level_en: string | null
+          reading_level_en_max: string | null
+          reading_level_zh: string | null
+          reading_level_zh_max: string | null
+          streak_days: number | null
+        }
         Insert: {
-          id?: string;
-          platform_account_id: string;
-          trigger_mode: "scheduled" | "manual";
-          status: "running" | "completed" | "failed" | "attention_required";
-          window_key: string;
-          started_at?: string;
-          finished_at?: string | null;
-          error_summary?: string | null;
-          retry_count?: number;
-          next_retry_at?: string | null;
-          raw_summary?: Json;
-          created_at?: string | null;
-        };
+          age?: number | null
+          audio_zh_enabled?: boolean | null
+          avatar?: string | null
+          category_priorities?: Json | null
+          created_at?: string | null
+          default_wechat_group_id?: string | null
+          gender?: string | null
+          id?: string
+          interest_signal?: Json | null
+          last_categories?: string[] | null
+          last_check_in?: string | null
+          name: string
+          parent_id: string
+          password_hash: string
+          pinyin_enabled?: boolean | null
+          points?: number | null
+          reading_grade_level?: number | null
+          reading_level?: string | null
+          reading_level_en?: string | null
+          reading_level_en_max?: string | null
+          reading_level_zh?: string | null
+          reading_level_zh_max?: string | null
+          streak_days?: number | null
+        }
         Update: {
-          id?: string;
-          platform_account_id?: string;
-          trigger_mode?: "scheduled" | "manual";
-          status?: "running" | "completed" | "failed" | "attention_required";
-          window_key?: string;
-          started_at?: string;
-          finished_at?: string | null;
-          error_summary?: string | null;
-          retry_count?: number;
-          next_retry_at?: string | null;
-          raw_summary?: Json;
-          created_at?: string | null;
-        };
-      };
+          age?: number | null
+          audio_zh_enabled?: boolean | null
+          avatar?: string | null
+          category_priorities?: Json | null
+          created_at?: string | null
+          default_wechat_group_id?: string | null
+          gender?: string | null
+          id?: string
+          interest_signal?: Json | null
+          last_categories?: string[] | null
+          last_check_in?: string | null
+          name?: string
+          parent_id?: string
+          password_hash?: string
+          pinyin_enabled?: boolean | null
+          points?: number | null
+          reading_grade_level?: number | null
+          reading_level?: string | null
+          reading_level_en?: string | null
+          reading_level_en_max?: string | null
+          reading_level_zh?: string | null
+          reading_level_zh_max?: string | null
+          streak_days?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "children_default_wechat_group_id_fkey"
+            columns: ["default_wechat_group_id"]
+            isOneToOne: false
+            referencedRelation: "wechat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_homework_types: {
+        Row: {
+          created_at: string | null
+          default_points: number
+          icon: string
+          id: string
+          name: string
+          parent_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          default_points?: number
+          icon?: string
+          id?: string
+          name: string
+          parent_id: string
+        }
+        Update: {
+          created_at?: string | null
+          default_points?: number
+          icon?: string
+          id?: string
+          name?: string
+          parent_id?: string
+        }
+        Relationships: []
+      }
+      homeworks: {
+        Row: {
+          child_id: string
+          created_at: string | null
+          created_by: string | null
+          daily_cutoff_time: string | null
+          description: string | null
+          estimated_minutes: number | null
+          id: string
+          is_active: boolean | null
+          point_value: number
+          repeat_days: number[] | null
+          repeat_end_date: string | null
+          repeat_interval: number | null
+          repeat_start_date: string | null
+          repeat_type: string
+          required_checkpoint_type: string | null
+          send_to_wechat: boolean
+          title: string
+          type_icon: string
+          type_id: string | null
+          type_name: string
+          wechat_group_id: string | null
+        }
+        Insert: {
+          child_id: string
+          created_at?: string | null
+          created_by?: string | null
+          daily_cutoff_time?: string | null
+          description?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          point_value?: number
+          repeat_days?: number[] | null
+          repeat_end_date?: string | null
+          repeat_interval?: number | null
+          repeat_start_date?: string | null
+          repeat_type: string
+          required_checkpoint_type?: string | null
+          send_to_wechat?: boolean
+          title: string
+          type_icon?: string
+          type_id?: string | null
+          type_name: string
+          wechat_group_id?: string | null
+        }
+        Update: {
+          child_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          daily_cutoff_time?: string | null
+          description?: string | null
+          estimated_minutes?: number | null
+          id?: string
+          is_active?: boolean | null
+          point_value?: number
+          repeat_days?: number[] | null
+          repeat_end_date?: string | null
+          repeat_interval?: number | null
+          repeat_start_date?: string | null
+          repeat_type?: string
+          required_checkpoint_type?: string | null
+          send_to_wechat?: boolean
+          title?: string
+          type_icon?: string
+          type_id?: string | null
+          type_name?: string
+          wechat_group_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homeworks_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homeworks_type_id_fkey"
+            columns: ["type_id"]
+            isOneToOne: false
+            referencedRelation: "custom_homework_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homeworks_wechat_group_id_fkey"
+            columns: ["wechat_group_id"]
+            isOneToOne: false
+            referencedRelation: "wechat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_events: {
         Row: {
-          id: string;
-          child_id: string;
-          platform: "ixl" | "khan-academy" | "raz-kids" | "epic";
-          platform_account_id: string;
-          occurred_at: string;
-          local_date_key: string;
-          event_type: string;
-          title: string;
-          subject: string | null;
-          duration_minutes: number | null;
-          score: number | null;
-          completion_state: string | null;
-          source_ref: string;
-          raw_payload: Json;
-          created_at: string | null;
-        };
+          child_id: string
+          completion_state: string | null
+          created_at: string | null
+          duration_minutes: number | null
+          event_type: string
+          id: string
+          local_date_key: string
+          occurred_at: string
+          platform: string
+          platform_account_id: string
+          raw_payload: Json
+          score: number | null
+          source_ref: string
+          subject: string | null
+          title: string
+        }
         Insert: {
-          id?: string;
-          child_id: string;
-          platform: "ixl" | "khan-academy" | "raz-kids" | "epic";
-          platform_account_id: string;
-          occurred_at: string;
-          local_date_key: string;
-          event_type: string;
-          title: string;
-          subject?: string | null;
-          duration_minutes?: number | null;
-          score?: number | null;
-          completion_state?: string | null;
-          source_ref: string;
-          raw_payload?: Json;
-          created_at?: string | null;
-        };
+          child_id: string
+          completion_state?: string | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          event_type: string
+          id?: string
+          local_date_key: string
+          occurred_at: string
+          platform: string
+          platform_account_id: string
+          raw_payload?: Json
+          score?: number | null
+          source_ref: string
+          subject?: string | null
+          title: string
+        }
         Update: {
-          id?: string;
-          child_id?: string;
-          platform?: "ixl" | "khan-academy" | "raz-kids" | "epic";
-          platform_account_id?: string;
-          occurred_at?: string;
-          local_date_key?: string;
-          event_type?: string;
-          title?: string;
-          subject?: string | null;
-          duration_minutes?: number | null;
-          score?: number | null;
-          completion_state?: string | null;
-          source_ref?: string;
-          raw_payload?: Json;
-          created_at?: string | null;
-        };
-      };
-      learning_event_reviews: {
-        Row: {
-          id: string;
-          learning_event_id: string;
-          review_status: "unmatched" | "resolved";
-          review_reason: "no_candidate_homeworks" | "no_matching_homework";
-          review_summary: Json;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          learning_event_id: string;
-          review_status: "unmatched" | "resolved";
-          review_reason: "no_candidate_homeworks" | "no_matching_homework";
-          review_summary?: Json;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          learning_event_id?: string;
-          review_status?: "unmatched" | "resolved";
-          review_reason?: "no_candidate_homeworks" | "no_matching_homework";
-          review_summary?: Json;
-          created_at?: string;
-        };
-      };
-      notification_deliveries: {
-        Row: {
-          id: string;
-          channel: string;
-          recipient_ref: string;
-          template: string;
-          payload_summary: Json;
-          dedup_key: string;
-          status: "pending" | "sent" | "failed";
-          sent_at: string | null;
-          failure_reason: string | null;
-          created_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          channel: string;
-          recipient_ref: string;
-          template: string;
-          payload_summary?: Json;
-          dedup_key: string;
-          status: "pending" | "sent" | "failed";
-          sent_at?: string | null;
-          failure_reason?: string | null;
-          created_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          channel?: string;
-          recipient_ref?: string;
-          template?: string;
-          payload_summary?: Json;
-          dedup_key?: string;
-          status?: "pending" | "sent" | "failed";
-          sent_at?: string | null;
-          failure_reason?: string | null;
-          created_at?: string | null;
-        };
-      };
+          child_id?: string
+          completion_state?: string | null
+          created_at?: string | null
+          duration_minutes?: number | null
+          event_type?: string
+          id?: string
+          local_date_key?: string
+          occurred_at?: string
+          platform?: string
+          platform_account_id?: string
+          raw_payload?: Json
+          score?: number | null
+          source_ref?: string
+          subject?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_events_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_events_platform_account_id_fkey"
+            columns: ["platform_account_id"]
+            isOneToOne: false
+            referencedRelation: "platform_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       message_routing_rules: {
         Row: {
-          id: string;
-          child_id: string;
-          homework_id: string | null;
-          channel: "wechat_group" | "telegram_chat";
-          recipient_ref: string;
-          recipient_label: string | null;
-          created_at: string;
-        };
+          channel: string
+          child_id: string
+          created_at: string
+          homework_id: string | null
+          id: string
+          recipient_label: string | null
+          recipient_ref: string
+        }
         Insert: {
-          id?: string;
-          child_id: string;
-          homework_id?: string | null;
-          channel: "wechat_group" | "telegram_chat";
-          recipient_ref: string;
-          recipient_label?: string | null;
-          created_at?: string;
-        };
+          channel: string
+          child_id: string
+          created_at?: string
+          homework_id?: string | null
+          id?: string
+          recipient_label?: string | null
+          recipient_ref: string
+        }
         Update: {
-          id?: string;
-          child_id?: string;
-          homework_id?: string | null;
-          channel?: "wechat_group" | "telegram_chat";
-          recipient_ref?: string;
-          recipient_label?: string | null;
-          created_at?: string;
-        };
-      };
-      wechat_groups: {
+          channel?: string
+          child_id?: string
+          created_at?: string
+          homework_id?: string | null
+          id?: string
+          recipient_label?: string | null
+          recipient_ref?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_routing_rules_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_routing_rules_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parents: {
         Row: {
-          id: string;
-          parent_id: string;
-          recipient_ref: string;
-          display_name: string | null;
-          source: string;
-          is_active: boolean;
-          last_seen_at: string | null;
-          created_at: string;
-        };
+          auto_remind_child: boolean | null
+          auto_remind_parent: boolean | null
+          created_at: string | null
+          id: string
+          passcode: string
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          reminder_cutoff_time: string | null
+          telegram_chat_id: string | null
+          telegram_recipient_label: string | null
+        }
         Insert: {
-          id?: string;
-          parent_id: string;
-          recipient_ref: string;
-          display_name?: string | null;
-          source?: string;
-          is_active?: boolean;
-          last_seen_at?: string | null;
-          created_at?: string;
-        };
+          auto_remind_child?: boolean | null
+          auto_remind_parent?: boolean | null
+          created_at?: string | null
+          id: string
+          passcode: string
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          reminder_cutoff_time?: string | null
+          telegram_chat_id?: string | null
+          telegram_recipient_label?: string | null
+        }
         Update: {
-          id?: string;
-          parent_id?: string;
-          recipient_ref?: string;
-          display_name?: string | null;
-          source?: string;
-          is_active?: boolean;
-          last_seen_at?: string | null;
-          created_at?: string;
-        };
-      };
-      voice_push_tasks: {
+          auto_remind_child?: boolean | null
+          auto_remind_parent?: boolean | null
+          created_at?: string | null
+          id?: string
+          passcode?: string
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          reminder_cutoff_time?: string | null
+          telegram_chat_id?: string | null
+          telegram_recipient_label?: string | null
+        }
+        Relationships: []
+      }
+      platform_accounts: {
         Row: {
-          id: string;
-          child_id: string;
-          homework_id: string;
-          check_in_id: string;
-          attachment_id: string;
-          file_path: string;
-          status: "pending" | "retrying" | "sent" | "failed";
-          delivery_attempts: number;
-          failure_reason: string | null;
-          last_attempted_at: string | null;
-          sent_at: string | null;
-          created_at: string | null;
-        };
+          auth_mode: string
+          auto_login_enabled: boolean
+          child_id: string
+          created_at: string | null
+          external_account_ref: string
+          id: string
+          last_sync_error_summary: string | null
+          last_synced_at: string | null
+          login_credentials_encrypted: string | null
+          managed_session_captured_at: string | null
+          managed_session_expires_at: string | null
+          managed_session_payload: Json | null
+          platform: string
+          status: string
+        }
         Insert: {
-          id?: string;
-          child_id: string;
-          homework_id: string;
-          check_in_id: string;
-          attachment_id: string;
-          file_path: string;
-          status?: "pending" | "retrying" | "sent" | "failed";
-          delivery_attempts?: number;
-          failure_reason?: string | null;
-          last_attempted_at?: string | null;
-          sent_at?: string | null;
-          created_at?: string | null;
-        };
+          auth_mode?: string
+          auto_login_enabled?: boolean
+          child_id: string
+          created_at?: string | null
+          external_account_ref: string
+          id?: string
+          last_sync_error_summary?: string | null
+          last_synced_at?: string | null
+          login_credentials_encrypted?: string | null
+          managed_session_captured_at?: string | null
+          managed_session_expires_at?: string | null
+          managed_session_payload?: Json | null
+          platform: string
+          status?: string
+        }
         Update: {
-          id?: string;
-          child_id?: string;
-          homework_id?: string;
-          check_in_id?: string;
-          attachment_id?: string;
-          file_path?: string;
-          status?: "pending" | "retrying" | "sent" | "failed";
-          delivery_attempts?: number;
-          failure_reason?: string | null;
-          last_attempted_at?: string | null;
-          sent_at?: string | null;
-          created_at?: string | null;
-        };
-      };
-      voice_push_attempts: {
+          auth_mode?: string
+          auto_login_enabled?: boolean
+          child_id?: string
+          created_at?: string | null
+          external_account_ref?: string
+          id?: string
+          last_sync_error_summary?: string | null
+          last_synced_at?: string | null
+          login_credentials_encrypted?: string | null
+          managed_session_captured_at?: string | null
+          managed_session_expires_at?: string | null
+          managed_session_payload?: Json | null
+          platform?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_accounts_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_sync_jobs: {
         Row: {
-          id: string;
-          voice_push_task_id: string;
-          attempt_number: number;
-          status: "retrying" | "failed" | "sent";
-          failure_reason: string | null;
-          created_at: string;
-        };
+          created_at: string | null
+          error_summary: string | null
+          finished_at: string | null
+          id: string
+          next_retry_at: string | null
+          platform_account_id: string
+          retry_count: number
+          started_at: string
+          status: string
+          trigger_mode: string
+          window_key: string
+        }
         Insert: {
-          id?: string;
-          voice_push_task_id: string;
-          attempt_number: number;
-          status: "retrying" | "failed" | "sent";
-          failure_reason?: string | null;
-          created_at?: string;
-        };
+          created_at?: string | null
+          error_summary?: string | null
+          finished_at?: string | null
+          id?: string
+          next_retry_at?: string | null
+          platform_account_id: string
+          retry_count?: number
+          started_at: string
+          status: string
+          trigger_mode: string
+          window_key: string
+        }
         Update: {
-          id?: string;
-          voice_push_task_id?: string;
-          attempt_number?: number;
-          status?: "retrying" | "failed" | "sent";
-          failure_reason?: string | null;
-          created_at?: string;
-        };
-      };
+          created_at?: string | null
+          error_summary?: string | null
+          finished_at?: string | null
+          id?: string
+          next_retry_at?: string | null
+          platform_account_id?: string
+          retry_count?: number
+          started_at?: string
+          status?: string
+          trigger_mode?: string
+          window_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_sync_jobs_platform_account_id_fkey"
+            columns: ["platform_account_id"]
+            isOneToOne: false
+            referencedRelation: "platform_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reading_article_illustrations: {
+        Row: {
+          article_id: string
+          created_at: string
+          id: string
+          image_url: string
+          paragraph_index: number
+          scene_description: string | null
+          source: string | null
+          source_url: string | null
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          id?: string
+          image_url: string
+          paragraph_index: number
+          scene_description?: string | null
+          source?: string | null
+          source_url?: string | null
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          paragraph_index?: number
+          scene_description?: string | null
+          source?: string | null
+          source_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_article_illustrations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "reading_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reading_articles: {
         Row: {
-          id: string;
-          topic_key: string;
-          title: string;
-          content: string;
-          source: string;
-          source_url: string | null;
-          category: string;
-          grade_level: number;
-          word_count: number;
-          estimated_minutes: number;
-          difficulty: number;
-          status: string;
-          created_at: string;
-        };
+          audio_zh_alignment: Json | null
+          audio_zh_url: string | null
+          audio_zh_voice: string | null
+          category: string
+          classical_quote: Json | null
+          content: string
+          content_warnings: string[] | null
+          cover_image_url: string | null
+          cover_source: string | null
+          cover_source_url: string | null
+          created_at: string | null
+          difficulty: number | null
+          estimated_minutes: number | null
+          grade_level: number
+          id: string
+          language: string | null
+          pack_id: string | null
+          pack_order: number | null
+          pinyin_content: string | null
+          quality_issues: Json | null
+          raz_level: string | null
+          scene_description: string | null
+          source: string
+          source_url: string | null
+          status: string | null
+          summary: string | null
+          title: string
+          topic_key: string
+          word_count: number | null
+        }
         Insert: {
-          id?: string;
-          topic_key: string;
-          title: string;
-          content: string;
-          source?: string;
-          source_url?: string | null;
-          category: string;
-          grade_level: number;
-          word_count?: number;
-          estimated_minutes?: number;
-          difficulty?: number;
-          status?: string;
-          created_at?: string;
-        };
+          audio_zh_alignment?: Json | null
+          audio_zh_url?: string | null
+          audio_zh_voice?: string | null
+          category: string
+          classical_quote?: Json | null
+          content: string
+          content_warnings?: string[] | null
+          cover_image_url?: string | null
+          cover_source?: string | null
+          cover_source_url?: string | null
+          created_at?: string | null
+          difficulty?: number | null
+          estimated_minutes?: number | null
+          grade_level: number
+          id?: string
+          language?: string | null
+          pack_id?: string | null
+          pack_order?: number | null
+          pinyin_content?: string | null
+          quality_issues?: Json | null
+          raz_level?: string | null
+          scene_description?: string | null
+          source?: string
+          source_url?: string | null
+          status?: string | null
+          summary?: string | null
+          title: string
+          topic_key: string
+          word_count?: number | null
+        }
         Update: {
-          id?: string;
-          topic_key?: string;
-          title?: string;
-          content?: string;
-          source?: string;
-          source_url?: string | null;
-          category?: string;
-          grade_level?: number;
-          word_count?: number;
-          estimated_minutes?: number;
-          difficulty?: number;
-          status?: string;
-          created_at?: string;
-        };
-      };
-      reading_questions: {
-        Row: {
-          id: string;
-          article_id: string;
-          question_text: string;
-          question_type: string;
-          options: Json;
-          correct_answer: string;
-          difficulty: number;
-          order_index: number;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          article_id: string;
-          question_text: string;
-          question_type: string;
-          options: Json;
-          correct_answer: string;
-          difficulty?: number;
-          order_index: number;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          article_id?: string;
-          question_text?: string;
-          question_type?: string;
-          options?: Json;
-          correct_answer?: string;
-          difficulty?: number;
-          order_index?: number;
-          created_at?: string;
-        };
-      };
+          audio_zh_alignment?: Json | null
+          audio_zh_url?: string | null
+          audio_zh_voice?: string | null
+          category?: string
+          classical_quote?: Json | null
+          content?: string
+          content_warnings?: string[] | null
+          cover_image_url?: string | null
+          cover_source?: string | null
+          cover_source_url?: string | null
+          created_at?: string | null
+          difficulty?: number | null
+          estimated_minutes?: number | null
+          grade_level?: number
+          id?: string
+          language?: string | null
+          pack_id?: string | null
+          pack_order?: number | null
+          pinyin_content?: string | null
+          quality_issues?: Json | null
+          raz_level?: string | null
+          scene_description?: string | null
+          source?: string
+          source_url?: string | null
+          status?: string | null
+          summary?: string | null
+          title?: string
+          topic_key?: string
+          word_count?: number | null
+        }
+        Relationships: []
+      }
       reading_assignments: {
         Row: {
-          id: string;
-          child_id: string;
-          article_id: string;
-          status: string;
-          assigned_by: string | null;
-          assigned_date: string;
-          completed_at: string | null;
-        };
+          article_id: string
+          assigned_by: string | null
+          assigned_date: string | null
+          child_id: string
+          completed_at: string | null
+          id: string
+          status: string | null
+        }
         Insert: {
-          id?: string;
-          child_id: string;
-          article_id: string;
-          status?: string;
-          assigned_by?: string | null;
-          assigned_date?: string;
-          completed_at?: string | null;
-        };
+          article_id: string
+          assigned_by?: string | null
+          assigned_date?: string | null
+          child_id: string
+          completed_at?: string | null
+          id?: string
+          status?: string | null
+        }
         Update: {
-          id?: string;
-          child_id?: string;
-          article_id?: string;
-          status?: string;
-          assigned_by?: string | null;
-          assigned_date?: string;
-          completed_at?: string | null;
-        };
-      };
+          article_id?: string
+          assigned_by?: string | null
+          assigned_date?: string | null
+          child_id?: string
+          completed_at?: string | null
+          id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_assignments_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "reading_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reading_assignments_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reading_image_quota_daily: {
+        Row: {
+          daily_limit: number
+          date: string
+          used_count: number
+        }
+        Insert: {
+          daily_limit?: number
+          date: string
+          used_count?: number
+        }
+        Update: {
+          daily_limit?: number
+          date?: string
+          used_count?: number
+        }
+        Relationships: []
+      }
+      reading_questions: {
+        Row: {
+          article_id: string
+          correct_answer: string
+          created_at: string | null
+          difficulty: number | null
+          id: string
+          options: Json
+          order_index: number
+          question_text: string
+          question_type: string
+        }
+        Insert: {
+          article_id: string
+          correct_answer: string
+          created_at?: string | null
+          difficulty?: number | null
+          id?: string
+          options: Json
+          order_index: number
+          question_text: string
+          question_type: string
+        }
+        Update: {
+          article_id?: string
+          correct_answer?: string
+          created_at?: string | null
+          difficulty?: number | null
+          id?: string
+          options?: Json
+          order_index?: number
+          question_text?: string
+          question_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_questions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "reading_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reading_quiz_attempts: {
         Row: {
-          id: string;
-          child_id: string;
-          article_id: string;
-          assignment_id: string | null;
-          answers: Json;
-          score: number;
-          total_questions: number;
-          time_spent_seconds: number | null;
-          created_at: string;
-        };
+          answers: Json
+          article_id: string
+          assignment_id: string | null
+          child_id: string
+          created_at: string | null
+          id: string
+          score: number
+          time_spent_seconds: number | null
+          total_questions: number
+        }
         Insert: {
-          id?: string;
-          child_id: string;
-          article_id: string;
-          assignment_id?: string | null;
-          answers: Json;
-          score: number;
-          total_questions: number;
-          time_spent_seconds?: number | null;
-          created_at?: string;
-        };
+          answers: Json
+          article_id: string
+          assignment_id?: string | null
+          child_id: string
+          created_at?: string | null
+          id?: string
+          score: number
+          time_spent_seconds?: number | null
+          total_questions: number
+        }
         Update: {
-          id?: string;
-          child_id?: string;
-          article_id?: string;
-          assignment_id?: string | null;
-          answers?: Json;
-          score?: number;
-          total_questions?: number;
-          time_spent_seconds?: number | null;
-          created_at?: string;
-        };
-      };
-    };
-    Views: {};
-    Functions: {};
-    Enums: {};
-  };
+          answers?: Json
+          article_id?: string
+          assignment_id?: string | null
+          child_id?: string
+          created_at?: string | null
+          id?: string
+          score?: number
+          time_spent_seconds?: number | null
+          total_questions?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_quiz_attempts_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "reading_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reading_quiz_attempts_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "reading_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reading_quiz_attempts_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reading_stats: {
+        Row: {
+          accuracy_streak: number | null
+          articles_at_current_level: number | null
+          child_id: string
+          created_at: string | null
+          id: string
+          last_article_date: string | null
+          total_articles_read: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          accuracy_streak?: number | null
+          articles_at_current_level?: number | null
+          child_id: string
+          created_at?: string | null
+          id?: string
+          last_article_date?: string | null
+          total_articles_read?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          accuracy_streak?: number | null
+          articles_at_current_level?: number | null
+          child_id?: string
+          created_at?: string | null
+          id?: string
+          last_article_date?: string | null
+          total_articles_read?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_stats_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: true
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reading_topics: {
+        Row: {
+          age_min_level: string | null
+          category: string
+          category_v2: string | null
+          content_warnings: string[] | null
+          created_at: string
+          freshness_until: string | null
+          id: string
+          image_tier: string | null
+          language: string
+          pack_id: string | null
+          pack_order: number | null
+          recommended_levels: string[] | null
+          source_text: string | null
+          source_url: string | null
+          status: string
+          target_grades: number[]
+          topic_key: string
+          updated_at: string
+        }
+        Insert: {
+          age_min_level?: string | null
+          category: string
+          category_v2?: string | null
+          content_warnings?: string[] | null
+          created_at?: string
+          freshness_until?: string | null
+          id?: string
+          image_tier?: string | null
+          language: string
+          pack_id?: string | null
+          pack_order?: number | null
+          recommended_levels?: string[] | null
+          source_text?: string | null
+          source_url?: string | null
+          status?: string
+          target_grades?: number[]
+          topic_key: string
+          updated_at?: string
+        }
+        Update: {
+          age_min_level?: string | null
+          category?: string
+          category_v2?: string | null
+          content_warnings?: string[] | null
+          created_at?: string
+          freshness_until?: string | null
+          id?: string
+          image_tier?: string | null
+          language?: string
+          pack_id?: string | null
+          pack_order?: number | null
+          recommended_levels?: string[] | null
+          source_text?: string | null
+          source_url?: string | null
+          status?: string
+          target_grades?: number[]
+          topic_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reading_topics_pack_id_fkey"
+            columns: ["pack_id"]
+            isOneToOne: false
+            referencedRelation: "topic_packs"
+            referencedColumns: ["pack_id"]
+          },
+        ]
+      }
+      topic_packs: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          language: string
+          pack_id: string
+          pack_name_en: string
+          pack_name_zh: string
+          recommended_levels: string[]
+          total_articles: number | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description?: string | null
+          language: string
+          pack_id: string
+          pack_name_en: string
+          pack_name_zh: string
+          recommended_levels: string[]
+          total_articles?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          language?: string
+          pack_id?: string
+          pack_name_en?: string
+          pack_name_zh?: string
+          recommended_levels?: string[]
+          total_articles?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      voice_push_tasks: {
+        Row: {
+          attachment_id: string
+          check_in_id: string
+          child_id: string
+          created_at: string | null
+          delivery_attempts: number
+          failure_reason: string | null
+          file_path: string
+          homework_id: string
+          id: string
+          last_attempted_at: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          attachment_id: string
+          check_in_id: string
+          child_id: string
+          created_at?: string | null
+          delivery_attempts?: number
+          failure_reason?: string | null
+          file_path: string
+          homework_id: string
+          id?: string
+          last_attempted_at?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          attachment_id?: string
+          check_in_id?: string
+          child_id?: string
+          created_at?: string | null
+          delivery_attempts?: number
+          failure_reason?: string | null
+          file_path?: string
+          homework_id?: string
+          id?: string
+          last_attempted_at?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_push_tasks_check_in_id_fkey"
+            columns: ["check_in_id"]
+            isOneToOne: false
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_push_tasks_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_push_tasks_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wechat_groups: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          is_active: boolean
+          last_seen_at: string | null
+          parent_id: string
+          recipient_ref: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          parent_id: string
+          recipient_ref: string
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          parent_id?: string
+          recipient_ref?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wechat_groups_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      get_child_by_name: {
+        Args: { name_param: string }
+        Returns: {
+          age: number
+          avatar: string
+          created_at: string
+          gender: string
+          id: string
+          last_check_in: string
+          name: string
+          parent_id: string
+          password_hash: string
+          points: number
+          streak_days: number
+        }[]
+      }
+      get_parent_by_passcode: {
+        Args: { passcode_param: string }
+        Returns: {
+          auto_remind_child: boolean
+          auto_remind_parent: boolean
+          created_at: string
+          id: string
+          passcode: string
+          quiet_hours_end: string
+          quiet_hours_start: string
+          reminder_cutoff_time: string
+        }[]
+      }
+      increment_minimax_quota: {
+        Args: { p_date: string; p_limit: number }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const
