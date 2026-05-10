@@ -40,12 +40,15 @@ validateEnv();
 // would run before dotenv loads, causing an empty API key.
 const readingMod = await import("@/lib/reading");
 const supabaseMod = await import("@/lib/supabase/server");
+const concurrencyMod = await import("@/lib/reading/concurrency");
 
 const generateReadingContent = readingMod.generateReadingContent;
 const generateCover = readingMod.generateCover;
 const generateIllustrations = readingMod.generateIllustrations;
 const validateContent = readingMod.validateContent;
 const createServiceRoleClient = supabaseMod.createServiceRoleClient;
+const Pacer = concurrencyMod.Pacer;
+const withRetry = concurrencyMod.withRetry;
 
 // Local type definitions for tables not yet in the generated Database types.
 // These match the frozen schema in .planning/reading-pipeline-task-plan.md §3.1 and §3.2.
@@ -346,6 +349,11 @@ async function loadTopics(
 // Main pipeline
 // ---------------------------------------------------------------------------
 
+interface WorkItem {
+  topic: ReadingTopicRow;
+  grade: number;
+}
+
 async function main(): Promise<void> {
   console.log("=== Reading Content Pipeline ===\n");
 
@@ -381,151 +389,34 @@ async function main(): Promise<void> {
     console.warn("WARNING: No active English topics found in reading_topics table.");
   }
 
+  // Collect all work items (topic, grade) pairs
+  const workItems: WorkItem[] = [];
+  for (const grade of grades) {
+    for (const topic of topics) {
+      workItems.push({ topic, grade });
+    }
+  }
+
+  // Create pacer for concurrent LLM/generation calls
+  const pacer = new Pacer(3);
+
   let total = 0;
   let succeeded = 0;
   let skipped = 0;
   let failed = 0;
 
-  for (const grade of grades) {
-    for (const topic of topics) {
-      total++;
-      const key = `${topic.topic_key}|G${grade}`;
-      process.stdout.write(
-        `[${total}/${grades.length * topics.length}] ${key} (${topic.category})... `
-      );
+  // Process all work items through the pacer
+  const tasks = workItems.map((item, index) =>
+    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase)
+  );
 
-      try {
-        // Determine which grades to process for this topic
-        const targetGrades =
-          topic.target_grades && topic.target_grades.length > 0
-            ? topic.target_grades.filter((g) => grades.includes(g))
-            : [grade];
+  const results = await Promise.all(tasks);
 
-        // If this grade is not in the topic's target_grades, skip it
-        if (topic.target_grades && topic.target_grades.length > 0 && !targetGrades.includes(grade)) {
-          console.log("SKIP (grade not in target_grades)");
-          skipped++;
-          continue;
-        }
-
-        // Step 1: Check if article already exists and is published
-        const existing = await checkExistingArticle(
-          supabase,
-          topic.topic_key,
-          grade
-        );
-
-        if (existing.exists && existing.status === "published") {
-          console.log("SKIP (already published)");
-          skipped++;
-          continue;
-        }
-
-        // Step 2: Generate article content
-        const contentResult = await generateReadingContent({
-          topicKey: topic.topic_key,
-          language: "en",
-          category: topic.category,
-          gradeLevel: grade,
-          sourceText: topic.source_text || undefined,
-        });
-
-        const { article, questions, illustrations } = contentResult;
-
-        // Step 3: Run quality gate
-        const gate = validateContent({
-          article,
-          questions,
-          language: "en",
-          gradeLevel: grade,
-        });
-
-        const status: "draft" | "published" = gate.pass ? "published" : "draft";
-
-        // Step 4: Generate cover image (non-blocking)
-        let coverResult: { url: string; source: string; source_url: string } | null = null;
-        try {
-          coverResult = await generateCover({
-            articleId: existing.id || "pending",
-            language: "en",
-            category: topic.category,
-            scene: article.scene_description,
-            title: article.title,
-          });
-        } catch (coverErr) {
-          const reason = coverErr instanceof Error ? coverErr.message : String(coverErr);
-          console.warn(`\n  [cover] failed: ${reason}`);
-        }
-
-        // Step 5: Generate in-article illustrations (non-blocking)
-        let illustrationResults: { paragraph_index: number; url: string; source_url: string; source: string }[] = [];
-        try {
-          illustrationResults = await generateIllustrations({
-            articleId: existing.id || "pending",
-            language: "en",
-            category: topic.category,
-            scenes: illustrations.map((ill) => ({
-              paragraphIndex: ill.paragraph_index,
-              sceneDescription: ill.scene_description,
-            })),
-          });
-        } catch (illErr) {
-          const reason = illErr instanceof Error ? illErr.message : String(illErr);
-          console.warn(`\n  [illustrations] failed: ${reason}`);
-        }
-
-        // Step 6: Upsert article with all metadata
-        const articleId = await upsertArticle(supabase, {
-          topicKey: topic.topic_key,
-          gradeLevel: grade,
-          title: article.title,
-          content: article.content,
-          sourceUrl: topic.source_url,
-          category: topic.category,
-          wordCount: article.word_count,
-          estimatedMinutes: article.estimated_minutes,
-          difficulty: article.difficulty,
-          sceneDescription: article.scene_description,
-          summary: article.summary,
-          status,
-          coverImageUrl: coverResult?.url ?? null,
-          coverSource: coverResult?.source ?? null,
-          coverSourceUrl: coverResult?.source_url ?? null,
-          qualityIssues: gate.issues.length > 0 ? gate.issues : null,
-        });
-
-        // Step 7: Replace questions
-        await replaceQuestions(supabase, articleId, questions);
-
-        // Step 8: Replace illustrations
-        await replaceIllustrations(
-          supabase,
-          articleId,
-          illustrationResults.map((ill) => ({
-            paragraph_index: ill.paragraph_index,
-            image_url: ill.url,
-            source_url: ill.source_url,
-            source: ill.source,
-            scene_description:
-              illustrations.find((i) => i.paragraph_index === ill.paragraph_index)
-                ?.scene_description || "",
-          }))
-        );
-
-        const gateLabel = gate.pass ? "published" : "draft";
-        console.log(
-          `OK — "${article.title}" (${questions.length} questions, ${illustrationResults.length} illustrations, ${gateLabel})`
-        );
-        succeeded++;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.log(`FAIL — ${message}`);
-        failed++;
-      }
-
-      // Rate limiting delay between iterations
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-    }
+  for (const result of results) {
+    total++;
+    if (result.status === "succeeded") succeeded++;
+    else if (result.status === "skipped") skipped++;
+    else if (result.status === "failed") failed++;
   }
 
   console.log("\n=== PIPELINE COMPLETE ===");
@@ -536,6 +427,167 @@ async function main(): Promise<void> {
 
   if (failed > 0) {
     process.exit(1);
+  }
+}
+
+type WorkItemStatus = "succeeded" | "skipped" | "failed";
+
+interface ProcessResult {
+  status: WorkItemStatus;
+}
+
+async function processWorkItem(
+  item: WorkItem,
+  index: number,
+  total: number,
+  grades: number[],
+  topics: ReadingTopicRow[],
+  supabase: SupabaseClient<PipelineDatabase>
+): Promise<ProcessResult> {
+  const pacer = new Pacer(3);
+  const { topic, grade } = item;
+  const key = `${topic.topic_key}|G${grade}`;
+  process.stdout.write(
+    `[${index}/${total}] ${key} (${topic.category})... `
+  );
+
+  try {
+    // Determine which grades to process for this topic
+    const targetGrades =
+      topic.target_grades && topic.target_grades.length > 0
+        ? topic.target_grades.filter((g) => grades.includes(g))
+        : [grade];
+
+    // If this grade is not in the topic's target_grades, skip it
+    if (topic.target_grades && topic.target_grades.length > 0 && !targetGrades.includes(grade)) {
+      console.log("SKIP (grade not in target_grades)");
+      return { status: "skipped" };
+    }
+
+    // Step 1: Check if article already exists and is published
+    const existing = await checkExistingArticle(
+      supabase,
+      topic.topic_key,
+      grade
+    );
+
+    if (existing.exists && existing.status === "published") {
+      console.log("SKIP (already published)");
+      return { status: "skipped" };
+    }
+
+    // Step 2: Generate article content (concurrent, with retry)
+    const contentResult = await pacer.run(() =>
+      withRetry(() =>
+        generateReadingContent({
+          topicKey: topic.topic_key,
+          language: "en",
+          category: topic.category,
+          gradeLevel: grade,
+          sourceText: topic.source_text || undefined,
+        })
+      )
+    );
+
+    const { article, questions, illustrations } = contentResult;
+
+    // Step 3: Run quality gate
+    const gate = validateContent({
+      article,
+      questions,
+      language: "en",
+      gradeLevel: grade,
+    });
+
+    const status: "draft" | "published" = gate.pass ? "published" : "draft";
+
+    // Step 4: Generate cover image (concurrent, with retry)
+    let coverResult: { url: string; source: string; source_url: string } | null = null;
+    try {
+      coverResult = await pacer.run(() =>
+        withRetry(() =>
+          generateCover({
+            articleId: existing.id || "pending",
+            language: "en",
+            category: topic.category,
+            scene: article.scene_description,
+            title: article.title,
+          })
+        )
+      );
+    } catch (coverErr) {
+      const reason = coverErr instanceof Error ? coverErr.message : String(coverErr);
+      console.warn(`\n  [cover] failed: ${reason}`);
+    }
+
+    // Step 5: Generate in-article illustrations (concurrent, with retry)
+    let illustrationResults: { paragraph_index: number; url: string; source_url: string; source: string }[] = [];
+    try {
+      illustrationResults = await pacer.run(() =>
+        withRetry(() =>
+          generateIllustrations({
+            articleId: existing.id || "pending",
+            language: "en",
+            category: topic.category,
+            scenes: illustrations.map((ill: { paragraph_index: number; scene_description: string }) => ({
+              paragraphIndex: ill.paragraph_index,
+              sceneDescription: ill.scene_description,
+            })),
+          })
+        )
+      );
+    } catch (illErr) {
+      const reason = illErr instanceof Error ? illErr.message : String(illErr);
+      console.warn(`\n  [illustrations] failed: ${reason}`);
+    }
+
+    // Step 6: Upsert article with all metadata (DB operation, outside pacer)
+    const articleId = await upsertArticle(supabase, {
+      topicKey: topic.topic_key,
+      gradeLevel: grade,
+      title: article.title,
+      content: article.content,
+      sourceUrl: topic.source_url,
+      category: topic.category,
+      wordCount: article.word_count,
+      estimatedMinutes: article.estimated_minutes,
+      difficulty: article.difficulty,
+      sceneDescription: article.scene_description,
+      summary: article.summary,
+      status,
+      coverImageUrl: coverResult?.url ?? null,
+      coverSource: coverResult?.source ?? null,
+      coverSourceUrl: coverResult?.source_url ?? null,
+      qualityIssues: gate.issues.length > 0 ? gate.issues : null,
+    });
+
+    // Step 7: Replace questions (DB operation, outside pacer)
+    await replaceQuestions(supabase, articleId, questions);
+
+    // Step 8: Replace illustrations (DB operation, outside pacer)
+    await replaceIllustrations(
+      supabase,
+      articleId,
+      illustrationResults.map((ill) => ({
+        paragraph_index: ill.paragraph_index,
+        image_url: ill.url,
+        source_url: ill.source_url,
+        source: ill.source,
+        scene_description:
+          illustrations.find((i: { paragraph_index: number; scene_description: string }) => i.paragraph_index === ill.paragraph_index)
+            ?.scene_description || "",
+      }))
+    );
+
+    const gateLabel = gate.pass ? "published" : "draft";
+    console.log(
+      `OK — "${article.title}" (${questions.length} questions, ${illustrationResults.length} illustrations, ${gateLabel})`
+    );
+    return { status: "succeeded" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.log(`FAIL — ${message}`);
+    return { status: "failed" };
   }
 }
 
