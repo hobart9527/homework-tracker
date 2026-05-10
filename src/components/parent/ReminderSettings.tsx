@@ -121,7 +121,7 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
           }`}
         >
           <div
-            className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${
+            className={`w-5 h-5 bg-cream-50 rounded-full shadow transition-transform ${
               formData.auto_remind_parent ? "translate-x-6" : "translate-x-0.5"
             }`}
           />

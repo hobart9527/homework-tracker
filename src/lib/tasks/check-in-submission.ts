@@ -124,7 +124,7 @@ export function buildSubmissionDecision(input: {
   const proofRequired = input.homework.required_checkpoint_type;
 
   if (proofRequired && proofRequired !== input.proofType) {
-    throw new Error(`本次作业需要提交${getProofLabel(proofRequired)}`);
+    throw new Error(`本次作业需要提交${getProofLabel(proofRequired as "photo" | "audio")}`);
   }
 
   const firstCompletion = input.existingSameDay.some(

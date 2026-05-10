@@ -14,12 +14,12 @@ export function resolveAudioRecordingFormat() {
     typeof MediaRecorder === "undefined" ||
     typeof MediaRecorder.isTypeSupported !== "function"
   ) {
-    return { mimeType: "", extension: "webm" };
+    return { mimeType: "audio/webm", extension: "webm" };
   }
 
   const supported = AUDIO_RECORDING_CANDIDATES.find((candidate) =>
     MediaRecorder.isTypeSupported(candidate.mimeType)
   );
 
-  return supported ?? { mimeType: "", extension: "webm" };
+  return supported ?? { mimeType: "audio/webm", extension: "webm" };
 }

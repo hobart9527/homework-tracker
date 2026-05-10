@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import PageShell from "@/components/ui/PageShell";
 import { HomeworkForm } from "@/components/parent/HomeworkForm";
 import type { Database } from "@/lib/supabase/types";
 
@@ -39,14 +40,14 @@ export default function EditHomeworkPage({ params }: { params: { id: string } })
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
         <h1 className="text-2xl font-bold text-forest-700">找不到该作业</h1>
-        <Link href="/homework" className="mt-4 text-primary underline">返回作业列表</Link>
+        <Link href="/homework" className="mt-4 text-forest-600 underline">返回作业列表</Link>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-primary text-white p-4">
+    <PageShell skin="parent">
+      <header className="bg-forest-500 text-white p-4 lg:pt-6">
         <div className="max-w-6xl mx-auto flex items-start justify-between gap-4">
           <Link href="/homework"><span className="text-xl">←</span></Link>
           <div className="flex-1">
@@ -64,6 +65,6 @@ export default function EditHomeworkPage({ params }: { params: { id: string } })
       <main className="max-w-6xl mx-auto p-4">
         <HomeworkForm homework={homework} onSuccess={() => router.push("/homework")} />
       </main>
-    </div>
+    </PageShell>
   );
 }

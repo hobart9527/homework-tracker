@@ -35,7 +35,7 @@ function buildHomework(task: Task, index: number): Homework {
     child_id: "",
     type_id: null,
     type_name: "今日任务",
-    type_icon: task.typeIcon,
+    type_icon: task.typeIcon ?? '',
     title: task.title,
     description: null,
     repeat_type: "daily",
@@ -53,7 +53,6 @@ function buildHomework(task: Task, index: number): Homework {
     platform_binding_source_ref: null,
     created_by: "",
     created_at: "1970-01-01T00:00:00.000Z",
-    deleted_at: null,
     send_to_wechat: false,
     wechat_group_id: null,
   };

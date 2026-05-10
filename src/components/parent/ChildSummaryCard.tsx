@@ -22,7 +22,7 @@ export function ChildSummaryCard({
       aria-pressed={selected}
       className={[
         "group w-full rounded-xl border p-4 text-left transition-all duration-200",
-        "bg-white shadow-elevation-raised hover:-translate-y-0.5 hover:shadow-elevation-floating",
+        "bg-cream-50 shadow-elevation-raised hover:-translate-y-0.5 hover:shadow-elevation-floating",
         selected
           ? "border-primary ring-2 ring-primary/20"
           : "border-ink-200 hover:border-ink-300",

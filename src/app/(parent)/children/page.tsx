@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import ParentShell from "@/components/ui/ParentShell";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 
@@ -53,29 +54,8 @@ export default function ChildrenListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-primary text-white p-4 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/dashboard">
-            <span className="text-xl">←</span>
-          </Link>
-          <h1 className="text-xl font-bold">{t('parent.children.title')}</h1>
-          <div className="flex items-center gap-2">
-            <Link href="/settings">
-              <Button size="sm" variant="ghost">
-                设置
-              </Button>
-            </Link>
-            <Link href="/children/new">
-              <Button size="sm" variant="secondary">
-                + {t('common.add')}
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto p-4">
+    <ParentShell activePath="/children">
+      <div className="max-w-4xl">
         <Card className="mb-4 border border-forest-100 bg-forest-50/60">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -110,7 +90,7 @@ export default function ChildrenListPage() {
                       {child.age}岁 •{" "}
                       {child.gender === "female" ? "女孩" : "男孩"}
                     </p>
-                    <p className="text-sm text-primary">
+                    <p className="text-sm text-forest-600">
                       ⭐ {child.points} 积分 • 🔥 {child.streak_days} 天连续
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -148,7 +128,7 @@ export default function ChildrenListPage() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </ParentShell>
   );
 }

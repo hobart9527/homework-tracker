@@ -124,7 +124,7 @@ export default function RewardsPage() {
         <div className="text-6xl font-bold">{totalPoints}</div>
         <div className="text-lg opacity-80 mt-2">{t('child.rewards.title')}</div>
         {todayPoints > 0 && (
-          <div className="mt-3 inline-block bg-white/20 rounded-full px-4 py-1 text-sm backdrop-blur-sm">
+          <div className="mt-3 inline-block bg-cream-50/20 rounded-full px-4 py-1 text-sm backdrop-blur-sm">
             🎯 今日已获得 +{todayPoints} 积分
           </div>
         )}
@@ -132,7 +132,7 @@ export default function RewardsPage() {
 
       {/* Milestone progress */}
       {nextMilestone ? (
-        <div className="bg-white rounded-2xl shadow-md p-4 mb-4">
+        <div className="bg-cream-50 rounded-2xl shadow-elevation-raised p-4 mb-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-forest-700">
               🏁 下一个目标: {nextMilestone} 积分
@@ -149,13 +149,13 @@ export default function RewardsPage() {
           </div>
         </div>
       ) : totalPoints > 0 ? (
-        <div className="bg-white rounded-2xl shadow-md p-4 mb-4 text-center">
+        <div className="bg-cream-50 rounded-2xl shadow-elevation-raised p-4 mb-4 text-center">
           <p className="text-forest-700 font-medium">🏆 你已经达成所有里程碑！</p>
         </div>
       ) : null}
 
       {/* Weekly star */}
-      <div className="bg-white rounded-2xl shadow-md p-4 mb-4">
+      <div className="bg-cream-50 rounded-2xl shadow-elevation-raised p-4 mb-4">
         <h3 className="font-medium text-forest-700 mb-2">🏆 每周之星</h3>
         {weeklyCheckIns.length > 0 ? (
           <div className="flex items-center gap-3">
@@ -175,7 +175,7 @@ export default function RewardsPage() {
       </div>
 
       {/* History */}
-      <div className="bg-white rounded-2xl shadow-md p-4">
+      <div className="bg-cream-50 rounded-2xl shadow-elevation-raised p-4">
         <h3 className="font-medium text-forest-700 mb-3">{t('child.rewards.title')}</h3>
         {checkIns.length === 0 ? (
           <p className="text-forest-400 text-center py-8">{t('child.rewards.noRewards')}</p>

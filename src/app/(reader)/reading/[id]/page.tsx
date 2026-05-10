@@ -154,26 +154,65 @@ export default function ReadingArticlePage({
     return (
       <div className="mx-auto max-w-2xl space-y-6">
         {/* Back button skeleton */}
-        <div className="h-5 w-16 animate-pulse rounded-full bg-forest-200" />
+        <div
+          className="h-5 w-16 animate-pulse rounded-full"
+          style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.3 }}
+        />
 
         {/* Title skeleton */}
         <div className="space-y-3">
-          <div className="h-8 w-3/4 animate-pulse rounded-lg bg-forest-100" />
+          <div
+            className="h-8 w-3/4 animate-pulse rounded-lg"
+            style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.25 }}
+          />
           <div className="flex gap-2">
-            <div className="h-6 w-16 animate-pulse rounded-full bg-forest-100" />
-            <div className="h-6 w-12 animate-pulse rounded-full bg-forest-100" />
-            <div className="h-6 w-36 animate-pulse rounded-full bg-forest-100" />
+            <div
+              className="h-6 w-16 animate-pulse rounded-full"
+              style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.2 }}
+            />
+            <div
+              className="h-6 w-12 animate-pulse rounded-full"
+              style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.2 }}
+            />
+            <div
+              className="h-6 w-36 animate-pulse rounded-full"
+              style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.2 }}
+            />
           </div>
         </div>
 
         {/* Content skeleton */}
-        <div className="space-y-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-forest-100">
-          <div className="h-4 w-full animate-pulse rounded bg-forest-50" />
-          <div className="h-4 w-5/6 animate-pulse rounded bg-forest-50" />
-          <div className="h-4 w-4/5 animate-pulse rounded bg-forest-50" />
-          <div className="h-4 w-full animate-pulse rounded bg-forest-50" />
-          <div className="h-4 w-3/4 animate-pulse rounded bg-forest-50" />
-          <div className="h-4 w-2/3 animate-pulse rounded bg-forest-50" />
+        <div
+          className="space-y-4 rounded-2xl p-6 shadow-sm"
+          style={{
+            backgroundColor: "var(--reader-surface)",
+            border: "1px solid var(--reader-border)",
+          }}
+        >
+          <div
+            className="h-4 w-full animate-pulse rounded"
+            style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }}
+          />
+          <div
+            className="h-4 w-5/6 animate-pulse rounded"
+            style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }}
+          />
+          <div
+            className="h-4 w-4/5 animate-pulse rounded"
+            style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }}
+          />
+          <div
+            className="h-4 w-full animate-pulse rounded"
+            style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }}
+          />
+          <div
+            className="h-4 w-3/4 animate-pulse rounded"
+            style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }}
+          />
+          <div
+            className="h-4 w-2/3 animate-pulse rounded"
+            style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }}
+          />
         </div>
       </div>
     );
@@ -184,11 +223,18 @@ export default function ReadingArticlePage({
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-4">
         <div className="text-center">
-          <p className="text-lg font-medium text-forest-700">{error}</p>
+          <p className="text-lg font-medium" style={{ color: "var(--reader-text)" }}>
+            {error}
+          </p>
           <button
             type="button"
             onClick={() => router.back()}
-            className="mt-4 rounded-full bg-forest-100 px-6 py-3 text-base font-medium text-forest-700 transition hover:bg-forest-200"
+            className="mt-4 rounded-full px-6 py-3 text-base font-medium transition"
+            style={{
+              backgroundColor: "var(--reader-surface)",
+              color: "var(--reader-text)",
+              border: "1px solid var(--reader-border)",
+            }}
           >
             {"← 返回"}
           </button>
@@ -209,7 +255,8 @@ export default function ReadingArticlePage({
         <button
           type="button"
           onClick={() => router.back()}
-          className="inline-flex items-center gap-1 text-sm font-medium text-forest-500 transition hover:text-forest-700"
+          className="inline-flex items-center gap-1 text-sm font-medium transition"
+          style={{ color: "var(--reader-text-muted)" }}
         >
           {"← 返回"}
         </button>
@@ -237,7 +284,14 @@ export default function ReadingArticlePage({
                 className="mb-4"
               />
             ) : article.language === "zh" && !audioInfo.url ? (
-              <div className="mb-4 rounded-md bg-forest-50 px-4 py-3 text-sm text-forest-700">
+              <div
+                className="mb-4 rounded-md px-4 py-3 text-sm"
+                style={{
+                  backgroundColor: "var(--reader-surface)",
+                  color: "var(--reader-text-muted)",
+                  border: "1px solid var(--reader-border)",
+                }}
+              >
                 {"音频生成中…"}
               </div>
             ) : null}

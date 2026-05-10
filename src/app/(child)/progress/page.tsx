@@ -63,7 +63,7 @@ function MonthSwitchButton(props: {
       className={`rounded-full px-4 py-2 text-sm font-medium transition ${
         props.disabled
           ? "cursor-not-allowed bg-forest-50 text-forest-300"
-          : "bg-white text-forest-700 shadow-sm ring-1 ring-forest-100 hover:bg-forest-50"
+          : "bg-cream-50 text-forest-700 shadow-sm ring-1 ring-forest-100 hover:bg-forest-50"
       }`}
     >
       {props.label}
@@ -87,7 +87,7 @@ function getCalendarTone(day: {
   const outstandingCount = day.totalCount - day.completedCount;
 
   if (day.totalCount === 0) {
-    return "bg-slate-100 text-slate-500";
+    return "bg-cream-100 text-ink-400";
   }
 
   if (outstandingCount === 0) {
@@ -106,7 +106,7 @@ function getCalendarTone(day: {
     return "bg-rose-100 text-rose-700";
   }
 
-  return "bg-slate-100 text-slate-600";
+  return "bg-cream-100 text-ink-500";
 }
 
 function getHeatmapLabel(day: { date: string; totalCount: number; completedCount: number }) {
@@ -259,21 +259,21 @@ export default function ProgressPage() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-3xl bg-white/14 px-4 py-3 backdrop-blur">
+              <div className="rounded-3xl bg-cream-50/14 px-4 py-3 backdrop-blur">
                 <div className="text-xs text-white/70">{t('child.progress.monthCompletionRate')}</div>
                 <div className="mt-2 text-2xl font-bold">
                   {formatPercent(dashboard.summary.completionRate)}
                 </div>
               </div>
-              <div className="rounded-3xl bg-white/14 px-4 py-3 backdrop-blur">
+              <div className="rounded-3xl bg-cream-50/14 px-4 py-3 backdrop-blur">
                 <div className="text-xs text-white/70">{t('child.progress.totalPoints')}</div>
                 <div className="mt-2 text-2xl font-bold">{dashboard.summary.totalPoints}</div>
               </div>
-              <div className="rounded-3xl bg-white/14 px-4 py-3 backdrop-blur">
+              <div className="rounded-3xl bg-cream-50/14 px-4 py-3 backdrop-blur">
                 <div className="text-xs text-white/70">{t('child.progress.activeDays')}</div>
                 <div className="mt-2 text-2xl font-bold">{dashboard.summary.activeDays}</div>
               </div>
-              <div className="rounded-3xl bg-white/14 px-4 py-3 backdrop-blur">
+              <div className="rounded-3xl bg-cream-50/14 px-4 py-3 backdrop-blur">
                 <div className="text-xs text-white/70">{t('child.progress.onTimeRate')}</div>
                 <div className="mt-2 text-2xl font-bold">
                   {formatPercent(dashboard.summary.onTimeRate)}

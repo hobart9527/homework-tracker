@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `scripts/synthesize-chinese-audio.ts` batch script regenerates audio for
   published Chinese reading articles and supports `--grade` and `--topic-key`
   filters. (a7c0854)
+- Design system: unified token palette (forest/cream/coral/honey/ink), Inter + LXGW WenKai + Fraunces font trio, consistent radius/shadow/spacing/motion tokens. All components migrated off ad-hoc hex values. (Design Overhaul)
+- iPad layout: parent sidebar nav + 12-col dashboard, child hero + grid, expanded max-width, responsive breakpoints at 1024px/834px. (Design Overhaul)
+- Reader mode: independent `(reader)` route group, 3 themes (light/sepia/dark), reader settings (font size/line height/theme), scroll progress + position memory, completion stamp animation. (Design Overhaul)
+
 - Reading module: topic matrix v2 schema + 153-topic seed. Adds the
   `topic_packs` table; extends `reading_topics` with `pack_id` /
   `pack_order` / `recommended_levels` / `category_v2` / `freshness_until` /

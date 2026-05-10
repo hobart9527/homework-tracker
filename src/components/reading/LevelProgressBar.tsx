@@ -116,7 +116,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
 
   if (loading) {
     return (
-      <div className="mb-6 animate-pulse rounded-xl border border-ink-200 bg-white/80 p-4">
+      <div className="mb-6 animate-pulse rounded-xl border border-ink-200 bg-cream-100/80 p-4">
         <div className="mb-3 h-5 w-32 rounded bg-ink-100" />
         <div className="mb-2 h-3 w-full rounded bg-ink-100" />
         <div className="h-3 w-3/4 rounded bg-ink-100" />
@@ -141,7 +141,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
   const description = LEVEL_DESCRIPTIONS[level] || "";
 
   return (
-    <div className={`mb-6 rounded-xl border bg-white/80 p-5 shadow-elevation-raised ${bgColor}`}>
+    <div className={`mb-6 rounded-xl border bg-cream-100/80 p-5 shadow-elevation-raised ${bgColor}`}>
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">

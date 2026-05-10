@@ -49,33 +49,48 @@ export type Database = {
       check_ins: {
         Row: {
           audio_duration_seconds: number | null
+          awarded_points: number
           child_id: string
           completed_at: string
           created_at: string | null
           homework_id: string
           id: string
+          is_late: boolean
+          is_scored: boolean
           note: string | null
           points_earned: number
+          proof_type: string | null
+          submitted_at: string | null
         }
         Insert: {
           audio_duration_seconds?: number | null
+          awarded_points?: number
           child_id: string
           completed_at?: string
           created_at?: string | null
           homework_id: string
           id?: string
+          is_late?: boolean
+          is_scored?: boolean
           note?: string | null
           points_earned: number
+          proof_type?: string | null
+          submitted_at?: string | null
         }
         Update: {
           audio_duration_seconds?: number | null
+          awarded_points?: number
           child_id?: string
           completed_at?: string
           created_at?: string | null
           homework_id?: string
           id?: string
+          is_late?: boolean
+          is_scored?: boolean
           note?: string | null
           points_earned?: number
+          proof_type?: string | null
+          submitted_at?: string | null
         }
         Relationships: [
           {
@@ -207,6 +222,131 @@ export type Database = {
         }
         Relationships: []
       }
+      homework_auto_matches: {
+        Row: {
+          created_at: string
+          homework_id: string
+          id: string
+          is_primary: boolean
+          learning_event_id: string
+          match_result: string
+          match_rule: string
+          matched_at: string
+          triggered_check_in_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          homework_id: string
+          id?: string
+          is_primary?: boolean
+          learning_event_id: string
+          match_result: string
+          match_rule: string
+          matched_at?: string
+          triggered_check_in_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          homework_id?: string
+          id?: string
+          is_primary?: boolean
+          learning_event_id?: string
+          match_result?: string
+          match_rule?: string
+          matched_at?: string
+          triggered_check_in_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homework_auto_matches_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_auto_matches_learning_event_id_fkey"
+            columns: ["learning_event_id"]
+            isOneToOne: false
+            referencedRelation: "learning_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_auto_matches_triggered_check_in_id_fkey"
+            columns: ["triggered_check_in_id"]
+            isOneToOne: false
+            referencedRelation: "check_ins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      homework_reminders: {
+        Row: {
+          child_id: string
+          created_at: string
+          escalated_at: string | null
+          escalation_channel: string
+          failure_reason: string | null
+          homework_id: string
+          id: string
+          initial_sent_at: string | null
+          parent_id: string
+          resolved_at: string | null
+          status: string
+          target_date: string
+        }
+        Insert: {
+          child_id: string
+          created_at?: string
+          escalated_at?: string | null
+          escalation_channel?: string
+          failure_reason?: string | null
+          homework_id: string
+          id?: string
+          initial_sent_at?: string | null
+          parent_id: string
+          resolved_at?: string | null
+          status: string
+          target_date: string
+        }
+        Update: {
+          child_id?: string
+          created_at?: string
+          escalated_at?: string | null
+          escalation_channel?: string
+          failure_reason?: string | null
+          homework_id?: string
+          id?: string
+          initial_sent_at?: string | null
+          parent_id?: string
+          resolved_at?: string | null
+          status?: string
+          target_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homework_reminders_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_reminders_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_reminders_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       homeworks: {
         Row: {
           child_id: string
@@ -217,6 +357,9 @@ export type Database = {
           estimated_minutes: number | null
           id: string
           is_active: boolean | null
+          platform_binding_platform: string | null
+          platform_binding_source_ref: string | null
+          point_deduction: number
           point_value: number
           repeat_days: number[] | null
           repeat_end_date: string | null
@@ -240,6 +383,9 @@ export type Database = {
           estimated_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          platform_binding_platform?: string | null
+          platform_binding_source_ref?: string | null
+          point_deduction?: number
           point_value?: number
           repeat_days?: number[] | null
           repeat_end_date?: string | null
@@ -263,6 +409,9 @@ export type Database = {
           estimated_minutes?: number | null
           id?: string
           is_active?: boolean | null
+          platform_binding_platform?: string | null
+          platform_binding_source_ref?: string | null
+          point_deduction?: number
           point_value?: number
           repeat_days?: number[] | null
           repeat_end_date?: string | null
@@ -297,6 +446,41 @@ export type Database = {
             columns: ["wechat_group_id"]
             isOneToOne: false
             referencedRelation: "wechat_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_event_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          learning_event_id: string
+          review_reason: string
+          review_status: string
+          review_summary: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          learning_event_id: string
+          review_reason: string
+          review_status: string
+          review_summary?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          learning_event_id?: string
+          review_reason?: string
+          review_status?: string
+          review_summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_event_reviews_learning_event_id_fkey"
+            columns: ["learning_event_id"]
+            isOneToOne: true
+            referencedRelation: "learning_events"
             referencedColumns: ["id"]
           },
         ]
@@ -414,6 +598,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_deliveries: {
+        Row: {
+          channel: string
+          created_at: string | null
+          dedup_key: string
+          failure_reason: string | null
+          id: string
+          payload_summary: Json
+          recipient_ref: string
+          sent_at: string | null
+          status: string
+          template: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string | null
+          dedup_key: string
+          failure_reason?: string | null
+          id?: string
+          payload_summary?: Json
+          recipient_ref: string
+          sent_at?: string | null
+          status: string
+          template: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string | null
+          dedup_key?: string
+          failure_reason?: string | null
+          id?: string
+          payload_summary?: Json
+          recipient_ref?: string
+          sent_at?: string | null
+          status?: string
+          template?: string
+        }
+        Relationships: []
       }
       parents: {
         Row: {
@@ -1079,6 +1302,41 @@ export type Database = {
             columns: ["homework_id"]
             isOneToOne: false
             referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wechat_group_targets: {
+        Row: {
+          created_at: string
+          id: string
+          send_enabled: boolean
+          target_id: string
+          target_type: string
+          wechat_group_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          send_enabled?: boolean
+          target_id: string
+          target_type: string
+          wechat_group_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          send_enabled?: boolean
+          target_id?: string
+          target_type?: string
+          wechat_group_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wechat_group_targets_wechat_group_id_fkey"
+            columns: ["wechat_group_id"]
+            isOneToOne: false
+            referencedRelation: "wechat_groups"
             referencedColumns: ["id"]
           },
         ]

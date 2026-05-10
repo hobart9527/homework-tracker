@@ -21,6 +21,23 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
 
 ## 核心功能 Key Features
 
+### 设计系统 Design System
+
+- 统一 Token 系统 / Unified Token System
+  - 5 色系：forest（森林绿）、cream（奶油白）、coral（珊瑚橙）、honey（蜂蜜黄）、ink（墨水黑）
+  - 字体家族：Inter（UI）+ LXGW WenKai（中文阅读）+ Fraunces（标题装饰）
+  - 统一的圆角、阴影、间距和动画 token
+- iPad-first 布局 / iPad-First Layout
+  - 家长端：侧边栏导航 + 内容区双栏布局（iPad 横屏 12 列网格）
+  - 孩子端：Hero 区 + 任务网格 + 底部导航（保留触控友好）
+  - 阅读器：全屏沉浸式布局，无导航干扰
+- 阅读模式 / Reader Mode
+  - 3 种主题：light（明亮）/ sepia（羊皮纸）/ dark（夜间）
+  - 字体大小、行高即时调节，localStorage 持久化
+  - 中文跟读音频 + 字符级同步高亮（Azure Neural Voice）
+  - 滚动进度条 + 段落位置记忆，跨 Session 恢复
+  - 完成印章动画（prefers-reduced-motion 降级支持）
+
 ### 家长端 Parent Experience
 
 - 孩子管理 / Child management
@@ -444,6 +461,19 @@ npm test
 ```bash
 npm test -- --run tests/unit/homework-form.test.ts
 ```
+
+### 设计改造 Design Overhaul（2026-05-08 至 2026-05-10）
+
+**Stage 1 — Token System & Visual Foundation**
+建立了完整的 token 系统（forest/cream/coral/honey/ink 5 色系，Inter + LXGW WenKai + Fraunces 字体三件套），迁移所有现有组件到新 token，消除了 ad-hoc 颜色值。
+
+**Stage 2 — iPad Layout Restructure**
+重构了家长端侧边栏导航、孩子端 Hero + 网格布局、响应式断点（1024px iPad 横屏 / 834px 竖屏），扩大了内容区最大宽度。
+
+**Stage 3 — Reading Mode Independent Module**
+独立的阅读器路由组 `(reader)`，3 种主题（light/sepia/dark），阅读设置面板（字体大小、行高），滚动进度 + 段落位置记忆，中文跟读音频 + 字符级同步高亮，完成印章动画。
+
+详细设计规范见 `.planning/design-system.md`，执行计划见 `.planning/task_plan.md`。
 
 ## 适用场景 Intended Use
 

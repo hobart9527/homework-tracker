@@ -916,7 +916,7 @@ export function CheckInModal({
                 {Math.round(uploadStatus.progress)}%
               </span>
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-cream-50">
               <div
                 className={`h-full rounded-full transition-all ${
                   uploadStatus.state === "failed" ? "bg-coral-400" : "bg-primary"

@@ -371,11 +371,18 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       }} />
 
       {/* Minimal header - just back and quiz with TTS */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-cream-200 -mx-4 px-4 py-2">
+      <div
+        className="sticky top-0 z-10 backdrop-blur -mx-4 px-4 py-2"
+        style={{
+          backgroundColor: "var(--reader-surface)",
+          borderBottom: "1px solid var(--reader-border)",
+        }}
+      >
         <div className="flex items-center justify-between">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-1 text-sm text-forest-600 hover:text-forest-800"
+            className="flex items-center gap-1 text-sm"
+            style={{ color: "var(--reader-text-muted)" }}
           >
             ← 返回
           </button>
@@ -413,8 +420,14 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       </div>
 
       {/* Progress bar - thin */}
-      <div className="h-0.5 bg-cream-100">
-        <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+      <div style={{ backgroundColor: "var(--reader-border)" }} className="h-0.5">
+        <div
+          className="h-full transition-all"
+          style={{
+            width: `${progress}%`,
+            backgroundColor: "var(--reader-accent)"
+          }}
+        />
       </div>
 
       {/* Dictionary Popup */}
@@ -466,7 +479,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                   </span>
                 </div>
                 {/* Large title */}
-                <h1 className="text-3xl font-bold text-forest-800 leading-tight">
+                <h1
+                  className="text-3xl font-bold leading-tight"
+                  style={{ color: "var(--reader-text)" }}
+                >
                   {article.title}
                 </h1>
                 {/* Meta info */}
@@ -480,9 +496,25 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
             {/* Classical quote */}
             {article.classicalQuote && (
-              <div className="mt-4 py-3 px-4 rounded-xl bg-gradient-to-r from-honey-50 to-cream-50 border border-honey-100">
-                <p className="text-lg font-medium text-forest-800">{article.classicalQuote.original}</p>
-                <p className="mt-1 text-sm text-ink-400">{article.classicalQuote.pinyin}</p>
+              <div
+                className="mt-4 py-3 px-4 rounded-xl"
+                style={{
+                  backgroundColor: "var(--reader-surface)",
+                  border: "1px solid var(--reader-border)",
+                }}
+              >
+                <p
+                  className="text-lg font-medium"
+                  style={{ color: "var(--reader-text)" }}
+                >
+                  {article.classicalQuote.original}
+                </p>
+                <p
+                  className="mt-1 text-sm"
+                  style={{ color: "var(--reader-text-muted)" }}
+                >
+                  {article.classicalQuote.pinyin}
+                </p>
               </div>
             )}
           </div>
@@ -500,9 +532,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
           {/* Content paragraphs - clean, focused */}
           <div
-            className={`space-y-4 text-forest-700 ${
+            className={`space-y-4 ${
               isLowerGrade ? "text-lg leading-relaxed" : "text-base leading-relaxed"
             }`}
+            style={{ color: "var(--reader-text)" }}
           >
             {paragraphs.map((paragraph, index) => (
               <div

@@ -959,7 +959,7 @@ export default function SettingsIntegrationsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-mono text-slate-700">
+                      <code className="flex-1 rounded-lg bg-cream-100 px-3 py-2 text-xs font-mono text-ink-700">
                         npm run session:collect -- --platform={account.platform}
                       </code>
                       <Button
@@ -979,7 +979,7 @@ export default function SettingsIntegrationsPage() {
 
                     <p className="text-xs text-forest-500">
                       首次使用需要先安装 Playwright：
-                      <code className="mx-1 rounded bg-slate-100 px-1 py-0.5 font-mono text-slate-600">
+                      <code className="mx-1 rounded bg-cream-100 px-1 py-0.5 font-mono text-ink-500">
                         npm install playwright && npx playwright install chromium
                       </code>
                     </p>

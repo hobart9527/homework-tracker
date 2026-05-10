@@ -29,7 +29,7 @@ export function CategoryTrack({ categories, activeCategory, onCategoryChange }: 
             >
               {cat.label}
               {isActive && (
-                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full mb-1" />
+                <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-cream-50 rounded-full mb-1" />
               )}
             </button>
           );

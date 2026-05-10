@@ -62,14 +62,14 @@ export function buildDailyTaskStatuses(
       estimatedMinutes: hw.estimated_minutes,
       pointValue: hw.point_value ?? 0,
       dailyCutoffTime: hw.daily_cutoff_time,
-      requiredCheckpointType: hw.required_checkpoint_type,
+      requiredCheckpointType: hw.required_checkpoint_type as "photo" | "audio" | null,
       completed: sameDay.length > 0,
       late: firstScored?.is_late ?? false,
       scored: Boolean(firstScored),
       awardedPoints: firstScored?.awarded_points ?? 0,
       submissionCount: sameDay.length,
       latestCheckInId: latestCheckIn?.id ?? null,
-      latestProofType: latestCheckIn?.proof_type ?? null,
+      latestProofType: (latestCheckIn?.proof_type ?? null) as "photo" | "audio" | null,
     };
   });
 }

@@ -159,10 +159,9 @@ export function ChildHomeworkCard({
           isOverdue && !isCompleted ? "border-2 border-coral-500" : ""
         }`}
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-1 gap-4">
-            <span className="text-4xl leading-none">{homework.type_icon}</span>
-            <div className="min-w-0 flex-1">
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 w-full flex-1 gap-4 sm:w-auto">            <span className="text-4xl leading-none">{homework.type_icon}</span>
+            <div className="min-w-0 flex-1 text-center sm:text-left">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="truncate font-semibold text-forest-700">{homework.title}</h3>
                 {isOverdue && !isCompleted ? (
@@ -187,7 +186,7 @@ export function ChildHomeworkCard({
                 <p className="mt-2 text-xs text-ink-400">📍 截止 {homework.daily_cutoff_time}</p>
               )}
               {homework.required_checkpoint_type && attachments.length === 0 && (
-                <p className="mt-1 text-xs text-ink-400">需要{proofLabel[homework.required_checkpoint_type]}</p>
+                <p className="mt-1 text-xs text-ink-400">需要{proofLabel[homework.required_checkpoint_type as "photo" | "audio"]}</p>
               )}
               {shouldShowAttachmentEntry && (
                 <button
@@ -218,7 +217,7 @@ export function ChildHomeworkCard({
                       {Math.round(attachmentUploadStatus.progress)}%
                     </span>
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-cream-50">
                     <div
                       className={`h-full rounded-full transition-all ${
                         attachmentUploadStatus.state === "failed"
@@ -240,7 +239,7 @@ export function ChildHomeworkCard({
               )}
             </div>
           </div>
-          <div className="sm:pt-1">
+          <div className="flex flex-col items-center sm:pt-1 sm:items-start">
             {isCompleted ? (
               <div className="rounded-xl bg-primary/10 px-4 py-2 text-center text-lg font-bold text-primary">
                 ✓ 完成

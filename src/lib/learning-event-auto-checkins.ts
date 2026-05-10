@@ -228,7 +228,13 @@ export async function syncLearningEventAutoCheckins(input: {
     const result = await applyAutoCheckinMatches({
       supabase: input.supabase as any,
       childId: input.event.childId,
-      homework,
+      homework: homework as {
+        id: string;
+        child_id: string;
+        point_value: number | null;
+        estimated_minutes: number | null;
+        required_checkpoint_type: "photo" | "audio" | null;
+      },
       matches: [
         {
           learningEventId: String(ingestResult.event.id),

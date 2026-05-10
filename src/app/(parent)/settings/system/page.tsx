@@ -158,7 +158,7 @@ export default function SettingsSystemPage() {
           childName: childNameById[account.child_id] ?? "未命名孩子",
           platform: account.platform,
           externalAccountRef: account.external_account_ref,
-          status: account.status,
+          status: account.status as "active" | "attention_required" | "failed" | "syncing",
           lastSyncedAt: account.last_synced_at,
           lastSyncErrorSummary: account.last_sync_error_summary,
           nextRetryAt:
@@ -173,7 +173,7 @@ export default function SettingsSystemPage() {
         id: task.id,
         childName: childNameById[task.child_id] ?? "未命名孩子",
         homeworkTitle: homeworkTitleById[task.homework_id] ?? "录音作业",
-        status: task.status,
+        status: task.status as "failed" | "sent" | "retrying" | "pending",
         deliveryAttempts: task.delivery_attempts,
         failureReason: task.failure_reason,
         lastAttemptedAt: task.last_attempted_at,

@@ -126,7 +126,7 @@ export function PlatformSyncStatusPanel({
               </div>
 
               {account.recentActivities.length ? (
-                <div className="mt-4 rounded-xl bg-white/80 px-3 py-3">
+                <div className="mt-4 rounded-xl bg-cream-100/80 px-3 py-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-forest-400">
                     最近内容
                   </p>

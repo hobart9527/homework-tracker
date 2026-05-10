@@ -61,7 +61,7 @@ export function PasscodeInput({
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             className={`w-14 h-14 text-center text-2xl font-bold rounded-xl border-2
-              transition-all bg-white
+              transition-all bg-cream-50
               ${
                 error
                   ? "border-red-500"
