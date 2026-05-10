@@ -32,6 +32,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@mr_ozio/playwright-stealth": "^1.0.0",
     "@pawastation/ilink-bot-sdk": "^0.2.0",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.102.1",
@@ -45,7 +46,10 @@
     "pinyin-pro": "^3.28.1",
     "playwright": "^1.59.1",
     "playwright-extra": "^4.3.6",
+    "playwright-extra-stealth": "^0.0.1",
     "postcss": "^8.5.9",
+    "puppeteer": "^24.43.0",
+    "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
