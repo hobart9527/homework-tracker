@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArticleReader } from "@/components/reading/ArticleReader";
 import type { ArticleReaderArticle, ArticleReaderRef } from "@/components/reading/ArticleReader";
-import { ReaderToolbar } from "@/components/reading/ReaderToolbar";
 import { ReadAlong } from "@/components/reading/ReadAlong";
 import { QuizView } from "@/components/reading/QuizView";
 import type { QuizViewQuestion } from "@/components/reading/QuizView";
@@ -250,44 +249,20 @@ export default function ReadingArticlePage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      {/* Header with back button */}
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="inline-flex items-center gap-1 text-sm font-medium transition"
-          style={{ color: "var(--reader-text-muted)" }}
-        >
-          {"← 返回"}
-        </button>
-      </div>
-
       {/* Phase 1: Article reading */}
       {phase === "reading" && (
-        <div className="flex gap-4">
-          {/* Reader toolbar — desktop only */}
-          <aside className="flex-shrink-0 pt-2">
-            <ReaderToolbar
-              onTTSToggle={() => articleReaderRef.current?.toggleTTS()}
-              ttsPlaying={ttsPlaying}
-              ttsPaused={ttsPaused}
-              onTTSStop={() => articleReaderRef.current?.stopTTS()}
+        <>
+          {article.language === "zh" && audioInfo.url ? (
+            <ReadAlong
+              audioUrl={audioInfo.url}
+              voice={audioInfo.voice ?? undefined}
+              className="mb-4"
             />
-          </aside>
-
-          {/* Main reading content */}
-          <div className="flex-1 min-w-0">
-            {article.language === "zh" && audioInfo.url ? (
-              <ReadAlong
-                audioUrl={audioInfo.url}
-                voice={audioInfo.voice ?? undefined}
-                className="mb-4"
-              />
-            ) : article.language === "zh" && !audioInfo.url ? (
-              <div
-                className="mb-4 rounded-md px-4 py-3 text-sm"
-                style={{
-                  backgroundColor: "var(--reader-surface)",
+          ) : article.language === "zh" && !audioInfo.url ? (
+            <div
+              className="mb-4 rounded-md px-4 py-3 text-sm"
+              style={{
+                backgroundColor: "var(--reader-surface)",
                   color: "var(--reader-text-muted)",
                   border: "1px solid var(--reader-border)",
                 }}
@@ -302,8 +277,7 @@ export default function ReadingArticlePage({
                 setPhase("quiz");
               }}
             />
-          </div>
-        </div>
+        </>
       )}
 
       {/* Phase 2: Quiz */}

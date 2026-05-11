@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useReadingProgress } from "./useReadingProgress";
 import { useRouter } from "next/navigation";
 
@@ -30,6 +31,7 @@ export interface ArticleReaderArticle {
 interface ArticleReaderProps {
   article: ArticleReaderArticle;
   onStartQuiz: () => void;
+  assignmentId?: string | null;
 }
 
 export interface ArticleReaderRef {
@@ -40,10 +42,11 @@ export interface ArticleReaderRef {
 }
 
 export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(function ArticleReader(
-  { article, onStartQuiz },
+  { article, onStartQuiz, assignmentId },
   ref
 ) {
   const router = useRouter();
+  const supabase = createClient();
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [ttsPaused, setTtsPaused] = useState(false);
   const [ttsSupported, setTtsSupported] = useState(true);
@@ -55,7 +58,22 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     y: number;
   } | null>(null);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [orientationLocked, setOrientationLocked] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Recording state
+  const [recordingState, setRecordingState] = useState<'idle' | 'recording' | 'paused' | 'stopped'>('idle');
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const [showRecordingMenu, setShowRecordingMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [recordingSubmitted, setRecordingSubmitted] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Landscape detection
   useEffect(() => {
@@ -65,6 +83,215 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // Orientation lock
+  const toggleOrientationLock = useCallback(async () => {
+    if (orientationLocked) {
+      if (screen.orientation?.unlock) {
+        screen.orientation.unlock();
+      }
+      setOrientationLocked(false);
+    } else {
+      if (screen.orientation?.lock) {
+        try {
+          await screen.orientation.lock('landscape');
+          setOrientationLocked(true);
+        } catch {
+          // Lock failed, silently ignore
+        }
+      }
+    }
+  }, [orientationLocked]);
+
+  // Recording control functions
+  const formatDuration = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setRecordingBlob(blob);
+        setRecordingUrl(url);
+        setRecordingState('stopped');
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setRecordingState('recording');
+      setRecordingDuration(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (error) {
+      console.error('录音失败:', error);
+      alert('无法访问麦克风，请检查权限设置');
+    }
+  };
+
+  const pauseRecording = () => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      mediaRecorderRef.current.pause();
+      setRecordingState('paused');
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const resumeRecording = () => {
+    if (mediaRecorderRef.current?.state === 'paused') {
+      mediaRecorderRef.current.resume();
+      setRecordingState('recording');
+      timerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current?.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    setRecordingState('stopped');
+  };
+
+  const resetRecording = () => {
+    if (recordingUrl) {
+      URL.revokeObjectURL(recordingUrl);
+    }
+    setRecordingBlob(null);
+    setRecordingUrl(null);
+    setRecordingDuration(0);
+    setRecordingState('idle');
+  };
+
+  const uploadRecording = async (): Promise<{ success: boolean; checkInId?: string; error?: string }> => {
+    if (!recordingBlob) {
+      return { success: false, error: '没有录音文件' };
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    try {
+      // 1. Get current user
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return { success: false, error: '未登录' };
+      }
+
+      // 2. Generate file path
+      const timestamp = Date.now();
+      const fileName = `reading_${article.id}_${timestamp}.webm`;
+      const filePath = `${session.user.id}/${fileName}`;
+
+      // 3. Upload recording to Storage
+      setUploadProgress(30);
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('attachments')
+        .upload(filePath, recordingBlob, {
+          contentType: 'audio/webm',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        console.error('上传失败:', uploadError);
+        return { success: false, error: '上传失败' };
+      }
+
+      setUploadProgress(60);
+
+      // 4. Create check_in record
+      const { data: checkInData, error: checkInError } = await supabase
+        .from('check_ins')
+        .insert({
+          child_id: session.user.id,
+          assignment_id: assignmentId || null,
+          type: 'reading',
+          completed_at: new Date().toISOString(),
+          points_earned: 10,
+        })
+        .select()
+        .single();
+
+      if (checkInError) {
+        console.error('创建打卡记录失败:', checkInError);
+        return { success: false, error: '创建打卡记录失败' };
+      }
+
+      setUploadProgress(80);
+
+      // 5. Create attachment record
+      const { error: attachmentError } = await supabase
+        .from('attachments')
+        .insert({
+          check_in_id: checkInData.id,
+          type: 'audio',
+          storage_path: filePath,
+          file_name: fileName,
+          mime_type: 'audio/webm',
+        });
+
+      if (attachmentError) {
+        console.error('创建附件记录失败:', attachmentError);
+      }
+
+      setUploadProgress(100);
+
+      // 6. Trigger points update event
+      window.dispatchEvent(new CustomEvent('child-points-changed'));
+
+      return { success: true, checkInId: checkInData.id };
+    } catch (error) {
+      console.error('上传异常:', error);
+      return { success: false, error: '上传异常' };
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Recording cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current?.state !== 'inactive') {
+        mediaRecorderRef.current?.stop();
+      }
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      if (recordingUrl) {
+        URL.revokeObjectURL(recordingUrl);
+      }
+    };
+  }, [recordingUrl]);
+
+  // Detect current lock state on mount
+  useEffect(() => {
+    const checkLock = () => {
+      if (screen.orientation?.type?.includes('landscape')) {
+        setOrientationLocked(true);
+      }
+    };
+    checkLock();
+    screen.orientation?.addEventListener('change', checkLock);
+    return () => screen.orientation?.removeEventListener('change', checkLock);
   }, []);
 
   // Split content into paragraphs
@@ -90,6 +317,44 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     });
     return map;
   }, [article.illustrations]);
+
+  // Page navigation for landscape mode
+  const [currentPage, setCurrentPage] = useState(0);
+  const pageSize = useMemo(() => Math.ceil(paragraphs.length / 2), [paragraphs.length]);
+  const totalPages = useMemo(() => Math.ceil(paragraphs.length / pageSize), [paragraphs.length, pageSize]);
+
+  // Split paragraphs into pages (2 paragraphs per "page view" in landscape)
+  const pages = useMemo(() => {
+    const result: number[][] = [];
+    for (let i = 0; i < paragraphs.length; i += pageSize) {
+      result.push(paragraphs.slice(i, i + pageSize).map((_, idx) => i + idx));
+    }
+    return result;
+  }, [paragraphs, pageSize]);
+
+  const goNext = useCallback(() => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(prev => prev + 1);
+    }
+  }, [currentPage, totalPages]);
+
+  const goPrev = useCallback(() => {
+    if (currentPage > 0) {
+      setCurrentPage(prev => prev - 1);
+    }
+  }, [currentPage]);
+
+  const handlePageClick = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const width = rect.width;
+
+    if (x < width * 0.25) {
+      goPrev();
+    } else if (x > width * 0.75) {
+      goNext();
+    }
+  }, [goNext, goPrev]);
 
   const { progress, currentParagraph } = useReadingProgress(
     article.id,
@@ -370,52 +635,77 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         `
       }} />
 
-      {/* Minimal header - just back and quiz with TTS */}
+      {/* Top bar - h-12, 48px */}
       <div
-        className="sticky top-0 z-10 backdrop-blur -mx-4 px-4 py-2"
+        className="sticky top-0 z-20 h-12 backdrop-blur-md flex items-center justify-between px-4 border-b"
         style={{
           backgroundColor: "var(--reader-surface)",
-          borderBottom: "1px solid var(--reader-border)",
+          borderColor: "var(--reader-border)",
         }}
       >
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1 text-sm"
-            style={{ color: "var(--reader-text-muted)" }}
+        {/* Left: Back */}
+        <button
+          onClick={() => router.back()}
+          className="flex items-center gap-1 text-sm"
+          style={{ color: "var(--reader-text-muted)" }}
+        >
+          ← 返回
+        </button>
+
+        {/* Center: Title */}
+        <h1
+          className="text-sm font-medium truncate max-w-[40%] mx-4"
+          style={{ color: "var(--reader-text)" }}
+        >
+          {article.title}
+        </h1>
+
+        {/* Right: Difficulty label + Orientation lock + Recording status */}
+        <div className="flex items-center gap-2">
+          {/* Recording submitted status */}
+          {recordingSubmitted && (
+            <span className="text-sm text-green-600 flex items-center gap-1">
+              ✅ 已打卡
+            </span>
+          )}
+          {/* Recording status */}
+          {recordingState !== 'idle' && (
+            <div className="flex items-center gap-2">
+              {recordingState === 'recording' && (
+                <span className="flex items-center gap-1 text-sm text-red-500">
+                  <span className="animate-pulse">●</span>
+                  <span>{formatDuration(recordingDuration)}</span>
+                </span>
+              )}
+              {recordingState === 'paused' && (
+                <span className="text-sm" style={{ color: "var(--reader-text-muted)" }}>
+                  ⏸ {formatDuration(recordingDuration)}
+                </span>
+              )}
+              {recordingState === 'stopped' && (
+                <span className="text-sm text-green-600">
+                  ✅ {formatDuration(recordingDuration)}
+                </span>
+              )}
+            </div>
+          )}
+          <span
+            className="rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary"
           >
-            ← 返回
+            G{article.gradeLevel}
+          </span>
+          <button
+            onClick={toggleOrientationLock}
+            className="text-lg"
+            style={{
+              color: orientationLocked
+                ? "var(--reader-accent)"
+                : "var(--reader-text-muted)",
+            }}
+            aria-label={orientationLocked ? "解锁屏幕方向" : "锁定屏幕方向"}
+          >
+            {orientationLocked ? "🔒" : "🔓"}
           </button>
-          <div className="flex items-center gap-2">
-            {isLowerGrade && ttsSupported && (
-              <button
-                onClick={handleTTS}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-xl shadow-md transition-all active:scale-95 ${
-                  ttsPlaying && !ttsPaused
-                    ? "bg-forest-600 text-white shadow-forest-200"
-                    : "bg-primary text-white shadow-primary/30 hover:bg-primary-dark"
-                }`}
-                aria-label={ttsPlaying && !ttsPaused ? "暂停" : "朗读"}
-              >
-                {ttsPlaying && !ttsPaused ? (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="6" y="4" width="4" height="16" rx="1" />
-                    <rect x="14" y="4" width="4" height="16" rx="1" />
-                  </svg>
-                ) : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                )}
-              </button>
-            )}
-            <button
-              onClick={onStartQuiz}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-sm font-medium text-white hover:bg-primary-dark transition"
-            >
-              📝 答题
-            </button>
-          </div>
         </div>
       </div>
 
@@ -451,412 +741,320 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
       {/* Content area */}
       {isLandscape ? (
-        <PageFlipContent
-          paragraphs={paragraphs}
-          renderParagraph={renderParagraph}
-          illustrationMap={illustrationMap}
-          activeParagraphIndex={activeParagraphIndex}
-          activeCharRange={activeCharRange}
-          isLowerGrade={isLowerGrade}
-        />
-      ) : (
-        <div className="max-w-3xl mx-auto px-4 py-8 lg:px-8">
-          {/* Title section - prominent, outside header */}
-          <div className="mb-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                {/* Language badge */}
-                <div className="mb-2">
-                  <span className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium ${
-                    article.language === "en"
-                      ? "bg-sky-100 text-sky-700"
-                      : "bg-coral-100 text-coral-700"
-                  }`}>
-                    {article.language === "en" ? "English" : "中文"}
-                  </span>
-                  <span className="ml-2 rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
-                    {article.category}
-                  </span>
-                </div>
-                {/* Large title */}
-                <h1
-                  className="text-3xl font-bold leading-tight"
-                  style={{ color: "var(--reader-text)" }}
-                >
-                  {article.title}
-                </h1>
-                {/* Meta info */}
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-ink-500">
-                  <span>G{article.gradeLevel}</span>
-                  <span>{article.wordCount} words</span>
-                  <span>{article.estimatedMinutes} min read</span>
-                </div>
+        <div
+          className="flex h-full w-full items-center"
+          onClick={handlePageClick}
+        >
+          {/* Left page - 50% width, no margin interference */}
+          <div
+            className="h-full flex items-center justify-center"
+            style={{ width: "50%" }}
+          >
+            <div
+              className="w-full h-full flex items-center px-8"
+              style={{ color: "var(--reader-text)" }}
+            >
+              <div className="w-full space-y-4 text-xl leading-relaxed">
+                {pages.length > 0 && pages[currentPage] && pages[currentPage].map((paragraphIndex) => (
+                  <div key={paragraphIndex}>
+                    <p>{renderParagraph(paragraphs[paragraphIndex], paragraphIndex)}</p>
+                    {illustrationMap.has(paragraphIndex) && (
+                      <figure className="mt-2 rounded-lg overflow-hidden">
+                        <img
+                          src={`${illustrationMap.get(paragraphIndex)!.image_url}?width=600`}
+                          alt={illustrationMap.get(paragraphIndex)!.scene_description || "段落配图"}
+                          className="w-full max-h-40 object-cover"
+                        />
+                      </figure>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
-
-            {/* Classical quote */}
-            {article.classicalQuote && (
-              <div
-                className="mt-4 py-3 px-4 rounded-xl"
-                style={{
-                  backgroundColor: "var(--reader-surface)",
-                  border: "1px solid var(--reader-border)",
-                }}
-              >
-                <p
-                  className="text-lg font-medium"
-                  style={{ color: "var(--reader-text)" }}
-                >
-                  {article.classicalQuote.original}
-                </p>
-                <p
-                  className="mt-1 text-sm"
-                  style={{ color: "var(--reader-text-muted)" }}
-                >
-                  {article.classicalQuote.pinyin}
-                </p>
-              </div>
-            )}
           </div>
 
-          {/* Cover image - smaller, optional */}
-          {article.coverImageUrl && (
-            <div className="mb-6 -mx-4 lg:mx-0">
-              <img
-                src={`${article.coverImageUrl}?width=800&format=webp&quality=70`}
-                alt={article.title}
-                className="w-full max-h-48 object-cover"
-              />
-            </div>
-          )}
+          {/* Middle divider line */}
+          <div className="w-px h-full" style={{ backgroundColor: "var(--reader-border)" }} />
 
-          {/* Content paragraphs - clean, focused */}
+          {/* Right page - 50% width */}
           <div
-            className={`space-y-4 ${
-              isLowerGrade ? "text-lg leading-relaxed" : "text-base leading-relaxed"
-            }`}
-            style={{ color: "var(--reader-text)" }}
+            className="h-full flex items-center justify-center"
+            style={{ width: "50%" }}
           >
-            {paragraphs.map((paragraph, index) => (
-              <div
-                key={index}
-                data-paragraph-index={index}
-                className={`transition-colors duration-300 ${
-                  activeParagraphIndex === index && activeCharRange
-                    ? "bg-amber-50 rounded-lg px-2 -mx-2 py-1"
-                    : ""
-                }`}
-              >
-                <p>{renderParagraph(paragraph, index)}</p>
-
-                {/* Collapsible illustration */}
-                {illustrationMap.has(index) && (
-                  <details className="mt-3 group">
-                    <summary className="cursor-pointer text-xs text-ink-400 hover:text-ink-600 flex items-center gap-1 list-none">
-                      <span className="transform transition-transform group-open:rotate-90">▶</span>
-                      查看配图
-                    </summary>
-                    <div className="mt-2 rounded-lg overflow-hidden">
-                      <img
-                        src={`${illustrationMap.get(index)!.image_url}?width=400&format=webp&quality=70`}
-                        alt={
-                          illustrationMap.get(index)!.scene_description ||
-                          "段落插图"
-                        }
-                        className="w-full object-cover max-h-40"
-                      />
+            <div
+              className="w-full h-full flex items-center px-8"
+              style={{ color: "var(--reader-text)" }}
+            >
+              <div className="w-full space-y-4 text-xl leading-relaxed">
+                {pages.length > 0 && pages[currentPage + 1] ? (
+                  pages[currentPage + 1].map((paragraphIndex) => (
+                    <div key={paragraphIndex}>
+                      <p>{renderParagraph(paragraphs[paragraphIndex], paragraphIndex)}</p>
+                      {illustrationMap.has(paragraphIndex) && (
+                        <figure className="mt-2 rounded-lg overflow-hidden">
+                          <img
+                            src={`${illustrationMap.get(paragraphIndex)!.image_url}?width=600`}
+                            alt={illustrationMap.get(paragraphIndex)!.scene_description || "段落配图"}
+                            className="w-full max-h-40 object-cover"
+                          />
+                        </figure>
+                      )}
                     </div>
-                  </details>
+                  ))
+                ) : pages.length > 0 && pages[currentPage] ? (
+                  pages[currentPage].map((paragraphIndex) => (
+                    <div key={paragraphIndex}>
+                      <p>{renderParagraph(paragraphs[paragraphIndex], paragraphIndex)}</p>
+                      {illustrationMap.has(paragraphIndex) && (
+                        <figure className="mt-2 rounded-lg overflow-hidden">
+                          <img
+                            src={`${illustrationMap.get(paragraphIndex)!.image_url}?width=600`}
+                            alt={illustrationMap.get(paragraphIndex)!.scene_description || "段落配图"}
+                            className="w-full max-h-40 object-cover"
+                          />
+                        </figure>
+                      )}
+                    </div>
+                  ))
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Portrait single page scroll mode */
+        <div className="max-w-2xl mx-auto px-4 py-6 pb-20 overflow-y-auto">
+          <div className="mb-6">
+            <span className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium mr-2 ${
+              article.language === "en" ? "bg-sky-100 text-sky-700" : "bg-coral-100 text-coral-700"
+            }`}>
+              {article.language === "en" ? "English" : "中文"}
+            </span>
+            <span className="rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
+              {article.category}
+            </span>
+            <h1 className="text-2xl font-bold mt-3" style={{ color: "var(--reader-text)" }}>
+              {article.title}
+            </h1>
+            <div className="mt-2 flex items-center gap-3 text-sm text-ink-500">
+              <span>G{article.gradeLevel}</span>
+              <span>{article.wordCount} words</span>
+              <span>{article.estimatedMinutes} min</span>
+            </div>
+          </div>
+          <div className="space-y-4 text-lg leading-relaxed" style={{ color: "var(--reader-text)" }}>
+            {paragraphs.map((paragraph, index) => (
+              <div key={index}>
+                <p>{renderParagraph(paragraph, index)}</p>
+                {illustrationMap.has(index) && (
+                  <figure className="mt-4 rounded-xl overflow-hidden">
+                    <img
+                      src={`${illustrationMap.get(index)!.image_url}?width=600`}
+                      alt={illustrationMap.get(index)!.scene_description || "段落配图"}
+                      className="w-full max-h-48 object-cover cursor-pointer"
+                    />
+                  </figure>
                 )}
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Bottom simplified toolbar */}
+      <div
+        className="fixed bottom-0 left-0 right-0 h-14 flex items-center justify-center px-4 border-t z-20"
+        style={{
+          backgroundColor: "var(--reader-surface)",
+          borderColor: "var(--reader-border)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        <div className="flex items-center gap-6">
+          {/* Recording button - largest and most prominent */}
+          <button
+            onClick={() => {
+              if (recordingState === 'idle') {
+                void startRecording();
+              } else if (recordingState === 'recording') {
+                pauseRecording();
+              } else if (recordingState === 'paused') {
+                resumeRecording();
+              } else if (recordingState === 'stopped') {
+                setShowRecordingMenu(true);
+              }
+            }}
+            className={`flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-medium transition-all ${
+              recordingState === 'recording'
+                ? 'bg-red-500 text-white shadow-lg'
+                : recordingState === 'stopped'
+                ? 'bg-green-500 text-white shadow-lg'
+                : 'bg-forest-500 text-white shadow-lg hover:bg-forest-600'
+            }`}
+          >
+            {recordingState === 'recording' ? (
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+              </svg>
+            )}
+            <span>
+              {recordingState === 'idle' ? '录音打卡' :
+               recordingState === 'recording' ? '暂停' :
+               recordingState === 'paused' ? '继续' :
+               '已停止'}
+            </span>
+          </button>
+
+          {/* Read aloud button */}
+          <button
+            onClick={handleTTS}
+            className="flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-medium bg-forest-100 text-forest-700 hover:bg-forest-200 transition-all shadow"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            </svg>
+            <span>朗读</span>
+          </button>
+
+          {/* Quiz button */}
+          <button
+            onClick={onStartQuiz}
+            className="flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-all shadow"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            <span>答题</span>
+          </button>
+
+          {/* More button (favorite + settings + font) */}
+          <button
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+            className="p-3 rounded-full hover:bg-gray-100 transition-all"
+            style={{ color: "var(--reader-text-muted)" }}
+            aria-label="更多"
+          >
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="1"/>
+              <circle cx="12" cy="5" r="1"/>
+              <circle cx="12" cy="19" r="1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* More menu */}
+      {showMoreMenu && (
+        <div
+          className="fixed bottom-16 right-4 bg-white rounded-2xl shadow-xl p-2 z-30 min-w-[160px]"
+          onClick={() => setShowMoreMenu(false)}
+        >
+          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-sm text-forest-700">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span>收藏</span>
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-sm text-forest-700">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="4 7 4 4 20 4 20 7"/>
+              <line x1="9" y1="20" x2="15" y2="20"/>
+              <line x1="12" y1="4" x2="12" y2="20"/>
+            </svg>
+            <span>字体大小</span>
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-sm text-forest-700">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33"/>
+            </svg>
+            <span>主题设置</span>
+          </button>
+        </div>
+      )}
+
+      {/* Recording menu modal */}
+      {showRecordingMenu && recordingUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowRecordingMenu(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 w-80 shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-4">录音操作</h3>
+
+            {/* Recording duration */}
+            <div className="text-center mb-4">
+              <span className="text-3xl font-bold text-forest-700">
+                {formatDuration(recordingDuration)}
+              </span>
+            </div>
+
+            {/* Audio playback */}
+            <audio src={recordingUrl} controls className="w-full mb-4" />
+
+            {/* Action buttons */}
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={async () => {
+                  setShowRecordingMenu(false);
+
+                  const result = await uploadRecording();
+
+                  if (result.success) {
+                    setRecordingSubmitted(true);
+                    alert('打卡成功！获得 10 积分 🎉');
+                    setTimeout(() => {
+                      void resetRecording();
+                    }, 2000);
+                  } else {
+                    alert(result.error || '打卡失败，请重试');
+                  }
+                }}
+                disabled={uploading}
+                className="w-full py-3 rounded-xl bg-primary text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {uploading ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    <span>上传中 {uploadProgress}%</span>
+                  </>
+                ) : (
+                  <>
+                    📤 提交打卡
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setShowRecordingMenu(false);
+                  void resetRecording();
+                }}
+                className="w-full py-3 rounded-xl bg-coral-100 text-coral-700 font-medium"
+              >
+                🔄 重新录音
+              </button>
+              <button
+                onClick={() => setShowRecordingMenu(false)}
+                className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 font-medium"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
-
-// ---------------------------------------------------------------------------
-// Page Flip Content Component
-// ---------------------------------------------------------------------------
-
-interface Illustration {
-  paragraph_index: number;
-  image_url: string;
-  scene_description?: string;
-}
-
-interface PageFlipContentProps {
-  paragraphs: string[];
-  renderParagraph: (text: string, paragraphIndex: number) => React.ReactNode;
-  illustrationMap: Map<number, Illustration>;
-  activeParagraphIndex: number | null;
-  activeCharRange: [number, number] | null;
-  isLowerGrade: boolean;
-}
-
-function PageFlipContent({
-  paragraphs,
-  renderParagraph,
-  illustrationMap,
-  activeParagraphIndex,
-  activeCharRange,
-  isLowerGrade,
-}: PageFlipContentProps) {
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pages, setPages] = useState<number[][]>([]);
-  const [showNav, setShowNav] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const measureRef = useRef<HTMLDivElement>(null);
-  const navTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-
-  // Measure and paginate paragraphs
-  useEffect(() => {
-    if (!measureRef.current) return;
-
-    const measureEl = measureRef.current;
-    // Clear previous content
-    measureEl.innerHTML = "";
-
-    const pageHeight = measureEl.clientHeight;
-    if (pageHeight <= 0) return;
-
-    const newPages: number[][] = [];
-    let currentPageIndices: number[] = [];
-    let currentHeight = 0;
-
-    for (let i = 0; i < paragraphs.length; i++) {
-      // Measure paragraph
-      const pDiv = document.createElement("div");
-      pDiv.className = isLowerGrade ? "text-lg leading-relaxed" : "text-base leading-relaxed";
-      pDiv.style.width = "100%";
-      const pEl = document.createElement("p");
-      pEl.className = "py-1";
-      pEl.textContent = paragraphs[i];
-      pDiv.appendChild(pEl);
-
-      // Measure illustration if present
-      if (illustrationMap.has(i)) {
-        const illDiv = document.createElement("div");
-        illDiv.className = "mt-4 overflow-hidden rounded-xl";
-        const img = document.createElement("img");
-        img.src = `${illustrationMap.get(i)!.image_url}?width=400&format=webp&quality=70`;
-        img.alt = illustrationMap.get(i)!.scene_description || "段落配图";
-        img.className = "w-full object-cover";
-        img.style.maxHeight = "120px";
-        illDiv.appendChild(img);
-        pDiv.appendChild(illDiv);
-      }
-
-      measureEl.appendChild(pDiv);
-      const height = pDiv.offsetHeight;
-      measureEl.removeChild(pDiv);
-
-      // Check if adding this paragraph would overflow the page
-      // Allow at least one paragraph per page even if it overflows
-      if (currentPageIndices.length > 0 && currentHeight + height > pageHeight) {
-        newPages.push(currentPageIndices);
-        currentPageIndices = [i];
-        currentHeight = height;
-      } else {
-        currentPageIndices.push(i);
-        currentHeight += height;
-      }
-    }
-
-    if (currentPageIndices.length > 0) {
-      newPages.push(currentPageIndices);
-    }
-
-    setPages(newPages);
-    setCurrentPage(0);
-  }, [paragraphs, illustrationMap, isLowerGrade]);
-
-  // Navigation handlers
-  const goNext = useCallback(() => {
-    setCurrentPage((p) => Math.min(p + 1, pages.length - 1));
-  }, [pages.length]);
-
-  const goPrev = useCallback(() => {
-    setCurrentPage((p) => Math.max(p - 1, 0));
-  }, []);
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") goNext();
-      if (e.key === "ArrowLeft") goPrev();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [goNext, goPrev]);
-
-  // Auto-hide nav after 2s of inactivity
-  const showNavTemporarily = useCallback(() => {
-    setShowNav(true);
-    if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
-    navTimeoutRef.current = setTimeout(() => setShowNav(false), 2000);
-  }, []);
-
-  // Touch handlers
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-    };
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
-    const dx = touchStartRef.current.x - e.changedTouches[0].clientX;
-    if (Math.abs(dx) > 50) {
-      if (dx > 0) goNext();
-      else goPrev();
-    }
-    touchStartRef.current = null;
-  };
-
-  // Click zone handlers
-  const handleClick = (e: React.MouseEvent) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-    if (x < width * 0.25) goPrev();
-    else if (x > width * 0.75) goNext();
-  };
-
-  // Cleanup nav timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (navTimeoutRef.current) clearTimeout(navTimeoutRef.current);
-    };
-  }, []);
-
-  return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-[calc(100vh-10rem)] overflow-hidden"
-      onClick={handleClick}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onMouseMove={showNavTemporarily}
-    >
-      {/* Hidden measurement container */}
-      <div
-        ref={measureRef}
-        style={{
-          position: "fixed",
-          visibility: "hidden",
-          pointerEvents: "none",
-          zIndex: -1,
-          width: "calc(100% - 8rem)",
-          maxWidth: "calc(48rem - 4rem)",
-          height: "calc(100vh - 14rem)",
-          padding: "2rem",
-          fontSize: "1rem",
-          lineHeight: "1.75",
-          overflow: "hidden",
-        }}
-      />
-
-      {/* Pages */}
-      <div
-        className="flex h-full"
-        style={{
-          transform: `translateX(calc(-${currentPage} * 100%))`,
-          transition: "transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        }}
-      >
-        {pages.map((pageIndices, pageIdx) => (
-          <div
-            key={pageIdx}
-            className="flex-shrink-0 w-full h-full px-4 flex items-center justify-center"
-          >
-            <div
-              className="w-full h-full max-w-3xl rounded-lg overflow-hidden shadow-lg"
-              style={{
-                backgroundColor: "var(--reader-surface)",
-                color: "var(--reader-text)",
-              }}
-            >
-              <div className="h-full overflow-hidden p-6">
-                <div
-                  className={`space-y-3 ${
-                    isLowerGrade ? "text-lg leading-relaxed" : "text-base leading-relaxed"
-                  }`}
-                >
-                  {pageIndices.map((idx) => (
-                    <div
-                      key={idx}
-                      data-paragraph-index={idx}
-                      className={`transition-colors duration-300 ${
-                        activeParagraphIndex === idx && activeCharRange
-                          ? "bg-amber-50 rounded-lg px-2 -mx-2 py-1"
-                          : ""
-                      }`}
-                    >
-                      <p>{renderParagraph(paragraphs[idx], idx)}</p>
-                      {illustrationMap.has(idx) && (
-                        <details className="mt-2 group">
-                          <summary className="cursor-pointer text-xs text-ink-400 hover:text-ink-600 list-none flex items-center gap-1">
-                            <span className="transform transition-transform group-open:rotate-90">▶</span>
-                            查看配图
-                          </summary>
-                          <img
-                            src={`${illustrationMap.get(idx)!.image_url}?width=400&format=webp&quality=70`}
-                            alt={illustrationMap.get(idx)!.scene_description || "段落配图"}
-                            className="mt-2 w-full object-cover rounded-lg"
-                            style={{ maxHeight: "120px" }}
-                          />
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Navigation overlay */}
-      <div
-        className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${
-          showNav ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        {/* Left arrow */}
-        {currentPage > 0 && (
-          <div className="absolute left-4 top-1/2 -translate-y-1/2">
-            <span className="text-3xl opacity-50">◀</span>
-          </div>
-        )}
-        {/* Right arrow */}
-        {currentPage < pages.length - 1 && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2">
-            <span className="text-3xl opacity-50">▶</span>
-          </div>
-        )}
-        {/* Page indicator */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3">
-          <span className="text-sm opacity-70">
-            {currentPage + 1} / {pages.length}
-          </span>
-          <div className="flex gap-1">
-            {pages.map((_, i) => (
-              <div
-                key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i === currentPage ? "bg-primary" : "bg-ink-300"
-                }`}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
