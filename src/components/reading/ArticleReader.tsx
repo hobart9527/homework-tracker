@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useReadingProgress } from "./useReadingProgress";
 import { useRouter } from "next/navigation";
+import { useReaderTheme, resolveTheme, type FontSize } from "./ReaderThemeContext";
 
 export interface ArticleReaderArticle {
   id: string;
@@ -47,9 +47,20 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 ) {
   const router = useRouter();
   const supabase = createClient();
+  const { theme: readerThemeContext, setTheme, fontSize: fontSizeContext, setFontSize, lineHeight, setLineHeight } = useReaderTheme();
+  const resolvedTheme = resolveTheme(readerThemeContext);
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [ttsPaused, setTtsPaused] = useState(false);
   const [ttsSupported, setTtsSupported] = useState(true);
+  const [ttsRate, setTtsRate] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = window.localStorage.getItem('hw-tts-rate');
+        if (saved !== null) return parseFloat(saved);
+      } catch {}
+    }
+    return 1.0;
+  });
   const [activeParagraphIndex, setActiveParagraphIndex] = useState<number | null>(null);
   const [activeCharRange, setActiveCharRange] = useState<[number, number] | null>(null);
   const [dictLookup, setDictLookup] = useState<{
@@ -104,6 +115,35 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     }
   }, [orientationLocked]);
 
+  // Persist TTS rate changes and restart if playing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem('hw-tts-rate', String(ttsRate));
+      } catch {}
+    }
+    // If TTS is currently playing (not paused), restart with new rate
+    if (ttsPlaying && !ttsPaused && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const timer = setTimeout(() => {
+        handleTTS();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [ttsRate]);
+
+  // Map context font size to pixel values
+  const fontSizePx = useMemo(() => {
+    const map: Record<FontSize, number> = { small: 18, medium: 20, large: 22, xlarge: 26 };
+    return map[fontSizeContext];
+  }, [fontSizeContext]);
+
+  // Map context line height to CSS values
+  const lineHeightValue = useMemo(() => {
+    const map: Record<import("./ReaderThemeContext").LineHeight, string> = { compact: '1.7', standard: '2.0', loose: '2.3' };
+    return map[lineHeight];
+  }, [lineHeight]);
+
   // Recording control functions
   const formatDuration = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -113,6 +153,12 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
   const startRecording = async () => {
     try {
+      // Check for secure context (HTTPS or localhost)
+      if (!window.isSecureContext) {
+        alert('录音功能需要在安全的网络环境下使用（请使用 HTTPS 或 localhost）');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
@@ -140,9 +186,16 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       timerRef.current = setInterval(() => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('录音失败:', error);
-      alert('无法访问麦克风，请检查权限设置');
+      const err = error as Error & { name?: string };
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        alert('麦克风权限被拒绝，请在浏览器设置中允许访问麦克风。\n设置路径：浏览器设置 → 隐私与安全 → 麦克风');
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        alert('未找到麦克风设备，请连接麦克风后重试。');
+      } else {
+        alert('无法访问麦克风，请检查权限设置或刷新页面重试。');
+      }
     }
   };
 
@@ -165,8 +218,9 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current?.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop();
       if (timerRef.current) clearInterval(timerRef.current);
     }
     setRecordingState('stopped');
@@ -301,11 +355,22 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       : article.content;
 
   const paragraphs = useMemo(() => {
-    return displayContent
-      .split(/\n+/)
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-  }, [displayContent]);
+    // First split by newlines
+    let rawParagraphs = displayContent.split(/\n+/).map((p) => p.trim()).filter((p) => p.length > 0);
+    
+    // For English articles with long paragraphs (no newlines), try to split by sentences
+    // This ensures pagination works for English content
+    if (article.language === "en" && rawParagraphs.length <= 3 && displayContent.length > 500) {
+      // Split by period followed by space or common delimiters
+      rawParagraphs = displayContent
+        .split(/(?<=[.!?])\s+/)
+        .map((p) => p.trim())
+        .filter((p) => p.length > 30) // Only keep meaningful sentences
+        .slice(0, 20); // Limit to 20 chunks max
+    }
+    
+    return rawParagraphs;
+  }, [displayContent, article.language]);
 
   const illustrationMap = useMemo(() => {
     const map = new Map<
@@ -318,74 +383,63 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     return map;
   }, [article.illustrations]);
 
-  // Page navigation for landscape mode
+// Page navigation - single page pagination
   const [currentPage, setCurrentPage] = useState(0);
-  const pageSize = useMemo(() => Math.ceil(paragraphs.length / 2), [paragraphs.length]);
-  const totalPages = useMemo(() => Math.ceil(paragraphs.length / pageSize), [paragraphs.length, pageSize]);
+  const [paragraphsPerPage, setParagraphsPerPage] = useState(4);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // Split paragraphs into pages (2 paragraphs per "page view" in landscape)
-  const pages = useMemo(() => {
-    const result: number[][] = [];
-    for (let i = 0; i < paragraphs.length; i += pageSize) {
-      result.push(paragraphs.slice(i, i + pageSize).map((_, idx) => i + idx));
-    }
-    return result;
-  }, [paragraphs, pageSize]);
-
-  const goNext = useCallback(() => {
-    if (currentPage < totalPages - 1) {
-      setCurrentPage(prev => prev + 1);
-    }
-  }, [currentPage, totalPages]);
-
-  const goPrev = useCallback(() => {
-    if (currentPage > 0) {
-      setCurrentPage(prev => prev - 1);
-    }
-  }, [currentPage]);
-
-  const handlePageClick = useCallback((e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-
-    if (x < width * 0.25) {
-      goPrev();
-    } else if (x > width * 0.75) {
-      goNext();
-    }
-  }, [goNext, goPrev]);
-
-  const { progress, currentParagraph } = useReadingProgress(
-    article.id,
-    paragraphs.length
-  );
-
-  // Auto-scroll to saved position on initial load (scroll mode only)
-  const hasScrolledRef = useRef(false);
+  // Calculate paragraphs per page - more conservative approach
   useEffect(() => {
-    if (
-      isLandscape ||
-      hasScrolledRef.current ||
-      currentParagraph === 0 ||
-      paragraphs.length === 0
-    ) {
-      return;
-    }
-
-    // Delay slightly to ensure DOM is ready
-    const timer = setTimeout(() => {
-      const target = document.querySelector(
-        `[data-paragraph-index="${currentParagraph}"]`
-      );
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "center" });
-        hasScrolledRef.current = true;
+    const calculate = () => {
+      if (!contentRef.current || paragraphs.length === 0) return;
+      
+      const containerHeight = contentRef.current.clientHeight;
+      const lineHeightPx = fontSizePx * parseFloat(lineHeightValue);
+      
+      // Title height on first page
+      const titleHeight = currentPage === 0 ? 120 : 0;
+      const availableHeight = containerHeight - titleHeight;
+      
+      // More conservative: assume each paragraph needs ~3 lines of space
+      const linesPerParagraph = 3;
+      const paragraphHeight = lineHeightPx * linesPerParagraph + 24; // + margin
+      
+      // Calculate max paragraphs that fit
+      const maxFit = Math.floor(availableHeight / paragraphHeight);
+      
+      // Use conservative value: between 3-6 paragraphs per page
+      const paragraphsToUse = Math.max(3, Math.min(6, maxFit));
+      
+      // Only update if significantly different to avoid thrashing
+      if (Math.abs(paragraphsToUse - paragraphsPerPage) >= 1) {
+        setParagraphsPerPage(paragraphsToUse);
       }
-    }, 300);
+    };
+    
+    const timer = setTimeout(calculate, 150);
+    window.addEventListener('resize', calculate);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', calculate);
+    };
+  }, [paragraphs.length, fontSizePx, lineHeightValue, currentPage]);
 
-    return () => clearTimeout(timer);
-  }, [isLandscape, currentParagraph, paragraphs.length]);
+  const totalPages = Math.max(1, Math.ceil(paragraphs.length / paragraphsPerPage));
+
+  const goToPage = useCallback((page: number) => {
+    if (page < 0 || page >= totalPages) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setCurrentPage(page);
+      setIsTransitioning(false);
+    }, 150);
+  }, [totalPages]);
+
+  const pageParagraphs = useMemo(() => {
+    const start = currentPage * paragraphsPerPage;
+    return paragraphs.slice(start, start + paragraphsPerPage);
+  }, [currentPage, paragraphsPerPage, paragraphs]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !window.speechSynthesis) {
@@ -401,117 +455,225 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     };
   }, []);
 
-  // Helper function to get pinyin for a character
+  // Helper function to get pinyin for a character from pinyinContent
   const getPinyinForChar = useCallback((char: string): string => {
     if (!article.pinyinContent) return "";
-    // Simple regex to find pinyin for a character
     const escapedChar = char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`([${escapedChar}])\\(([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+)\\)`, 'g');
+    const regex = new RegExp(`${escapedChar}\\(([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\\s]+)\\)`, 'g');
     const match = regex.exec(article.pinyinContent);
-    return match ? match[2] : "";
+    return match ? match[1] : "";
   }, [article.pinyinContent]);
 
   // Handle text click for dictionary lookup
-  const handleTextClick = useCallback((e: React.MouseEvent, text: string) => {
-    // Get click position
-    const rect = e.currentTarget.getBoundingClientRect();
-
-    // For Chinese text, try to get the clicked character
-    if (article.language === "zh" && article.pinyinContent) {
-      // Use a simple approach - find which character was clicked based on position
-      // Strip pinyin markers for character count
-      const cleanText = text.replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, '');
-      const clickX = e.clientX - rect.left;
-      const avgCharWidth = rect.width / cleanText.length;
-      const charIndex = Math.floor(clickX / avgCharWidth);
-      const clickedChar = cleanText[charIndex];
-
-      if (clickedChar) {
-        setDictLookup({
-          word: clickedChar,
-          x: e.clientX,
-          y: e.clientY,
-        });
+  const handleTextClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // Use caretPositionFromPoint (standard) or caretRangeFromPoint (WebKit) to get clicked word
+    let clickedText = '';
+    
+    if (document.caretPositionFromPoint) {
+      const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos && pos.offsetNode && pos.offsetNode.nodeType === Node.TEXT_NODE) {
+        const textNode = pos.offsetNode as Text;
+        const offset = pos.offset;
+        const text = textNode.textContent || '';
+        // Get the word/character at this position
+        const before = text.slice(0, offset);
+        const after = text.slice(offset);
+        const beforeWord = before.match(/[\u4e00-\u9fa5a-zA-Z]+$/)?.[0] || '';
+        const afterWord = after.match(/^[\u4e00-\u9fa5a-zA-Z]+/)?.[0] || '';
+        clickedText = beforeWord + afterWord;
       }
-    } else {
-      // For English, use word splitting
-      const selection = window.getSelection();
-      const word = selection?.toString().trim() || text.split(' ')[0] || "";
-      if (word) {
-        setDictLookup({
-          word,
-          x: e.clientX,
-          y: e.clientY,
-        });
+    } else if ((document as any).caretRangeFromPoint) {
+      const range = (document as any).caretRangeFromPoint(e.clientX, e.clientY);
+      if (range && range.startContainer.nodeType === Node.TEXT_NODE) {
+        const textNode = range.startContainer as Text;
+        const offset = range.startOffset;
+        const text = textNode.textContent || '';
+        const before = text.slice(0, offset);
+        const after = text.slice(offset);
+        const beforeWord = before.match(/[\u4e00-\u9fa5a-zA-Z]+$/)?.[0] || '';
+        const afterWord = after.match(/^[\u4e00-\u9fa5a-zA-Z]+/)?.[0] || '';
+        clickedText = beforeWord + afterWord;
       }
     }
-  }, [article.language, article.pinyinContent]);
+    
+    if (!clickedText) return;
+
+    // For Chinese, get single character; for English, get the word
+    let word: string;
+    if (/[\u4e00-\u9fa5]/.test(clickedText)) {
+      word = clickedText.match(/[\u4e00-\u9fa5]/)?.[0] || clickedText[0];
+    } else {
+      word = clickedText.split(/\s+/)[0] || clickedText;
+    }
+
+    if (word) {
+      setDictLookup({
+        word,
+        x: e.clientX,
+        y: e.clientY,
+      });
+    }
+  }, []);
 
   const handleTTS = useCallback(() => {
     if (!window.speechSynthesis) return;
 
-    if (ttsPlaying && !ttsPaused) {
-      window.speechSynthesis.pause();
-      setTtsPaused(true);
+    // If playing, toggle pause/resume
+    if (ttsPlaying) {
+      if (!ttsPaused) {
+        window.speechSynthesis.pause();
+        // Record pause time for highlight tracking
+        const u = utteranceRef.current as any;
+        if (u?._recordPause) u._recordPause();
+        setTtsPaused(true);
+      } else {
+        window.speechSynthesis.resume();
+        // Record resume time for highlight tracking
+        const u = utteranceRef.current as any;
+        if (u?._recordResume) u._recordResume();
+        setTtsPaused(false);
+      }
       return;
     }
 
-    if (ttsPaused) {
-      window.speechSynthesis.resume();
-      setTtsPaused(false);
-      return;
-    }
-
+    // Start new playback
     window.speechSynthesis.cancel();
 
-    const ttsContent =
-      article.language === "zh" && article.pinyinContent
-        ? article.pinyinContent.replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, "")
-        : article.content;
+    // Build clean text (no pinyin markers) for each paragraph
+    const cleanParagraphs: string[] = [];
+    if (article.language === "zh" && article.pinyinContent) {
+      for (const p of paragraphs) {
+        cleanParagraphs.push(p.replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, ''));
+      }
+    } else {
+      cleanParagraphs.push(...paragraphs);
+    }
 
-    const utterance = new SpeechSynthesisUtterance(ttsContent);
-    utterance.lang = article.language === "zh" ? "zh-CN" : "en-US";
-    utterance.rate = article.gradeLevel <= 3 ? 0.8 : 1.0;
+    // Join with single space for TTS (consistent with cleanContent)
+    const cleanContent = cleanParagraphs.join(' ');
+    const totalChars = cleanContent.length;
 
-    // Track character position for word-level highlighting
-    utterance.onboundary = (event) => {
-      const charIndex = event.charIndex;
+    // Build paragraph offset map for cleanContent
+    const paraOffsets: { start: number; end: number }[] = [];
+    let offset = 0;
+    for (let p = 0; p < cleanParagraphs.length; p++) {
+      const paraLen = cleanParagraphs[p].length;
+      paraOffsets.push({ start: offset, end: offset + paraLen });
+      offset += paraLen + 1; // +1 for space separator
+    }
 
-      // Find which paragraph and the offset within that paragraph
-      let charCount = 0;
-      for (let i = 0; i < paragraphs.length; i++) {
-        // Add 1 for the newline separator
-        const paragraphLength = paragraphs[i].length + 1;
-        if (charIndex < charCount + paragraphLength) {
-          const offsetInParagraph = charIndex - charCount;
-          setActiveParagraphIndex(i);
-          setActiveCharRange([offsetInParagraph, offsetInParagraph + 1]);
+    // Pre-split content into words for English tracking
+    const words: { text: string; start: number; end: number }[] = [];
+    let charIndex = 0;
+    cleanContent.split(/(\s+)/).forEach(segment => {
+      if (segment.trim()) {
+        words.push({ text: segment.trim(), start: charIndex, end: charIndex + segment.length });
+      }
+      charIndex += segment.length;
+    });
+
+    // Calculate estimated duration based on character count and rate
+    // Chinese needs faster estimation to match actual TTS
+    const charsPerSecond = article.language === "zh" ? 5 * ttsRate : 15 * ttsRate;
+    const estimatedDurationMs = Math.max(2000, (totalChars / charsPerSecond) * 1000);
+
+    // Time-based tracking for Chinese (more reliable than onboundary)
+    let startTime = 0;
+    let pausedAt = 0;
+    let totalPausedMs = 0;
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+
+    const updateHighlight = () => {
+      // Don't update highlight if TTS is paused
+      if (ttsPaused || !window.speechSynthesis || window.speechSynthesis.paused) {
+        return;
+      }
+      // Subtract pause time from elapsed
+      const elapsed = Date.now() - startTime - totalPausedMs;
+      const progress = Math.min(elapsed / estimatedDurationMs, 1);
+      const currentCharIndex = Math.floor(progress * totalChars);
+
+      // Find which paragraph this charIndex belongs to
+      for (let p = 0; p < paraOffsets.length; p++) {
+        const { start, end } = paraOffsets[p];
+        if (currentCharIndex >= start && currentCharIndex < end) {
+          setActiveParagraphIndex(p);
+          const charInPara = currentCharIndex - start;
+          // For Chinese, highlight current character; for English, highlight current word
+          if (article.language === "zh") {
+            setActiveCharRange([charInPara, charInPara + 1]);
+          } else {
+            for (let i = 0; i < words.length; i++) {
+              if (currentCharIndex >= words[i].start && currentCharIndex < words[i].end) {
+                setActiveCharRange([words[i].start - start, words[i].end - start]);
+                break;
+              }
+            }
+          }
           return;
         }
-        charCount += paragraphLength;
       }
     };
 
+    const utterance = new SpeechSynthesisUtterance(cleanContent);
+    utterance.lang = article.language === "zh" ? "zh-CN" : "en-US";
+    utterance.rate = ttsRate;
+
+    utterance.onstart = () => {
+      startTime = Date.now();
+      totalPausedMs = 0;
+      const intervalMs = 100; // Faster updates for smoother cursor
+      progressInterval = setInterval(updateHighlight, intervalMs);
+    };
+
+    // Expose pause tracking for handleTTS pause/resume
+    (utterance as any)._getPauseInfo = () => ({ pausedAt, totalPausedMs });
+    (utterance as any)._recordPause = () => { pausedAt = Date.now(); };
+    (utterance as any)._recordResume = () => { totalPausedMs += Date.now() - pausedAt; };
+
+    utterance.onboundary = (event) => {
+      // Use onboundary for English (reliable), time-based for Chinese
+      if (article.language !== "zh") {
+        for (let p = 0; p < paraOffsets.length; p++) {
+          const { start, end } = paraOffsets[p];
+          if (event.charIndex >= start && event.charIndex < end) {
+            setActiveParagraphIndex(p);
+            for (let i = 0; i < words.length; i++) {
+              if (event.charIndex >= words[i].start && event.charIndex < words[i].end) {
+                setActiveCharRange([words[i].start - start, words[i].end - start]);
+                break;
+              }
+            }
+            return;
+          }
+        }
+      }
+    };
+
+    const cleanup = () => {
+      if (progressInterval) clearInterval(progressInterval);
+      setActiveCharRange(null);
+      setActiveParagraphIndex(null);
+    };
+
     utterance.onend = () => {
+      cleanup();
       setTtsPlaying(false);
       setTtsPaused(false);
-      setActiveParagraphIndex(null);
-      setActiveCharRange(null);
     };
     utterance.onerror = () => {
+      cleanup();
       setTtsPlaying(false);
       setTtsPaused(false);
-      setActiveParagraphIndex(null);
-      setActiveCharRange(null);
     };
 
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
     setTtsPlaying(true);
     setTtsPaused(false);
-    setActiveParagraphIndex(0);
-    setActiveCharRange([0, 1]);
-  }, [article.content, article.pinyinContent, article.language, article.gradeLevel, ttsPlaying, ttsPaused, paragraphs]);
+  }, [article, ttsPlaying, ttsPaused, ttsRate, paragraphs]);
 
   const handleTTSStop = useCallback(() => {
     if (window.speechSynthesis) {
@@ -519,8 +681,8 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     }
     setTtsPlaying(false);
     setTtsPaused(false);
-    setActiveParagraphIndex(null);
     setActiveCharRange(null);
+    setActiveParagraphIndex(null);
   }, []);
 
   useImperativeHandle(
@@ -541,46 +703,65 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     // For Chinese with pinyin, use existing ruby rendering
     if (article.language === "zh" && article.pinyinContent) {
       const parts: React.ReactNode[] = [];
-      const regex = /([一-鿿])\(([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+)\)/g;
+      // Match one or more Chinese characters followed by pinyin in parentheses
+      const regex = /([一-鿿]+)\(([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+)\)/g;
       let lastIndex = 0;
       let match: RegExpExecArray | null;
       let key = 0;
-
-      // Calculate clean text positions for character highlighting
-      const cleanText = text.replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, (m, char, pinyin) => char);
+      // Track position in clean text (without pinyin markers)
+      let cleanPos = 0;
 
       while ((match = regex.exec(text)) !== null) {
+        // Text before this match (non-Chinese characters)
         if (match.index > lastIndex) {
+          const nonChinese = text.slice(lastIndex, match.index);
+          cleanPos += nonChinese.length;
           parts.push(
-            <span key={key++} onClick={(e) => handleTextClick(e, text)}>
-              {text.slice(lastIndex, match.index)}
+            <span key={key++} onClick={handleTextClick}>
+              {nonChinese}
             </span>
           );
         }
 
-        // Check if this character is within the active char range
-        const charPosition = match.index - text.slice(0, match.index).replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, (m) => m.slice(0, 1)).length;
-        const isActive = activeParagraphIndex === paragraphIndex &&
-                        activeCharRange &&
-                        charPosition >= activeCharRange[0] &&
-                        charPosition < activeCharRange[1];
+        const chars = match[1];
+        const pinyinStr = match[2];
+        // Split pinyin by spaces; if no spaces, split into individual pinyin
+        const pinyins = pinyinStr.includes(' ') 
+          ? pinyinStr.split(/\s+/).filter(Boolean)
+          : chars.length === 1 
+            ? [pinyinStr]
+            : pinyinStr.match(/[a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+/g) || [pinyinStr];
 
-        parts.push(
-          <ruby key={key++} className="ruby-pinyin" onClick={(e) => handleTextClick(e, text)}>
-            {isActive ? (
-              <mark className="bg-amber-200 rounded px-0.5">{match[1]}</mark>
-            ) : (
-              match[1]
-            )}
-            <rt>{match[2]}</rt>
-          </ruby>
-        );
+        // Render each character with its pinyin
+        for (let i = 0; i < chars.length; i++) {
+          const char = chars[i];
+          const py = pinyins[i] || '';
+          // Check against clean text position
+          const isActive = activeParagraphIndex === paragraphIndex &&
+                          activeCharRange &&
+                          cleanPos + i >= activeCharRange[0] &&
+                          cleanPos + i < activeCharRange[1];
+
+          parts.push(
+            <ruby key={key++} className="ruby-pinyin" onClick={handleTextClick}>
+              {isActive ? (
+                <mark className="bg-amber-200 rounded px-0.5">{char}</mark>
+              ) : (
+                char
+              )}
+              <rp>(</rp><rt>{py}</rt><rp>)</rp>
+            </ruby>
+          );
+        }
+        // Advance clean position by number of Chinese characters
+        cleanPos += chars.length;
         lastIndex = regex.lastIndex;
       }
       if (lastIndex < text.length) {
+        const remaining = text.slice(lastIndex);
         parts.push(
-          <span key={key++} onClick={(e) => handleTextClick(e, text)}>
-            {text.slice(lastIndex)}
+          <span key={key++} onClick={handleTextClick}>
+            {remaining}
           </span>
         );
       }
@@ -589,19 +770,25 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
     // For English or Chinese without pinyin, render with word highlighting
     if (activeParagraphIndex === paragraphIndex && activeCharRange) {
-      // Split text and highlight the active character range
-      const before = text.slice(0, activeCharRange[0]);
-      const active = text.slice(activeCharRange[0], activeCharRange[1]);
-      const after = text.slice(activeCharRange[1]);
-      return (
-        <>
-          <span onClick={(e) => handleTextClick(e, text)}>{before}</span>
-          <mark className="bg-amber-200 rounded px-0.5" onClick={(e) => handleTextClick(e, text)}>{active}</mark>
-          <span onClick={(e) => handleTextClick(e, text)}>{after}</span>
-        </>
-      );
+      const paraText = text;
+      const paraStartInContent = paragraphs.slice(0, paragraphIndex).reduce((acc, p) => acc + p.length + 1, 0);
+      const wordStartInPara = activeCharRange[0] - paraStartInContent;
+      const wordEndInPara = activeCharRange[1] - paraStartInContent;
+
+      if (wordStartInPara >= 0 && wordEndInPara <= paraText.length) {
+        const before = paraText.slice(0, wordStartInPara);
+        const active = paraText.slice(wordStartInPara, wordEndInPara);
+        const after = paraText.slice(wordEndInPara);
+        return (
+          <>
+            <span onClick={handleTextClick}>{before}</span>
+            <mark className="bg-amber-200 rounded px-0.5" onClick={handleTextClick}>{active}</mark>
+            <span onClick={handleTextClick}>{after}</span>
+          </>
+        );
+      }
     }
-    return <span onClick={(e) => handleTextClick(e, text)}>{text}</span>;
+    return <span onClick={handleTextClick}>{text}</span>;
   };
 
   return (
@@ -609,269 +796,271 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       {/* Ruby text alignment fix */}
       <style dangerouslySetInnerHTML={{
         __html: `
-          .ruby-pinyin {
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            vertical-align: baseline;
-            line-height: 1.2;
-            margin: 0 0.02em;
+          ruby {
+            ruby-position: over;
+            ruby-align: center;
+            margin-right: 0.12em;
           }
-          .ruby-pinyin > *:first-child {
-            order: 1;
-            line-height: 1.4;
+          ruby:last-child {
+            margin-right: 0;
           }
-          .ruby-pinyin > rt {
-            order: 0;
-            font-size: 0.45em;
-            color: #9ca3af;
-            line-height: 1.1;
+          rt {
+            font-size: 0.55em;
+            color: var(--reader-text-muted);
             text-align: center;
-            padding: 0 0.1em;
-            margin-bottom: 0.15em;
             white-space: nowrap;
+            letter-spacing: 0;
+            line-height: 1.3;
+            font-family: 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif;
+            margin-bottom: 0.05em;
+          }
+          .ruby-pinyin {
+            ruby-position: over;
+          }
+          .ruby-pinyin rt {
+            font-size: 0.55em;
+            color: var(--reader-text-muted);
+          }
+          .page-transition {
+            opacity: 0;
+            transform: translateX(12px);
+          }
+          .page-transition-enter {
+            opacity: 1;
+            transform: translateX(0);
+            transition: opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+          }
+          .reader-paragraph {
+            margin-bottom: 1.2em;
+            text-indent: 2em;
+            letter-spacing: 0.06em;
+            word-spacing: 0.08em;
+            line-height: 2.2;
+          }
+          .reader-paragraph + .reader-paragraph {
+            margin-top: 0;
+          }
+          mark.tts-highlight {
+            background-color: var(--reader-highlight);
+            color: var(--reader-accent);
+            border-radius: 2px;
+            padding: 0 1px;
+            transition: background-color 0.15s ease;
           }
         `
       }} />
 
-      {/* Top bar - h-12, 48px */}
+      {/* Top bar - minimal, fades into background */}
       <div
-        className="sticky top-0 z-20 h-12 backdrop-blur-md flex items-center justify-between px-4 border-b"
+        className="sticky top-0 z-20 h-10 backdrop-blur-md flex items-center justify-between px-4"
         style={{
           backgroundColor: "var(--reader-surface)",
-          borderColor: "var(--reader-border)",
+          borderBottom: "1px solid var(--reader-border)",
         }}
       >
         {/* Left: Back */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-1 text-sm"
+          className="flex items-center gap-1 text-xs"
           style={{ color: "var(--reader-text-muted)" }}
         >
           ← 返回
         </button>
 
-        {/* Center: Title */}
-        <h1
-          className="text-sm font-medium truncate max-w-[40%] mx-4"
-          style={{ color: "var(--reader-text)" }}
-        >
-          {article.title}
-        </h1>
+        {/* Center: Page indicator */}
+        {totalPages > 1 && (
+          <span className="text-xs font-medium" style={{ color: "var(--reader-text-muted)" }}>
+            {currentPage + 1} / {totalPages}
+          </span>
+        )}
 
-        {/* Right: Difficulty label + Orientation lock + Recording status */}
+        {/* Right: Recording status (only when active) */}
         <div className="flex items-center gap-2">
-          {/* Recording submitted status */}
           {recordingSubmitted && (
-            <span className="text-sm text-green-600 flex items-center gap-1">
+            <span className="text-xs text-green-600">
               ✅ 已打卡
             </span>
           )}
-          {/* Recording status */}
           {recordingState !== 'idle' && (
-            <div className="flex items-center gap-2">
-              {recordingState === 'recording' && (
-                <span className="flex items-center gap-1 text-sm text-red-500">
-                  <span className="animate-pulse">●</span>
-                  <span>{formatDuration(recordingDuration)}</span>
-                </span>
-              )}
-              {recordingState === 'paused' && (
-                <span className="text-sm" style={{ color: "var(--reader-text-muted)" }}>
-                  ⏸ {formatDuration(recordingDuration)}
-                </span>
-              )}
-              {recordingState === 'stopped' && (
-                <span className="text-sm text-green-600">
-                  ✅ {formatDuration(recordingDuration)}
-                </span>
-              )}
-            </div>
+            <span className={`text-xs ${recordingState === 'recording' ? 'text-red-500' : recordingState === 'paused' ? '' : 'text-green-600'}`} style={{ color: recordingState === 'paused' ? 'var(--reader-text-muted)' : undefined }}>
+              {recordingState === 'recording' ? `● ${formatDuration(recordingDuration)}` : recordingState === 'paused' ? `⏸ ${formatDuration(recordingDuration)}` : `✅ ${formatDuration(recordingDuration)}`}
+            </span>
           )}
-          <span
-            className="rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary"
-          >
-            G{article.gradeLevel}
-          </span>
-          <button
-            onClick={toggleOrientationLock}
-            className="text-lg"
-            style={{
-              color: orientationLocked
-                ? "var(--reader-accent)"
-                : "var(--reader-text-muted)",
-            }}
-            aria-label={orientationLocked ? "解锁屏幕方向" : "锁定屏幕方向"}
-          >
-            {orientationLocked ? "🔒" : "🔓"}
-          </button>
         </div>
-      </div>
-
-      {/* Progress bar - thin */}
-      <div style={{ backgroundColor: "var(--reader-border)" }} className="h-0.5">
-        <div
-          className="h-full transition-all"
-          style={{
-            width: `${progress}%`,
-            backgroundColor: "var(--reader-accent)"
-          }}
-        />
       </div>
 
       {/* Dictionary Popup */}
       {dictLookup && (
         <div
-          className="fixed z-50 bg-white rounded-xl shadow-elevation-floating border border-cream-200 p-3 min-w-[120px] cursor-pointer"
-          style={{ left: Math.min(dictLookup.x, window.innerWidth - 150), top: dictLookup.y + 10 }}
+          className="fixed z-50 rounded-xl shadow-2xl border p-4 min-w-[140px] max-w-[200px]"
+          style={{ 
+            left: Math.min(dictLookup.x, window.innerWidth - 220), 
+            top: Math.min(dictLookup.y + 10, window.innerHeight - 120),
+            backgroundColor: "var(--reader-surface)",
+            borderColor: "var(--reader-border)",
+          }}
           onClick={() => setDictLookup(null)}
         >
-          <div className="text-2xl font-bold text-forest-800 mb-1">
+          <div className="text-3xl font-bold mb-1" style={{ color: "var(--reader-text)" }}>
             {dictLookup.word}
           </div>
           {article.language === "zh" && article.pinyinContent && (
-            <div className="text-sm text-ink-500">
+            <div className="text-sm font-medium mb-2" style={{ color: "var(--reader-accent)" }}>
               {getPinyinForChar(dictLookup.word)}
             </div>
           )}
-          <div className="text-xs text-ink-400 mt-2">点击关闭</div>
+          <div className="text-xs" style={{ color: "var(--reader-text-muted)" }}>
+            点击关闭
+          </div>
         </div>
       )}
 
-      {/* Content area */}
-      {isLandscape ? (
+      {/* Content area - single page pagination */}
+      <div className="flex-1 overflow-hidden relative">
+        {/* Page turn zones - left and right edges, wider for easier touch */}
+        {totalPages > 1 && (
+          <>
+            <div
+              className="absolute left-0 top-0 bottom-0 z-10"
+              style={{ width: '20%', cursor: 'w-resize' }}
+              onClick={(e) => { e.stopPropagation(); goToPage(currentPage - 1); }}
+              role="button"
+              aria-label="上一页"
+            />
+            <div
+              className="absolute right-0 top-0 bottom-0 z-10"
+              style={{ width: '20%', cursor: 'e-resize' }}
+              onClick={(e) => { e.stopPropagation(); goToPage(currentPage + 1); }}
+              role="button"
+              aria-label="下一页"
+            />
+          </>
+        )}
+
+        {/* Page content with transition */}
         <div
-          className="flex h-full w-full items-center"
-          onClick={handlePageClick}
+          ref={contentRef}
+          className={`h-[calc(100vh-40px-56px)] overflow-hidden px-8 py-6 ${isTransitioning ? 'page-transition' : 'page-transition-enter'}`}
         >
-          {/* Left page - 50% width, no margin interference */}
           <div
-            className="h-full flex items-center justify-center"
-            style={{ width: "50%" }}
+            className="max-w-3xl mx-auto space-y-4"
+            style={{
+              color: "var(--reader-text)",
+              fontSize: `${fontSizePx}px`,
+              lineHeight: lineHeightValue,
+              fontFamily: article.language === "zh"
+                ? "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif"
+                : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
+            }}
           >
-            <div
-              className="w-full h-full flex items-center px-8"
-              style={{ color: "var(--reader-text)" }}
-            >
-              <div className="w-full space-y-4 text-xl leading-relaxed">
-                {pages.length > 0 && pages[currentPage] && pages[currentPage].map((paragraphIndex) => (
-                  <div key={paragraphIndex}>
-                    <p>{renderParagraph(paragraphs[paragraphIndex], paragraphIndex)}</p>
-                    {illustrationMap.has(paragraphIndex) && (
-                      <figure className="mt-2 rounded-lg overflow-hidden">
-                        <img
-                          src={`${illustrationMap.get(paragraphIndex)!.image_url}?width=600`}
-                          alt={illustrationMap.get(paragraphIndex)!.scene_description || "段落配图"}
-                          className="w-full max-h-40 object-cover"
-                        />
-                      </figure>
-                    )}
-                  </div>
-                ))}
+            {/* Title section - only show on first page */}
+            {currentPage === 0 && (
+              <div className="mb-6 pb-4 border-b" style={{ borderColor: "var(--reader-border)" }}>
+                <h1 className="text-2xl font-bold mb-2" style={{ fontSize: `${fontSizePx * 1.4}px`, color: "var(--reader-text)" }}>
+                  {article.title}
+                </h1>
+                <div className="flex items-center gap-3 text-sm" style={{ color: "var(--reader-text-muted)" }}>
+                  <span className="rounded-full px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary">
+                    G{article.gradeLevel}
+                  </span>
+                  <span>{article.category}</span>
+                  <span>约 {article.estimatedMinutes} 分钟</span>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* Middle divider line */}
-          <div className="w-px h-full" style={{ backgroundColor: "var(--reader-border)" }} />
-
-          {/* Right page - 50% width */}
-          <div
-            className="h-full flex items-center justify-center"
-            style={{ width: "50%" }}
-          >
-            <div
-              className="w-full h-full flex items-center px-8"
-              style={{ color: "var(--reader-text)" }}
-            >
-              <div className="w-full space-y-4 text-xl leading-relaxed">
-                {pages.length > 0 && pages[currentPage + 1] ? (
-                  pages[currentPage + 1].map((paragraphIndex) => (
-                    <div key={paragraphIndex}>
-                      <p>{renderParagraph(paragraphs[paragraphIndex], paragraphIndex)}</p>
-                      {illustrationMap.has(paragraphIndex) && (
-                        <figure className="mt-2 rounded-lg overflow-hidden">
-                          <img
-                            src={`${illustrationMap.get(paragraphIndex)!.image_url}?width=600`}
-                            alt={illustrationMap.get(paragraphIndex)!.scene_description || "段落配图"}
-                            className="w-full max-h-40 object-cover"
-                          />
-                        </figure>
-                      )}
+            {pageParagraphs.map((paragraph, index) => {
+              const globalIndex = currentPage * paragraphsPerPage + index;
+              const hasIllustration = illustrationMap.has(globalIndex);
+              // Add section break before first paragraph of each page (except page 0)
+              const showSectionBreak = currentPage > 0 && index === 0;
+              return (
+                <div key={globalIndex}>
+                  {showSectionBreak && (
+                    <div className="flex items-center justify-center gap-3 my-6">
+                      <div className="w-8 h-px" style={{ backgroundColor: "var(--reader-border)" }} />
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: "var(--reader-accent)", opacity: 0.5 }} />
+                      <div className="w-8 h-px" style={{ backgroundColor: "var(--reader-border)" }} />
                     </div>
-                  ))
-                ) : pages.length > 0 && pages[currentPage] ? (
-                  pages[currentPage].map((paragraphIndex) => (
-                    <div key={paragraphIndex}>
-                      <p>{renderParagraph(paragraphs[paragraphIndex], paragraphIndex)}</p>
-                      {illustrationMap.has(paragraphIndex) && (
-                        <figure className="mt-2 rounded-lg overflow-hidden">
-                          <img
-                            src={`${illustrationMap.get(paragraphIndex)!.image_url}?width=600`}
-                            alt={illustrationMap.get(paragraphIndex)!.scene_description || "段落配图"}
-                            className="w-full max-h-40 object-cover"
-                          />
-                        </figure>
+                  )}
+                  <p className="reader-paragraph">{renderParagraph(paragraph, globalIndex)}</p>
+                  {hasIllustration && (
+                    <figure className="mt-4 mb-6 rounded-xl overflow-hidden shadow-sm">
+                      <img
+                        src={`${illustrationMap.get(globalIndex)!.image_url}?width=600`}
+                        alt={illustrationMap.get(globalIndex)!.scene_description || "段落配图"}
+                        className="w-full max-h-48 object-cover"
+                      />
+                      {illustrationMap.get(globalIndex)!.scene_description && (
+                        <figcaption className="text-xs mt-2 text-center" style={{ color: "var(--reader-text-muted)" }}>
+                          {illustrationMap.get(globalIndex)!.scene_description}
+                        </figcaption>
                       )}
-                    </div>
-                  ))
-                ) : null}
-              </div>
-            </div>
+                    </figure>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
-      ) : (
-        /* Portrait single page scroll mode */
-        <div className="max-w-2xl mx-auto px-4 py-6 pb-20 overflow-y-auto">
-          <div className="mb-6">
-            <span className={`inline-block rounded-full px-3 py-0.5 text-xs font-medium mr-2 ${
-              article.language === "en" ? "bg-sky-100 text-sky-700" : "bg-coral-100 text-coral-700"
-            }`}>
-              {article.language === "en" ? "English" : "中文"}
-            </span>
-            <span className="rounded-full bg-primary/10 px-3 py-0.5 text-xs font-medium text-primary">
-              {article.category}
-            </span>
-            <h1 className="text-2xl font-bold mt-3" style={{ color: "var(--reader-text)" }}>
-              {article.title}
-            </h1>
-            <div className="mt-2 flex items-center gap-3 text-sm text-ink-500">
-              <span>G{article.gradeLevel}</span>
-              <span>{article.wordCount} words</span>
-              <span>{article.estimatedMinutes} min</span>
-            </div>
-          </div>
-          <div className="space-y-4 text-lg leading-relaxed" style={{ color: "var(--reader-text)" }}>
-            {paragraphs.map((paragraph, index) => (
-              <div key={index}>
-                <p>{renderParagraph(paragraph, index)}</p>
-                {illustrationMap.has(index) && (
-                  <figure className="mt-4 rounded-xl overflow-hidden">
-                    <img
-                      src={`${illustrationMap.get(index)!.image_url}?width=600`}
-                      alt={illustrationMap.get(index)!.scene_description || "段落配图"}
-                      className="w-full max-h-48 object-cover cursor-pointer"
-                    />
-                  </figure>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Bottom simplified toolbar */}
       <div
-        className="fixed bottom-0 left-0 right-0 h-14 flex items-center justify-center px-4 border-t z-20"
+        className="fixed bottom-0 left-0 right-0 h-14 flex items-center justify-center px-4 z-20"
         style={{
           backgroundColor: "var(--reader-surface)",
-          borderColor: "var(--reader-border)",
+          borderTop: "1px solid var(--reader-border)",
           backdropFilter: "blur(12px)",
         }}
       >
-        <div className="flex items-center gap-6">
-          {/* Recording button - largest and most prominent */}
+        <div className="flex items-center gap-3">
+          {/* Previous page button */}
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            className="flex items-center justify-center w-9 h-9 rounded-full transition-all"
+            style={{
+              color: currentPage > 0 ? 'var(--reader-text-muted)' : 'transparent',
+              pointerEvents: currentPage > 0 ? 'auto' : 'none',
+            }}
+            aria-label="上一页"
+            disabled={currentPage <= 0}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+
+          {/* Read aloud button - primary action during reading */}
+          <button
+            onClick={handleTTS}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all"
+            style={{
+              backgroundColor: ttsPlaying ? 'var(--reader-accent)' : 'var(--reader-highlight)',
+              color: ttsPlaying ? 'var(--reader-bg)' : 'var(--reader-accent)',
+            }}
+          >
+            {ttsPlaying && !ttsPaused ? (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16" rx="1"/>
+                <rect x="14" y="4" width="4" height="16" rx="1"/>
+              </svg>
+            ) : ttsPaused ? (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+              </svg>
+            )}
+            <span className="text-xs">
+              {ttsPlaying && !ttsPaused ? '暂停' : ttsPaused ? '继续' : '朗读'}
+            </span>
+          </button>
+
+          {/* Recording button - secondary action */}
           <button
             onClick={() => {
               if (recordingState === 'idle') {
@@ -884,101 +1073,149 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 setShowRecordingMenu(true);
               }
             }}
-            className={`flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-medium transition-all ${
-              recordingState === 'recording'
-                ? 'bg-red-500 text-white shadow-lg'
-                : recordingState === 'stopped'
-                ? 'bg-green-500 text-white shadow-lg'
-                : 'bg-forest-500 text-white shadow-lg hover:bg-forest-600'
-            }`}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all"
+            style={{
+              backgroundColor: recordingState === 'recording' ? '#EF4444' : recordingState === 'stopped' ? '#22C55E' : 'var(--reader-highlight)',
+              color: recordingState === 'recording' || recordingState === 'stopped' ? 'white' : 'var(--reader-accent)',
+            }}
           >
-            {recordingState === 'recording' ? (
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                <rect x="6" y="4" width="4" height="16" rx="1" />
-                <rect x="14" y="4" width="4" height="16" rx="1" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-              </svg>
-            )}
-            <span>
-              {recordingState === 'idle' ? '录音打卡' :
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+            </svg>
+            <span className="text-xs">
+              {recordingState === 'idle' ? '录音' :
                recordingState === 'recording' ? '暂停' :
                recordingState === 'paused' ? '继续' :
-               '已停止'}
+               '完成'}
             </span>
-          </button>
-
-          {/* Read aloud button */}
-          <button
-            onClick={handleTTS}
-            className="flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-medium bg-forest-100 text-forest-700 hover:bg-forest-200 transition-all shadow"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-            </svg>
-            <span>朗读</span>
           </button>
 
           {/* Quiz button */}
           <button
             onClick={onStartQuiz}
-            className="flex items-center gap-2.5 px-5 py-3 rounded-full text-sm font-medium text-white bg-primary hover:bg-primary-dark transition-all shadow"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium text-white transition-all"
+            style={{ backgroundColor: "var(--reader-accent)" }}
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 11l3 3L22 4"/>
               <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
-            <span>答题</span>
+            <span className="text-xs">答题</span>
           </button>
 
-          {/* More button (favorite + settings + font) */}
+          {/* Settings button - minimal icon */}
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
-            className="p-3 rounded-full hover:bg-gray-100 transition-all"
+            className="p-2 rounded-full transition-all"
             style={{ color: "var(--reader-text-muted)" }}
-            aria-label="更多"
+            aria-label="设置"
           >
-            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="1"/>
-              <circle cx="12" cy="5" r="1"/>
-              <circle cx="12" cy="19" r="1"/>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+
+          {/* Next page button */}
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            className="flex items-center justify-center w-9 h-9 rounded-full transition-all"
+            style={{
+              color: currentPage < totalPages - 1 ? 'var(--reader-text-muted)' : 'transparent',
+              pointerEvents: currentPage < totalPages - 1 ? 'auto' : 'none',
+            }}
+            aria-label="下一页"
+            disabled={currentPage >= totalPages - 1}
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="9 18 15 12 9 6"/>
             </svg>
           </button>
         </div>
       </div>
 
-      {/* More menu */}
+      {/* Settings menu */}
       {showMoreMenu && (
         <div
-          className="fixed bottom-16 right-4 bg-white rounded-2xl shadow-xl p-2 z-30 min-w-[160px]"
-          onClick={() => setShowMoreMenu(false)}
+          className="fixed bottom-16 right-4 rounded-2xl shadow-xl p-4 z-30 min-w-[220px]"
+          style={{ backgroundColor: "var(--reader-surface)", border: "1px solid var(--reader-border)" }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-sm text-forest-700">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
-            </svg>
-            <span>收藏</span>
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-sm text-forest-700">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="4 7 4 4 20 4 20 7"/>
-              <line x1="9" y1="20" x2="15" y2="20"/>
-              <line x1="12" y1="4" x2="12" y2="20"/>
-            </svg>
-            <span>字体大小</span>
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 text-sm text-forest-700">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33"/>
-            </svg>
-            <span>主题设置</span>
-          </button>
+          <div className="space-y-4">
+            {/* Font size */}
+            <div>
+              <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>
+                字体大小
+              </label>
+              <div className="flex gap-2">
+                {([
+                  { value: 'small' as const, label: '小' },
+                  { value: 'medium' as const, label: '中' },
+                  { value: 'large' as const, label: '大' },
+                  { value: 'xlarge' as const, label: '特大' },
+                ]).map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setFontSize(option.value)}
+                    className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      backgroundColor: fontSizeContext === option.value ? 'var(--reader-accent)' : 'var(--reader-border)',
+                      color: fontSizeContext === option.value ? 'var(--reader-bg)' : 'var(--reader-text)',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Theme */}
+            <div>
+              <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>阅读主题</label>
+              <div className="flex gap-2">
+                {(['light', 'sepia', 'dark'] as const).map((theme) => (
+                  <button
+                    key={theme}
+                    onClick={() => setTheme(theme)}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                      readerThemeContext === theme
+                        ? 'bg-forest-500 text-white shadow-md'
+                        : 'hover:bg-gray-200'
+                    }`}
+                    style={{
+                      backgroundColor: readerThemeContext === theme ? 'var(--reader-accent)' : 'var(--reader-border)',
+                      color: readerThemeContext === theme ? 'var(--reader-bg)' : 'var(--reader-text)',
+                    }}
+                  >
+                    {theme === 'light' ? '浅色' : theme === 'sepia' ? '护眼' : '深色'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* TTS Speed */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
+                朗读速度: {ttsRate.toFixed(1)}x
+              </label>
+              <input
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value={ttsRate}
+                onChange={(e) => setTtsRate(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-forest-500"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>慢</span>
+                <span>正常</span>
+                <span>快</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1014,7 +1251,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
                   if (result.success) {
                     setRecordingSubmitted(true);
-                    alert('打卡成功！获得 10 积分 🎉');
+                    alert('打卡成功！获得 10 积分');
                     setTimeout(() => {
                       void resetRecording();
                     }, 2000);
@@ -1026,15 +1263,15 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 className="w-full py-3 rounded-xl bg-primary text-white font-medium disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {uploading ? (
-                  <>
-                    <span className="animate-spin">⏳</span>
-                    <span>上传中 {uploadProgress}%</span>
-                  </>
-                ) : (
-                  <>
-                    📤 提交打卡
-                  </>
-                )}
+                    <>
+                      <span className="animate-spin">...</span>
+                      <span>上传中 {uploadProgress}%</span>
+                    </>
+                  ) : (
+                    <>
+                      上传
+                    </>
+                  )}
               </button>
               <button
                 onClick={() => {
@@ -1043,7 +1280,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 }}
                 className="w-full py-3 rounded-xl bg-coral-100 text-coral-700 font-medium"
               >
-                🔄 重新录音
+                重新录音
               </button>
               <button
                 onClick={() => setShowRecordingMenu(false)}

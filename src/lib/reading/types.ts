@@ -27,6 +27,11 @@ export interface ReadingArticle {
   created_at: string;
 }
 
+export interface WordCountRange {
+  min: number;
+  max: number;
+}
+
 export interface ReadingQuestion {
   id: string;
   article_id: string;

@@ -13,7 +13,7 @@ import {
 
 export type ReaderTheme = "light" | "sepia" | "dark" | "auto";
 
-export type FontSize = "small" | "medium" | "large";
+export type FontSize = "small" | "medium" | "large" | "xlarge";
 export type LineHeight = "compact" | "standard" | "loose";
 
 export interface ReaderSettings {
@@ -37,8 +37,8 @@ const STORAGE_KEY = "hw-reader-settings-v1";
 
 const DEFAULT_SETTINGS: ReaderSettings = {
   theme: "sepia",
-  fontSize: "medium",
-  lineHeight: "standard",
+  fontSize: "large",
+  lineHeight: "loose",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────

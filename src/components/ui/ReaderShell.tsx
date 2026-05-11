@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState, isValidElement, cloneElement } from "react";
+import { useState, cloneElement, isValidElement } from "react";
 import { IconPanelLeft, IconSidebar } from "./icons";
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -57,29 +57,32 @@ export default function ReaderShell({
   const themeVariables: Record<string, string> =
     theme === "light"
       ? {
-          "--reader-bg": "white",
-          "--reader-surface": "white",
-          "--reader-text": "#202124",
-          "--reader-text-muted": "#80868B",
-          "--reader-accent": "#56AB91",
-          "--reader-border": "#E8EAED",
+          "--reader-bg": "#FAFBF9",
+          "--reader-surface": "#FFFFFF",
+          "--reader-text": "#1A1D1B",
+          "--reader-text-muted": "#6B7270",
+          "--reader-accent": "#4A9B7E",
+          "--reader-border": "#E5E8E6",
+          "--reader-highlight": "#E8F5EE",
         }
       : theme === "sepia"
         ? {
-            "--reader-bg": "#F1E8D2",
-            "--reader-surface": "#FAF6EC",
-            "--reader-text": "#202124",
-            "--reader-text-muted": "#5F6368",
-            "--reader-accent": "#3D8B76",
-            "--reader-border": "#E5D4AB",
+            "--reader-bg": "#EDE4D0",
+            "--reader-surface": "#F7F1E3",
+            "--reader-text": "#2C2820",
+            "--reader-text-muted": "#7A7265",
+            "--reader-accent": "#3A8B6E",
+            "--reader-border": "#DDD3BF",
+            "--reader-highlight": "#E8DFC8",
           }
         : {
-            "--reader-bg": "#0A1B14",
-            "--reader-surface": "#143328",
-            "--reader-text": "#FDFCF8",
-            "--reader-text-muted": "#9AA0A6",
-            "--reader-accent": "#A8E6CF",
-            "--reader-border": "#1F4D3F",
+            "--reader-bg": "#0D1110",
+            "--reader-surface": "#151A18",
+            "--reader-text": "#E8E6E1",
+            "--reader-text-muted": "#7A8080",
+            "--reader-accent": "#6BC4A0",
+            "--reader-border": "#2A3030",
+            "--reader-highlight": "#1E2A24",
           };
 
   const themeBgStyle: React.CSSProperties = {
@@ -95,64 +98,18 @@ export default function ReaderShell({
       style={themeBgStyle}
     >
       {/* ═══════════════════════════════════════════════════════════════
-          DESKTOP: iPad landscape (>= 1024px) — Three-column layout
+          DESKTOP: iPad landscape (>= 1024px) — Full-width reading
          ═══════════════════════════════════════════════════════════════ */}
-      <div className="hidden lg:flex flex-1 justify-center">
-        {/* ── Left Rail ────────────────────────────────────────────── */}
-        {leftRail && (
-          <aside
-            className={`flex-shrink-0 border-r transition-all duration-med overflow-y-auto ${leftOpen ? "min-w-[200px] max-w-[260px] w-[240px] opacity-100" : "w-0 opacity-0 overflow-hidden"}`}
-            style={{
-              borderColor: "var(--reader-border)",
-            }}
-          >
-            <div className="p-4">{leftRail}</div>
-          </aside>
-        )}
-
-        {/* ── Center: Reading Content ──────────────────────────────── */}
+      <div className="hidden lg:flex flex-1 w-full">
+        {/* ── Center: Reading Content — Full width ───────────────────── */}
         <main
-          className="flex-1 max-w-[720px] mx-auto px-6 py-8"
+          className="flex-1 min-w-0 p-0"
           style={{
             backgroundColor: "var(--reader-surface)",
-            boxShadow:
-              "0 1px 0 rgba(0,0,0,0.04) inset, 0 -1px 0 rgba(0,0,0,0.04) inset, 0 0 32px rgba(0,0,0,0.06)",
-            backgroundImage:
-              theme === "sepia"
-                ? `repeating-linear-gradient(
-                    0deg,
-                    transparent,
-                    transparent 23px,
-                    rgba(139, 115, 85, 0.04) 23px,
-                    rgba(139, 115, 85, 0.04) 24px
-                  ),
-                  radial-gradient(
-                    ellipse at 20% 30%,
-                    rgba(160, 130, 90, 0.03) 0%,
-                    transparent 50%
-                  ),
-                  radial-gradient(
-                    ellipse at 80% 70%,
-                    rgba(160, 130, 90, 0.03) 0%,
-                    transparent 50%
-                  )`
-                : "none",
           }}
         >
           {readerContent}
         </main>
-
-        {/* ── Right Rail ───────────────────────────────────────────── */}
-        {rightRail && (
-          <aside
-            className={`flex-shrink-0 border-l transition-all duration-med overflow-y-auto ${rightOpen ? "min-w-[200px] max-w-[260px] w-[240px] opacity-100" : "w-0 opacity-0 overflow-hidden"}`}
-            style={{
-              borderColor: "var(--reader-border)",
-            }}
-          >
-            <div className="p-4">{isValidElement(rightRail) ? cloneElement(rightRail, { onClose: () => setRightOpen(false) } as any) : rightRail}</div>
-          </aside>
-        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════

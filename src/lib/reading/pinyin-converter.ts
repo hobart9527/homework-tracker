@@ -3,23 +3,22 @@ import { pinyin } from "pinyin-pro";
 /**
  * Convert Chinese text to ruby-format pinyin string used by ArticleReader.
  *
- * Output format example:
- *   "我爱中国" -> "我(wǒ)爱(ài)中国(zhōng guó)"
- *   "Hello 你好!" -> "Hello 你好(nǐ hǎo)!"
+ * Output format (character-by-character for 1-to-1 ruby alignment):
+ *   "我爱中国" -> "我(wǒ)爱(ài)中(zhōng)国(guó)"
+ *   "Hello 你好!" -> "Hello 你(nǐ)好(hǎo)!"
  *
  * Behavior:
  * - Splits the input into runs of Chinese characters and runs of non-Chinese
  *   characters.
  * - For each Chinese run, calls pinyin-pro with word-aware segmentation so
- *   polyphonic characters (e.g. 银行/行走, 重要/重新) get the correct tone.
- * - Non-Chinese characters (punctuation, ASCII letters, digits, whitespace)
- *   are passed through unchanged.
+ *   polyphonic characters get the correct tone, then outputs each character
+ *   with its own pinyin annotation for 1-to-1 ruby alignment.
+ * - Non-Chinese characters are passed through unchanged.
  * - Returns the original input untouched when it contains no Chinese.
  */
 export function convertToRubyPinyin(text: string): string {
   if (!text) return "";
 
-  // Match contiguous runs of CJK Unified Ideographs.
   const chineseRunRegex = /[一-鿿]+/g;
 
   let output = "";
@@ -27,19 +26,21 @@ export function convertToRubyPinyin(text: string): string {
   let match: RegExpExecArray | null;
 
   while ((match = chineseRunRegex.exec(text)) !== null) {
-    // Append any non-Chinese segment that precedes this run.
     if (match.index > lastIndex) {
       output += text.slice(lastIndex, match.index);
     }
 
     const run = match[0];
-    const pinyinStr = pinyin(run, {
+    // Get pinyin array for each character (word-aware for correct polyphones)
+    const pinyinArray = pinyin(run, {
       toneType: "symbol",
-      type: "string",
-      separator: " ",
+      type: "array",
     });
 
-    output += `${run}(${pinyinStr})`;
+    // Output each character with its own pinyin annotation
+    for (let i = 0; i < run.length; i++) {
+      output += `${run[i]}(${pinyinArray[i]})`;
+    }
     lastIndex = chineseRunRegex.lastIndex;
   }
 

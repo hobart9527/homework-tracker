@@ -248,48 +248,40 @@ export default function ReadingArticlePage({
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
+    <>
       {/* Phase 1: Article reading */}
       {phase === "reading" && (
         <>
           {article.language === "zh" && audioInfo.url ? (
-            <ReadAlong
-              audioUrl={audioInfo.url}
-              voice={audioInfo.voice ?? undefined}
-              className="mb-4"
-            />
-          ) : article.language === "zh" && !audioInfo.url ? (
-            <div
-              className="mb-4 rounded-md px-4 py-3 text-sm"
-              style={{
-                backgroundColor: "var(--reader-surface)",
-                  color: "var(--reader-text-muted)",
-                  border: "1px solid var(--reader-border)",
-                }}
-              >
-                {"音频生成中…"}
-              </div>
-            ) : null}
-            <ArticleReader
-              ref={articleReaderRef}
-              article={article}
-              onStartQuiz={() => {
-                setPhase("quiz");
-              }}
-            />
+            <div className="mx-auto max-w-2xl px-4 pt-4">
+              <ReadAlong
+                audioUrl={audioInfo.url}
+                voice={audioInfo.voice ?? undefined}
+              />
+            </div>
+          ) : null}
+          <ArticleReader
+            ref={articleReaderRef}
+            article={article}
+            onStartQuiz={() => {
+              setPhase("quiz");
+            }}
+          />
         </>
       )}
 
       {/* Phase 2: Quiz */}
       {phase === "quiz" && childId && (
-        <QuizView
-          questions={questions}
-          articleId={params.id}
-          childId={childId}
-          assignmentId={assignmentId}
-          onComplete={handleQuizComplete}
-        />
+        <div className="mx-auto max-w-2xl px-4 py-6">
+          <QuizView
+            questions={questions}
+            articleId={params.id}
+            childId={childId}
+            assignmentId={assignmentId}
+            onComplete={handleQuizComplete}
+          />
+        </div>
       )}
-    </div>
+    </>
   );
 }

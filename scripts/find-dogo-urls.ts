@@ -29,7 +29,7 @@ async function main() {
 
   // Extract all article links
   const articleLinks = await page.evaluate(() => {
-    const links = Array.from(document.querySelectorAll('a[href]'))
+    const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))
       .map(a => a.href)
       .filter(h => h.includes('dogonews.com') && !h.endsWith('dogonews.com') && !h.includes('/category/'))
       .filter((v, i, a) => a.indexOf(v) === i); // dedupe

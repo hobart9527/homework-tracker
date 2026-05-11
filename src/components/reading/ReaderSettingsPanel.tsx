@@ -5,7 +5,7 @@ import { IconSun, IconMoon, IconType } from "@/components/ui/icons";
 
 // ── Types ─────────────────────────────────────────────────────────
 
-type FontSizeLevel = "小" | "中" | "大";
+type FontSizeLevel = "小" | "中" | "大" | "特大";
 type LineHeightLevel = "紧凑" | "标准" | "宽松";
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ const FONT_SIZE_OPTIONS: { value: FontSizeLevel; label: string; sizeClass: strin
   { value: "小", label: "小", sizeClass: "text-sm" },
   { value: "中", label: "中", sizeClass: "text-base" },
   { value: "大", label: "大", sizeClass: "text-lg" },
+  { value: "特大", label: "特大", sizeClass: "text-xl" },
 ];
 
 const LINE_HEIGHT_OPTIONS: { value: LineHeightLevel; label: string }[] = [
@@ -51,12 +52,14 @@ const FONT_SIZE_MAP: Record<import("./ReaderThemeContext").FontSize, FontSizeLev
   small: "小",
   medium: "中",
   large: "大",
+  xlarge: "特大",
 };
 
 const FONT_SIZE_REVERSE_MAP: Record<FontSizeLevel, import("./ReaderThemeContext").FontSize> = {
   "小": "small",
   "中": "medium",
   "大": "large",
+  "特大": "xlarge",
 };
 
 const LINE_HEIGHT_MAP: Record<import("./ReaderThemeContext").LineHeight, LineHeightLevel> = {

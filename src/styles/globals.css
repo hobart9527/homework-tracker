@@ -1,35 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500&family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 /* ── Reader Theme CSS Variables ─────────────────────────────────── */
+/* Light: warm paper, not sterile. Tinted toward brand green. */
 :root[data-reader-theme="light"] {
-  --reader-bg: white;
-  --reader-surface: white;
-  --reader-text: #202124;
-  --reader-text-muted: #80868B;
-  --reader-accent: #56AB91;
-  --reader-border: #E8EAED;
+  --reader-bg: #FAFBF9;
+  --reader-surface: #FFFFFF;
+  --reader-text: #1A1D1B;
+  --reader-text-muted: #6B7270;
+  --reader-accent: #4A9B7E;
+  --reader-border: #E5E8E6;
+  --reader-highlight: #E8F5EE;
 }
 
+/* Sepia: warm cream, like aged paper. Accent is deeper teal. */
 :root[data-reader-theme="sepia"] {
-  --reader-bg: #F1E8D2;
-  --reader-surface: #FAF6EC;
-  --reader-text: #202124;
-  --reader-text-muted: #5F6368;
-  --reader-accent: #3D8B76;
-  --reader-border: #E5D4AB;
+  --reader-bg: #EDE4D0;
+  --reader-surface: #F7F1E3;
+  --reader-text: #2C2820;
+  --reader-text-muted: #7A7265;
+  --reader-accent: #3A8B6E;
+  --reader-border: #DDD3BF;
+  --reader-highlight: #E8DFC8;
 }
 
+/* Dark: deep forest, not black. Surface is barely green. */
 :root[data-reader-theme="dark"] {
-  --reader-bg: #0A1B14;
-  --reader-surface: #143328;
-  --reader-text: #FDFCF8;
-  --reader-text-muted: #9AA0A6;
-  --reader-accent: #A8E6CF;
-  --reader-border: #1F4D3F;
+  --reader-bg: #0D1110;
+  --reader-surface: #151A18;
+  --reader-text: #E8E6E1;
+  --reader-text-muted: #7A8080;
+  --reader-accent: #6BC4A0;
+  --reader-border: #2A3030;
+  --reader-highlight: #1E2A24;
 }
 
 /* ── Legacy CSS Variables (backward compatible) ─────────────────── */
@@ -43,7 +49,9 @@
 /* ── Base Body Styles ───────────────────────────────────────────── */
 body {
   background-color: var(--color-background);
-  font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', 'Noto Sans CJK SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ── Custom Scrollbar ───────────────────────────────────────────── */

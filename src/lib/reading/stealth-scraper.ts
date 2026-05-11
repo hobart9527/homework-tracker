@@ -54,7 +54,7 @@ export class StealthScraper {
   }
 
   async getBrowser(): Promise<Browser> {
-    if (!this.browser || !this.browser.connected) {
+    if (!this.browser || !(this.browser as any).connected) {
       this.browser = await stealth(chromium).launch({
         headless: true,
         args: [
@@ -79,7 +79,7 @@ export class StealthScraper {
     return this.browser;
   }
 
-  private async createPage(): Promise<Page> {
+  async createPage(): Promise<Page> {
     if (!this.context) {
       await this.getBrowser();
     }

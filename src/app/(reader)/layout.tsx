@@ -16,7 +16,7 @@ function ReaderLayoutInner({ children }: { children: ReactNode }) {
       readerContent={children}
       theme={resolveTheme(theme)}
       rightRail={<ReaderSettingsPanel />}
-      showRightRail
+      showRightRail={false}
     />
   );
 }
