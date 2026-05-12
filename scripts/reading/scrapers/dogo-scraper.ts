@@ -169,7 +169,8 @@ export async function scrape(options?: { dryRun?: boolean; limit?: number }): Pr
 // CLI entry point
 // ---------------------------------------------------------------------------
 
-if (require.main === module) {
+const isEntryPoint = process.argv[1]?.includes("dogo-scraper");
+if (isEntryPoint) {
   const args = parseArgs();
   scrapeDogoArticles(args).catch(console.error);
 }

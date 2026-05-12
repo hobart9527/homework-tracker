@@ -13,7 +13,7 @@ import {
 // Topic source-of-truth: reading_topics table ( migrated from CURATED_NEWS )
 // ---------------------------------------------------------------------------
 // The previous hard-coded CURATED_NEWS array has been migrated to the
-// `reading_topics` Supabase table.  This route now reads active English
+// `reading_topics` Supabase table.  This route now reads active
 // topics from that table so that editorial updates no longer require a
 // code deployment.
 // ---------------------------------------------------------------------------
@@ -21,6 +21,7 @@ import {
 interface TopicRow {
   topic_key: string;
   category: string;
+  language: "zh" | "en";
   source_text: string | null;
   source_url: string | null;
   target_grades: number[];
@@ -34,11 +35,14 @@ interface PipelineResult {
   error?: string;
 }
 
-async function fetchTopics(supabase: Awaited<ReturnType<typeof createServiceRoleClient>>): Promise<TopicRow[]> {
+async function fetchTopics(
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  language: string = "en"
+): Promise<TopicRow[]> {
   const { data, error } = await supabase
     .from("reading_topics")
-    .select("topic_key, category, source_text, source_url, target_grades")
-    .eq("language", "en")
+    .select("topic_key, category, language, source_text, source_url, target_grades")
+    .eq("language", language)
     .eq("status", "active");
 
   if (error) {
@@ -63,7 +67,7 @@ async function runPipeline(
   const { article, questions, illustrations: generatedIllustrations } =
     await generateReadingContent({
       topicKey,
-      language: "en",
+      language: topic.language,
       category,
       gradeLevel: grade,
       sourceText,
@@ -73,19 +77,19 @@ async function runPipeline(
   const gate = validateContent({
     article,
     questions,
-    language: "en",
+    language: topic.language,
     gradeLevel: grade,
   });
   const ibCriteria = validateIBCriteria({
     article,
     questions,
-    language: "en",
+    language: topic.language,
     gradeLevel: grade,
   });
   const factualCriteria = validateFactualAccuracy({
     article,
     sourceText: topic.source_text || undefined,
-    language: "en",
+    language: topic.language,
     gradeLevel: grade,
   });
 
@@ -131,7 +135,7 @@ async function runPipeline(
   try {
     const cover = await generateCover({
       articleId,
-      language: "en",
+      language: topic.language,
       category,
       scene: article.scene_description || article.title,
       title: article.title,
@@ -199,7 +203,7 @@ async function runPipeline(
     try {
       const illustrationResults = await generateIllustrations({
         articleId,
-        language: "en",
+        language: topic.language,
         category,
         scenes: generatedIllustrations.map((ill) => ({
           paragraphIndex: ill.paragraph_index,
@@ -276,7 +280,11 @@ export async function GET(request: Request) {
 
   let topics: TopicRow[];
   try {
-    topics = await fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>);
+    const [enTopics, zhTopics] = await Promise.all([
+      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "en"),
+      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "zh"),
+    ]);
+    topics = [...enTopics, ...zhTopics];
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
@@ -340,7 +348,11 @@ export async function POST(request: Request) {
 
   let topics: TopicRow[];
   try {
-    topics = await fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>);
+    const [enTopics, zhTopics] = await Promise.all([
+      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "en"),
+      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "zh"),
+    ]);
+    topics = [...enTopics, ...zhTopics];
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
