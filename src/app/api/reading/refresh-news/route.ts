@@ -35,6 +35,34 @@ interface PipelineResult {
   error?: string;
 }
 
+interface WorkItem {
+  topic: TopicRow;
+  grade: number;
+}
+
+// ---------------------------------------------------------------------------
+// Concurrency helper
+// ---------------------------------------------------------------------------
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  const queue = [...items];
+  const workers = Array(concurrency).fill(null).map(async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (item) {
+        try { await fn(item); } catch (e) { /* error already logged by caller */ }
+      }
+    }
+  });
+  await Promise.all(workers);
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 async function fetchTopics(
   supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
   language: string = "en"
@@ -53,10 +81,88 @@ async function fetchTopics(
   return (data || []) as TopicRow[];
 }
 
+async function buildWorkItems(
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  grades: number[],
+  limit: number,
+  force: boolean
+): Promise<{ items: WorkItem[]; skipped: number }> {
+  const [enTopics, zhTopics] = await Promise.all([
+    fetchTopics(supabase, "en"),
+    fetchTopics(supabase, "zh"),
+  ]);
+  const topics = [...enTopics, ...zhTopics];
+
+  const allItems: WorkItem[] = [];
+  for (const topic of topics) {
+    const targetGrades =
+      topic.target_grades && topic.target_grades.length > 0
+        ? grades.filter((g) => topic.target_grades.includes(g))
+        : grades;
+    for (const grade of targetGrades) {
+      allItems.push({ topic, grade });
+    }
+  }
+
+  let items = allItems;
+
+  // Dedup: skip already-processed pairs unless force=true
+  if (!force && items.length > 0) {
+    const topicKeys = [...new Set(items.map((w) => w.topic.topic_key))];
+    const { data: existing } = await supabase
+      .from("reading_articles")
+      .select("topic_key, grade_level")
+      .in("topic_key", topicKeys);
+
+    if (existing && existing.length > 0) {
+      const existingSet = new Set(
+        existing.map((e) => `${e.topic_key}:${e.grade_level}`)
+      );
+      items = items.filter((w) => !existingSet.has(`${w.topic.topic_key}:${w.grade}`));
+    }
+  }
+
+  const skipped = allItems.length - items.length;
+
+  if (limit > 0) {
+    items = items.slice(0, limit);
+  }
+
+  return { items, skipped };
+}
+
+async function processItems(
+  supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
+  items: WorkItem[],
+  concurrency: number,
+  skipImages: boolean
+): Promise<PipelineResult[]> {
+  const results: PipelineResult[] = [];
+
+  await runWithConcurrency(items, concurrency, async (item) => {
+    try {
+      const result = await runPipeline(supabase, item.topic, item.grade, skipImages);
+      results.push(result);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[refresh-news] pipeline error ${item.topic.topic_key} G${item.grade}:`, reason);
+      results.push({
+        topicKey: item.topic.topic_key,
+        grade: item.grade,
+        status: "error",
+        error: reason,
+      });
+    }
+  });
+
+  return results;
+}
+
 async function runPipeline(
   supabase: Awaited<ReturnType<typeof createServiceRoleClient>>,
   topic: TopicRow,
-  grade: number
+  grade: number,
+  skipImages: boolean = false
 ): Promise<PipelineResult> {
   const topicKey = topic.topic_key;
   const category = topic.category;
@@ -132,38 +238,40 @@ async function runPipeline(
   let coverSource: "minimax" | "pollinations" | null = null;
   let coverSourceUrl: string | null = null;
 
-  try {
-    const cover = await generateCover({
-      articleId,
-      language: topic.language,
-      category,
-      scene: article.scene_description || article.title,
-      title: article.title,
-    });
-    coverUrl = cover.url;
-    coverSource = cover.source;
-    coverSourceUrl = cover.source_url;
-  } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    console.warn(`[refresh-news] cover generation failed for ${topicKey} G${grade}: ${reason}`);
-    // non-blocking: continue without cover
-  }
+  if (!skipImages) {
+    try {
+      const cover = await generateCover({
+        articleId,
+        language: topic.language,
+        category,
+        scene: article.scene_description || article.title,
+        title: article.title,
+      });
+      coverUrl = cover.url;
+      coverSource = cover.source;
+      coverSourceUrl = cover.source_url;
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.warn(`[refresh-news] cover generation failed for ${topicKey} G${grade}: ${reason}`);
+      // non-blocking: continue without cover
+    }
 
-  // 5. Update article with cover info if cover succeeded
-  if (coverUrl) {
-    const { error: coverUpdateError } = await supabase
-      .from("reading_articles")
-      .update({
-        cover_url: coverUrl,
-        cover_source: coverSource,
-        cover_source_url: coverSourceUrl,
-      })
-      .eq("id", articleId);
+    // 5. Update article with cover info if cover succeeded
+    if (coverUrl) {
+      const { error: coverUpdateError } = await supabase
+        .from("reading_articles")
+        .update({
+          cover_url: coverUrl,
+          cover_source: coverSource,
+          cover_source_url: coverSourceUrl,
+        })
+        .eq("id", articleId);
 
-    if (coverUpdateError) {
-      console.warn(
-        `[refresh-news] cover update failed for ${topicKey} G${grade}: ${coverUpdateError.message}`
-      );
+      if (coverUpdateError) {
+        console.warn(
+          `[refresh-news] cover update failed for ${topicKey} G${grade}: ${coverUpdateError.message}`
+        );
+      }
     }
   }
 
@@ -193,53 +301,55 @@ async function runPipeline(
   }
 
   // 7. Illustrations (non-blocking)
-  // Delete old illustrations first
-  await supabase
-    .from("reading_article_illustrations")
-    .delete()
-    .eq("article_id", articleId);
+  if (!skipImages) {
+    // Delete old illustrations first
+    await supabase
+      .from("reading_article_illustrations")
+      .delete()
+      .eq("article_id", articleId);
 
-  if (generatedIllustrations.length > 0) {
-    try {
-      const illustrationResults = await generateIllustrations({
-        articleId,
-        language: topic.language,
-        category,
-        scenes: generatedIllustrations.map((ill) => ({
-          paragraphIndex: ill.paragraph_index,
-          sceneDescription: ill.scene_description,
-        })),
-      });
+    if (generatedIllustrations.length > 0) {
+      try {
+        const illustrationResults = await generateIllustrations({
+          articleId,
+          language: topic.language,
+          category,
+          scenes: generatedIllustrations.map((ill) => ({
+            paragraphIndex: ill.paragraph_index,
+            sceneDescription: ill.scene_description,
+          })),
+        });
 
-      if (illustrationResults.length > 0) {
-        const illustrationRows = illustrationResults.map((ill) => ({
-          article_id: articleId,
-          paragraph_index: ill.paragraph_index,
-          image_url: ill.url,
-          source_url: ill.source_url,
-          source: ill.source,
-          scene_description:
-            generatedIllustrations.find(
-              (g) => g.paragraph_index === ill.paragraph_index
-            )?.scene_description || null,
-        }));
+        if (illustrationResults.length > 0) {
+          const illustrationRows = illustrationResults.map((ill) => ({
+            article_id: articleId,
+            paragraph_index: ill.paragraph_index,
+            image_url: ill.url,
+            source_url: ill.source_url,
+            source: ill.source,
+            scene_description:
+              generatedIllustrations.find(
+                (g) => g.paragraph_index === ill.paragraph_index
+              )?.scene_description || null,
+          }));
 
-        const { error: illError } = await supabase
-          .from("reading_article_illustrations")
-          .insert(illustrationRows);
+          const { error: illError } = await supabase
+            .from("reading_article_illustrations")
+            .insert(illustrationRows);
 
-        if (illError) {
-          console.warn(
-            `[refresh-news] illustration insert failed for ${topicKey} G${grade}: ${illError.message}`
-          );
+          if (illError) {
+            console.warn(
+              `[refresh-news] illustration insert failed for ${topicKey} G${grade}: ${illError.message}`
+            );
+          }
         }
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[refresh-news] illustration generation failed for ${topicKey} G${grade}: ${reason}`
+        );
+        // non-blocking: continue without illustrations
       }
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[refresh-news] illustration generation failed for ${topicKey} G${grade}: ${reason}`
-      );
-      // non-blocking: continue without illustrations
     }
   }
 
@@ -277,57 +387,42 @@ export async function GET(request: Request) {
     .map(Number)
     .filter((n) => !isNaN(n));
   const limit = Number(searchParams.get("limit")) || 0;
+  const concurrencyParam = Number(searchParams.get("concurrency")) || 3;
+  const concurrency = Math.max(1, Math.min(5, concurrencyParam));
+  const skipImages = searchParams.get("skip-images") === "true";
+  const force = searchParams.get("force") === "true";
 
-  let topics: TopicRow[];
+  let items: WorkItem[];
+  let skipped: number;
   try {
-    const [enTopics, zhTopics] = await Promise.all([
-      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "en"),
-      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "zh"),
-    ]);
-    topics = [...enTopics, ...zhTopics];
+    const result = await buildWorkItems(
+      supabase as Awaited<ReturnType<typeof createServiceRoleClient>>,
+      grades,
+      limit,
+      force
+    );
+    items = result.items;
+    skipped = result.skipped;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Failed to fetch topics", details: reason },
+      { error: "Failed to build work items", details: reason },
       { status: 500 }
     );
   }
 
-  const items = limit > 0 ? topics.slice(0, limit) : topics;
-  const results: PipelineResult[] = [];
-
-  for (const topic of items) {
-    // Use requested grades intersected with topic's target_grades
-    const targetGrades =
-      topic.target_grades && topic.target_grades.length > 0
-        ? grades.filter((g) => topic.target_grades.includes(g))
-        : grades;
-
-    for (const grade of targetGrades) {
-      try {
-        const result = await runPipeline(
-          supabase as Awaited<ReturnType<typeof createServiceRoleClient>>,
-          topic,
-          grade
-        );
-        results.push(result);
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        console.error(`[refresh-news] pipeline error ${topic.topic_key} G${grade}:`, reason);
-        results.push({
-          topicKey: topic.topic_key,
-          grade,
-          status: "error",
-          error: reason,
-        });
-      }
-    }
-  }
+  const results = await processItems(
+    supabase as Awaited<ReturnType<typeof createServiceRoleClient>>,
+    items,
+    concurrency,
+    skipImages
+  );
 
   return NextResponse.json({
     total: results.length,
     succeeded: results.filter((r) => r.status === "ok").length,
     failed: results.filter((r) => r.status === "error").length,
+    skipped,
     results,
   });
 }
@@ -345,56 +440,42 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const grades: number[] = body.grades || [3, 6];
   const limit: number = body.limit || 0;
+  const concurrencyParam: number = body.concurrency ?? 3;
+  const concurrency = Math.max(1, Math.min(5, concurrencyParam));
+  const skipImages: boolean = body["skip-images"] ?? body.skipImages ?? false;
+  const force: boolean = body.force ?? false;
 
-  let topics: TopicRow[];
+  let items: WorkItem[];
+  let skipped: number;
   try {
-    const [enTopics, zhTopics] = await Promise.all([
-      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "en"),
-      fetchTopics(supabase as Awaited<ReturnType<typeof createServiceRoleClient>>, "zh"),
-    ]);
-    topics = [...enTopics, ...zhTopics];
+    const result = await buildWorkItems(
+      supabase as Awaited<ReturnType<typeof createServiceRoleClient>>,
+      grades,
+      limit,
+      force
+    );
+    items = result.items;
+    skipped = result.skipped;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "Failed to fetch topics", details: reason },
+      { error: "Failed to build work items", details: reason },
       { status: 500 }
     );
   }
 
-  const items = limit > 0 ? topics.slice(0, limit) : topics;
-  const results: PipelineResult[] = [];
-
-  for (const topic of items) {
-    const targetGrades =
-      topic.target_grades && topic.target_grades.length > 0
-        ? grades.filter((g) => topic.target_grades.includes(g))
-        : grades;
-
-    for (const grade of targetGrades) {
-      try {
-        const result = await runPipeline(
-          supabase as Awaited<ReturnType<typeof createServiceRoleClient>>,
-          topic,
-          grade
-        );
-        results.push(result);
-      } catch (err) {
-        const reason = err instanceof Error ? err.message : String(err);
-        console.error(`[refresh-news] pipeline error ${topic.topic_key} G${grade}:`, reason);
-        results.push({
-          topicKey: topic.topic_key,
-          grade,
-          status: "error",
-          error: reason,
-        });
-      }
-    }
-  }
+  const results = await processItems(
+    supabase as Awaited<ReturnType<typeof createServiceRoleClient>>,
+    items,
+    concurrency,
+    skipImages
+  );
 
   return NextResponse.json({
     total: results.length,
     succeeded: results.filter((r) => r.status === "ok").length,
     failed: results.filter((r) => r.status === "error").length,
+    skipped,
     results,
   });
 }
