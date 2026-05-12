@@ -198,13 +198,17 @@ async function main() {
           // 4. Generate cover (non-blocking failure)
           let coverResult: Awaited<ReturnType<typeof generateCover>> | null = null;
           try {
-            coverResult = await generateCover({
-              articleId: "pending",
-              language: "zh",
-              category: task.topic.category,
-              scene: article.scene_description,
-              title: article.title,
-            });
+            coverResult = await pacer.run(() =>
+              withRetry(() =>
+                generateCover({
+                  articleId: "pending",
+                  language: "zh",
+                  category: task.topic.category,
+                  scene: article.scene_description,
+                  title: article.title,
+                })
+              )
+            );
           } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);
             console.warn(`[cover] ${task.topic.topic_key} G${task.grade} 封面生成失败: ${reason}`);
@@ -358,12 +362,14 @@ async function main() {
         }));
 
         const illustrationResults = await pacer.run(() =>
-          generateIllustrations({
-            articleId: articleRow.id,
-            language: "zh",
-            category: gen.category,
-            scenes: illustrationScenes,
-          })
+          withRetry(() =>
+            generateIllustrations({
+              articleId: articleRow.id,
+              language: "zh",
+              category: gen.category,
+              scenes: illustrationScenes,
+            })
+          )
         );
 
         if (illustrationResults.length > 0) {

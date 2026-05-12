@@ -31,15 +31,14 @@ export function convertToRubyPinyin(text: string): string {
     }
 
     const run = match[0];
-    // Get pinyin array for each character (word-aware for correct polyphones)
-    const pinyinArray = pinyin(run, {
+    // Per-character pinyin with word-aware polyphonic disambiguation.
+    const items = pinyin(run, {
       toneType: "symbol",
-      type: "array",
+      type: "all",
     });
 
-    // Output each character with its own pinyin annotation
     for (let i = 0; i < run.length; i++) {
-      output += `${run[i]}(${pinyinArray[i]})`;
+      output += `${run[i]}(${items[i].result})`;
     }
     lastIndex = chineseRunRegex.lastIndex;
   }
