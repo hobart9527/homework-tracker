@@ -1,60 +1,63 @@
-/**
- * JSON parsing utility with recovery for truncated LLM responses.
- * Attempts direct parse first, then falls back to truncated version with balanced braces.
- */
+interface FallbackResult {
+  success: boolean;
+  data: Record<string, unknown>;
+  method: string;
+}
+
+function tryParseWithFallback(rawText: string): FallbackResult {
+  // Strategy 0: Direct parse
+  try {
+    const text = (rawText || "").trim() || "{}";
+    return { success: true, data: JSON.parse(text) as Record<string, unknown>, method: "direct" };
+  } catch {
+    console.warn("[json-recovery] JSON.parse failed, trying fallback strategy 1");
+  }
+
+  // Strategy 1: Remove <think>... blocks
+  try {
+    const text = rawText
+      .replace(/<think[\s\S]*?<\/think>/gi, "")
+      .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
+      .trim() || "{}";
+    return { success: true, data: JSON.parse(text) as Record<string, unknown>, method: "strip-think" };
+  } catch {
+    console.warn("[json-recovery] Strip <think> failed, trying fallback strategy 2");
+  }
+
+  // Strategy 2: Extract first {...} object with regex
+  try {
+    const match = rawText.match(/\{[\s\S]*\}/);
+    if (match) {
+      const text = match[0];
+      return { success: true, data: JSON.parse(text) as Record<string, unknown>, method: "regex-extract" };
+    }
+  } catch {
+    console.warn("[json-recovery] Regex extract failed, using fallback");
+  }
+
+  // Strategy 3: Return partial object with title (last resort)
+  console.warn("[json-recovery] All JSON parse strategies failed, returning partial fallback");
+  const titleMatch = rawText.match(/"title"\s*:\s*"([^"]+)"/);
+  return {
+    success: false,
+    data: { title: titleMatch ? titleMatch[1] : "Untitled" } as Record<string, unknown>,
+    method: "fallback",
+  };
+}
 
 /**
- * Attempts to parse JSON with multiple recovery strategies:
- * 1. Direct parse after stripping markdown fences and think blocks
- * 2. Truncated parse using last complete balanced braces
- * 3. Descriptive error on total failure
+ * Attempts to parse JSON with multiple recovery strategies.
+ * Delegates to the canonical tryParseWithFallback() implementation.
  */
 export function parseJsonWithRecovery(raw: string): unknown {
-  // Strip markdown fences and think blocks
-  const cleaned = raw
-    .replace(/<think[\s\S]*?<\/think>/gi, "")
-    .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
-    .trim();
-
-  // Strategy 1: Try direct parse
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    // Strategy 1 failed, continue to recovery
-  }
-
-  // Strategy 2: Find last complete balanced braces and parse that
-  let truncated = cleaned;
-  let depth = 0;
-  let lastCompletePos = -1;
-
-  for (let i = 0; i < cleaned.length; i++) {
-    if (cleaned[i] === "{") {
-      depth++;
-    } else if (cleaned[i] === "}") {
-      depth--;
-      if (depth === 0) {
-        lastCompletePos = i;
-      }
-    }
-  }
-
-  if (lastCompletePos >= 0) {
-    truncated = cleaned.substring(0, lastCompletePos + 1);
-    console.log(`[json-recovery] Truncated at position ${lastCompletePos + 1}/${cleaned.length}`);
-    console.log(`[json-recovery] Excerpt: ${truncated.substring(Math.max(0, truncated.length - 500))}`);
-
-    try {
-      return JSON.parse(truncated);
-    } catch {
-      // Truncated also failed, fall through to error
-    }
-  }
-
-  // Strategy 3: Give up with descriptive error
+  const result = tryParseWithFallback(raw);
+  if (result.success) return result.data;
+  // For backward compat: old callers expect throw on failure
   const excerpt = raw.substring(Math.max(0, raw.length - 500));
   throw new Error(
-    `JSON.parse failed after recovery attempts. Raw length: ${raw.length}. ` +
-    `Truncated excerpt: ${excerpt}`
+    `JSON.parse failed after recovery attempts. Raw length: ${raw.length}. Truncated excerpt: ${excerpt}`
   );
 }
+
+export { tryParseWithFallback };
+export type { FallbackResult };

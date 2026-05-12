@@ -1,5 +1,6 @@
 import OpenAI from "openai";
-import { parseJsonWithRecovery } from "./json-recovery";
+import { parseJsonWithRecovery, tryParseWithFallback } from "./json-recovery";
+import { calculateObjectiveDifficulty } from "./difficulty";
 import { getWordCountRange } from "./standards";
 import type { GeneratedArticle, GeneratedQuestion } from "./types";
 
@@ -320,6 +321,10 @@ ${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
 }
 
 // ---------------------------------------------------------------------------
+// JSON parsing — delegated to json-recovery.ts
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Legacy API — preserved for backward compatibility.
 // ---------------------------------------------------------------------------
 
@@ -389,10 +394,8 @@ export async function generateArticleContent(
   });
 
   const rawText = completion.choices[0]?.message?.content || "{}";
-  // Strip <think>...</think> blocks (MiniMax reasoning models) and markdown fences
-  const text = rawText.trim() || "{}";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = parseJsonWithRecovery(text) as any;
+  const result = parseJsonWithRecovery(rawText) as any;
 
   return {
     article: {
@@ -442,38 +445,45 @@ export async function generateReadingContent(
   });
 
   const rawText = completion.choices[0]?.message?.content || "{}";
-  // Strip <think>...</think> blocks (MiniMax reasoning models) and markdown fences
-  const text = rawText
-    .replace(/<think[\s\S]*?<\/think>/gi, "")
-    .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
-    .trim() || "{}";
-  const result = JSON.parse(text);
+  const { data: result, method } = tryParseWithFallback(rawText);
+  if (!method.startsWith("direct")) {
+    console.warn(`[content-generator] JSON parsed via fallback: ${method}`);
+  }
+
+  // Override LLM-returned difficulty with objective calculation
+  const content = result.content as string | undefined;
+  const objResult = calculateObjectiveDifficulty({
+    content: content || "",
+    language: opts.language,
+    gradeLevel: opts.gradeLevel,
+    llmDifficulty: result.difficulty as number | undefined,
+  });
 
   return {
     article: {
-      title: result.title || "Untitled",
-      content: result.content || "",
-      summary: result.summary || "",
-      word_count: result.word_count || 0,
-      estimated_minutes: result.estimated_minutes || 5,
-      difficulty: result.difficulty || 3,
-      scene_description: result.scene_description || "",
+      title: (result.title as string) || "Untitled",
+      content: content || "",
+      summary: (result.summary as string) || "",
+      word_count: (result.word_count as number) || 0,
+      estimated_minutes: (result.estimated_minutes as number) || 5,
+      difficulty: objResult.difficulty, // override LLM value with objective score
+      scene_description: (result.scene_description as string) || "",
       // IB MYP fields — populate from LLM result or fall back to safe defaults
-      genre: result.genre || (opts.language === "zh" ? "记叙文" : "informative"),
-      author_purpose: result.author_purpose || "to inform",
-      cultural_connection: result.cultural_connection || undefined,
-      classical_quote: result.classical_quote || undefined,
+      genre: (result.genre as GeneratedArticle["genre"]) || (opts.language === "zh" ? "记叙文" : "informative"),
+      author_purpose: (result.author_purpose as GeneratedArticle["author_purpose"]) || "to inform",
+      cultural_connection: result.cultural_connection as string | undefined,
+      classical_quote: result.classical_quote as { original: string; pinyin: string; translation: string } | undefined,
       // Factual accuracy fallback — when no sourceText provided or LLM omits field
-      factual_accuracy: result.factual_accuracy || undefined,
+      factual_accuracy: result.factual_accuracy as { source_facts_declared: string[]; facts_preserved_count: number } | undefined,
     } satisfies GeneratedArticle,
-    questions: (result.questions || []).map((q: Record<string, unknown>) => ({
-      question_text: q.question_text || "",
+    questions: ((result.questions || []) as Record<string, unknown>[]).map((q) => ({
+      question_text: (q.question_text as string) || "",
       question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
       options: (q.options as { label: string; text: string }[]) || [],
       correct_answer: (q.correct_answer as string) || "A",
       difficulty: (q.difficulty as number) || 3,
     })),
-    illustrations: (result.illustrations || []).map((ill: Record<string, unknown>) => {
+    illustrations: ((result.illustrations || []) as Record<string, unknown>[]).map((ill) => {
       return {
         paragraph_index: (ill.paragraph_index as number) || 0,
         scene_description: (ill.scene_description as string) || "",

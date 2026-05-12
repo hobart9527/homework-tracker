@@ -21,6 +21,7 @@
  * Usage:
  *   npx tsx scripts/reading-content-pipeline.ts
  *   PIPELINE_GRADES="3,4,5" PIPELINE_TOPIC_LIMIT=2 npx tsx scripts/reading-content-pipeline.ts
+ *   npx tsx scripts/reading-content-pipeline.ts --scrape-first
  *
  * Exit codes:
  *   0 - all succeeded or partially skipped (no failures)
@@ -30,6 +31,7 @@
 import { config } from "dotenv";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCorpusEntry } from "./reading/classic-corpus";
+import scrapeAllSources from "./reading/scrape-all-sources";
 
 config({ path: ".env.local" });
 
@@ -384,6 +386,14 @@ async function main(): Promise<void> {
 
   const supabase = await getSupabaseClient();
 
+  // Optional: scrape content sources before loading topics
+  const scrapeFirst = process.argv.includes("--scrape-first");
+  if (scrapeFirst) {
+    console.log("Scraping content sources first...");
+    await scrapeAllSources({ dryRun: false, lang: "en" });
+    console.log("");
+  }
+
   // Load topics from database
   const topics = await loadTopics(supabase, topicLimit);
   console.log(`Topics:     ${topics.length} (${topicLimit > 0 ? `limited to ${topicLimit}` : "all"})`);
@@ -401,17 +411,15 @@ async function main(): Promise<void> {
     }
   }
 
-  // Create pacer for concurrent LLM/generation calls
-  const pacer = new Pacer(3);
-
   let total = 0;
   let succeeded = 0;
   let skipped = 0;
   let failed = 0;
 
-  // Process all work items through the pacer
+  // Create global pacer for LLM call concurrency (max 3 concurrent across all tasks)
+  const pacer = new Pacer(3);
   const tasks = workItems.map((item, index) =>
-    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase)
+    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer)
   );
 
   const results = await Promise.all(tasks);
@@ -446,9 +454,9 @@ async function processWorkItem(
   total: number,
   grades: number[],
   topics: ReadingTopicRow[],
-  supabase: SupabaseClient<PipelineDatabase>
+  supabase: SupabaseClient<PipelineDatabase>,
+  pacer: InstanceType<typeof Pacer>
 ): Promise<ProcessResult> {
-  const pacer = new Pacer(3);
   const { topic, grade } = item;
   const key = `${topic.topic_key}|G${grade}`;
   process.stdout.write(

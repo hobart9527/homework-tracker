@@ -3,12 +3,13 @@
  * Seed Chinese Graded Reading Content
  * 从 reading_topics 表读取中文主题，通过统一管线生成文章。
  *
- * Usage: npx tsx scripts/seed-chinese-reading-content.ts
+ * Usage: npx tsx scripts/seed-chinese-reading-content.ts [--scrape-first]
  * 需要环境变量: OPENAI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_URL
  */
 
 import { config } from "dotenv";
 import { getCorpusEntry } from "./reading/classic-corpus";
+import scrapeAllSources from "./reading/scrape-all-sources";
 config({ path: ".env.local" });
 
 interface TaskEntry {
@@ -54,6 +55,14 @@ async function main() {
   const pacer = new Pacer(3); // 3 concurrent LLM calls
 
   const supabase = await createServiceRoleClient();
+
+  // Optional: scrape content sources before loading topics
+  const scrapeFirst = process.argv.includes("--scrape-first");
+  if (scrapeFirst) {
+    console.log("Scraping content sources first...");
+    await scrapeAllSources({ dryRun: false, lang: "zh" });
+    console.log("");
+  }
 
   // ---------------------------------------------------------------------------
   // Fetch active Chinese topics from reading_topics
@@ -133,7 +142,7 @@ async function main() {
 
   const generationPromises = tasksToProcess.map(
     (task) =>
-      (async () => {
+      pacer.run(async () => {
         console.log(`生成中: ${task.topic.topic_key} G${task.grade}...`);
 
         try {
@@ -141,18 +150,16 @@ async function main() {
           const corpusEntry = getCorpusEntry(task.topic.topic_key, "zh");
           const sourceText = corpusEntry?.content ?? undefined;
 
-          // 1. Generate content via unified pipeline (with concurrency + retry)
+          // 1. Generate content via unified pipeline (with retry)
           const { article, questions, illustrations: generatedIllustrations } =
-            await pacer.run(() =>
-              withRetry(() =>
-                generateReadingContent({
-                  topicKey: task.topic.topic_key,
-                  language: "zh",
-                  category: task.topic.category,
-                  gradeLevel: task.grade,
-                  sourceText,
-                })
-              )
+            await withRetry(() =>
+              generateReadingContent({
+                topicKey: task.topic.topic_key,
+                language: "zh",
+                category: task.topic.category,
+                gradeLevel: task.grade,
+                sourceText,
+              })
             );
 
           // 2. Post-process pinyin
@@ -191,15 +198,13 @@ async function main() {
           // 4. Generate cover (non-blocking failure)
           let coverResult: Awaited<ReturnType<typeof generateCover>> | null = null;
           try {
-            coverResult = await pacer.run(() =>
-              generateCover({
-                articleId: "pending",
-                language: "zh",
-                category: task.topic.category,
-                scene: article.scene_description,
-                title: article.title,
-              })
-            );
+            coverResult = await generateCover({
+              articleId: "pending",
+              language: "zh",
+              category: task.topic.category,
+              scene: article.scene_description,
+              title: article.title,
+            });
           } catch (err) {
             const reason = err instanceof Error ? err.message : String(err);
             console.warn(`[cover] ${task.topic.topic_key} G${task.grade} 封面生成失败: ${reason}`);
@@ -227,7 +232,7 @@ async function main() {
           console.error(`生成失败: ${task.topic.topic_key} G${task.grade} — ${reason}`);
           throw error;
         }
-      })()
+      })
   );
 
   // Wait for all generations to complete
