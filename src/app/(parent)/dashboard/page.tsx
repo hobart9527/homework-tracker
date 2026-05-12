@@ -12,6 +12,8 @@ import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
 import { ParentMonthCalendar } from "@/components/parent/ParentMonthCalendar";
 import { ParentMonthlyInsights } from "@/components/parent/ParentMonthlyInsights";
 import { ReadingProgressPanel } from "@/components/reading/ReadingProgressPanel";
+import { TodayActivityFeed } from "@/components/parent/TodayActivityFeed";
+import { IncompleteHomeworkAlert } from "@/components/parent/IncompleteHomeworkAlert";
 import { TodayOverview } from "@/components/parent/TodayOverview";
 import {
   buildParentDashboard,
@@ -48,6 +50,8 @@ const EMPTY_DASHBOARD: ParentMonthlyDashboard = {
     incompleteCount: 0,
   },
   checkInHeatmap: [],
+  recentCheckIns: [],
+  incompleteHomeworks: [],
 };
 
 export default function ParentDashboardPage() {
@@ -204,7 +208,7 @@ export default function ParentDashboardPage() {
       checkIns,
       date: selectedDate,
       month: selectedMonth,
-      selectedChildId,
+      selectedChildId: selectedChildId === "__all__" ? null : selectedChildId,
     });
 
     setDashboard(nextDashboard);
@@ -228,6 +232,11 @@ export default function ParentDashboardPage() {
 
   useEffect(() => {
     if (dashboard.summaries.length === 0) {
+      return;
+    }
+
+    // "__all__" is a valid sentinel — don't reset it
+    if (selectedChildId === "__all__") {
       return;
     }
 
@@ -286,91 +295,129 @@ export default function ParentDashboardPage() {
     }
   };
 
+  const handleRemindFromAlert = async (homeworkId: string, childId: string) => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const res = await fetch("/api/reminders/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ homework_id: homeworkId, child_id: childId, target_date: selectedDate }),
+    });
+    if (res.ok) {
+      const month = selectedDate.substring(0, 7);
+      await fetchReminders(session.user.id, month);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        {/* ChildSelector skeleton — row of circular avatars */}
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="animate-pulse flex shrink-0 flex-col items-center gap-1.5">
-              <div className="h-14 w-14 rounded-full bg-ink-100" />
-              <div className="h-3 w-14 rounded bg-ink-100" />
-            </div>
-          ))}
+      <div className="max-w-7xl mx-auto px-space-6 py-space-6 space-y-space-8">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="animate-pulse h-8 w-40 rounded bg-ink-100" />
+          <div className="animate-pulse h-8 w-16 rounded bg-ink-100" />
         </div>
 
-        {/* 12-col grid skeleton */}
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
-          {/* Left column: calendar + insights + heatmap */}
-          <div className="space-y-6 lg:col-span-6 xl:col-span-7">
-            {/* MonthCalendar skeleton — 7-col grid */}
-            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="h-4 w-8 rounded bg-ink-100" />
-                <div className="h-5 w-24 rounded bg-ink-100" />
-                <div className="h-4 w-8 rounded bg-ink-100" />
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className="mx-auto h-3 w-3 rounded bg-ink-100" />
-                ))}
-                {Array.from({ length: 28 }).map((_, i) => (
-                  <div key={`cal-${i}`} className="mx-auto h-8 w-8 rounded-full bg-ink-100" />
+        {/* Section A skeleton: ActivityFeed + IncompleteAlert */}
+        <div>
+          <div className="mb-space-4 flex items-baseline gap-2">
+            <div className="animate-pulse h-6 w-20 rounded bg-ink-100" />
+            <div className="animate-pulse h-4 w-16 rounded bg-ink-100" />
+          </div>
+          <div className="space-y-space-4">
+            <div className="animate-pulse h-20 rounded-radius-xl border border-ink-200 bg-white p-space-4">
+              <div className="flex gap-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-14 w-36 shrink-0 rounded-radius-md bg-ink-100" />
                 ))}
               </div>
             </div>
-            {/* MonthlyInsights skeleton */}
-            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
-              <div className="mb-3 h-4 w-20 rounded bg-ink-100" />
+            <div className="animate-pulse rounded-radius-xl border border-ink-200 bg-white p-space-5">
               <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-ink-100" />
-                    <div className="h-3 flex-1 rounded bg-ink-100" />
-                  </div>
-                ))}
-              </div>
-            </div>
-            {/* Heatmap skeleton */}
-            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised">
-              <div className="mb-3 h-4 w-24 rounded bg-ink-100" />
-              <div className="grid grid-cols-7 gap-1">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className="h-3 w-full rounded bg-ink-100" />
-                ))}
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={`row2-${i}`} className="h-3 w-full rounded bg-ink-100" />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right column: TodayOverview sticky */}
-          <div className="space-y-6 lg:col-span-6 xl:col-span-5">
-            {/* TodayOverview card skeleton */}
-            <div className="animate-pulse rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised lg:sticky lg:top-6">
-              <div className="mb-4 h-5 w-32 rounded bg-ink-100" />
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
+                {Array.from({ length: 2 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-lg bg-ink-100" />
+                    <div className="h-8 w-8 rounded-radius-md bg-ink-100" />
                     <div className="flex-1 space-y-1.5">
-                      <div className="h-4 w-36 rounded bg-ink-100" />
-                      <div className="h-3 w-24 rounded bg-ink-100" />
+                      <div className="h-4 w-28 rounded bg-ink-100" />
+                      <div className="h-3 w-20 rounded bg-ink-100" />
                     </div>
-                    <div className="h-7 w-16 rounded-full bg-ink-100" />
+                    <div className="h-7 w-12 rounded-full bg-ink-100" />
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        </section>
+        </div>
+
+        {/* Section B skeleton: tabs + calendar grid + right panel */}
+        <div>
+          <div className="mb-space-4 flex items-baseline gap-2">
+            <div className="animate-pulse h-6 w-20 rounded bg-ink-100" />
+            <div className="animate-pulse h-4 w-24 rounded bg-ink-100" />
+          </div>
+          {/* Tab pills skeleton */}
+          <div className="flex gap-1 overflow-x-auto pb-1 border-b-2 border-ink-200">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse h-9 w-24 rounded-t-radius-md bg-ink-100" />
+            ))}
+          </div>
+          <div className="mt-space-4 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="space-y-space-6 lg:col-span-2">
+              <div className="animate-pulse rounded-radius-xl border border-ink-200 bg-white p-space-4 shadow-elevation-raised">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="h-4 w-8 rounded bg-ink-100" />
+                  <div className="h-5 w-24 rounded bg-ink-100" />
+                  <div className="h-4 w-8 rounded bg-ink-100" />
+                </div>
+                <div className="grid grid-cols-7 gap-1">
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <div key={i} className="mx-auto h-3 w-3 rounded bg-ink-100" />
+                  ))}
+                  {Array.from({ length: 28 }).map((_, i) => (
+                    <div key={`cal-${i}`} className="mx-auto h-8 w-8 rounded-full bg-ink-100" />
+                  ))}
+                </div>
+              </div>
+              <div className="animate-pulse rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+                <div className="mb-3 h-4 w-20 rounded bg-ink-100" />
+                <div className="space-y-2">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <div className="h-3 w-3 rounded-full bg-ink-100" />
+                      <div className="h-3 flex-1 rounded bg-ink-100" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="lg:col-span-1">
+              <div className="animate-pulse rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+                <div className="mb-4 h-5 w-32 rounded bg-ink-100" />
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-radius-md bg-ink-100" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-4 w-36 rounded bg-ink-100" />
+                        <div className="h-3 w-24 rounded bg-ink-100" />
+                      </div>
+                      <div className="h-7 w-16 rounded-full bg-ink-100" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+    <div className="max-w-7xl mx-auto px-space-6 py-space-6 space-y-space-8">
       {dashboard.summaries.length === 0 ? (
         <div className="py-12 text-center">
           <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-honey-50 to-orange-100 shadow-elevation-floating ring-1 ring-honey-200/40">
@@ -388,48 +435,73 @@ export default function ParentDashboardPage() {
         </div>
       ) : (
         <>
+          {/* Page header */}
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-forest-800">{t('parent.dashboard.title')}</h1>
+            <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">{t('parent.dashboard.title')}</h1>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               {t('common.logout')}
             </Button>
           </div>
-          <ChildSelector
-            summaries={dashboard.summaries}
-            selectedId={activeChildId}
-            onSelect={setSelectedChildId}
-          />
-          {/* 12-col grid: left calendar+insights+heatmap, right TodayOverview sticky */}
-          <section className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
-            {/* 左侧：月度日历 + 薄弱类型 + 时段热力图 */}
-            <div className="space-y-6 lg:col-span-6 xl:col-span-7">
-              <ParentMonthCalendar
-                days={dashboard.calendarDays}
-                selectedDate={selectedDate}
-                selectedMonth={selectedMonth}
-                monthlyStats={dashboard.monthlyStats}
-                onSelectDate={handleSelectDate}
-                onPreviousMonth={() => handleChangeMonth(-1)}
-                onNextMonth={() => handleChangeMonth(1)}
-              />
-              <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
-              <div className="rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised">
-                <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
-              </div>
-              {activeChildId && <ReadingProgressPanel childId={activeChildId} />}
+
+          {/* ===== SECTION A: 今日全局 ===== */}
+          <section aria-labelledby="global-heading">
+            <div className="mb-space-4 flex items-baseline gap-2">
+              <h2 id="global-heading" className="text-ui-lg font-ui-display font-bold text-forest-800">今日全局</h2>
+              <span className="text-ui-xs text-ink-400">所有孩子</span>
             </div>
-            {/* 右侧：当天概览（sticky） */}
-            <div className="space-y-6 lg:col-span-6 xl:col-span-5">
-              {selectedDetail ? (
-                <div className="lg:sticky lg:top-6">
-                  <TodayOverview
-                    detail={selectedDetail}
-                    selectedDate={selectedDate}
-                    reminderStates={reminderStates}
-                    onReminderStateChange={handleReminderStateChange}
-                  />
+            <div className="space-y-space-4">
+              <TodayActivityFeed checkIns={dashboard.recentCheckIns} compact />
+              <IncompleteHomeworkAlert
+                items={dashboard.incompleteHomeworks}
+                onRemind={handleRemindFromAlert}
+              />
+            </div>
+          </section>
+
+          {/* ===== SECTION B: 孩子详情 ===== */}
+          <section aria-labelledby="child-heading">
+            <div className="mb-space-4 flex items-baseline gap-2">
+              <h2 id="child-heading" className="text-ui-lg font-ui-display font-bold text-forest-800">孩子详情</h2>
+              <span className="text-ui-xs text-ink-400">选择孩子查看个人数据</span>
+            </div>
+            <ChildSelector
+              summaries={dashboard.summaries}
+              selectedId={activeChildId}
+              onSelect={setSelectedChildId}
+            />
+            <div className="mt-space-4 grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
+              {/* Left: 2/3 */}
+              <div className="space-y-space-6 lg:col-span-2">
+                <ParentMonthCalendar
+                  days={dashboard.calendarDays}
+                  selectedDate={selectedDate}
+                  selectedMonth={selectedMonth}
+                  monthlyStats={dashboard.monthlyStats}
+                  onSelectDate={handleSelectDate}
+                  onPreviousMonth={() => handleChangeMonth(-1)}
+                  onNextMonth={() => handleChangeMonth(1)}
+                />
+                <ParentMonthlyInsights weakestTypes={dashboard.weakestTypes} />
+                <div className="rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+                  <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
                 </div>
-              ) : null}
+                {activeChildId && activeChildId !== "__all__" && (
+                  <ReadingProgressPanel childId={activeChildId} />
+                )}
+              </div>
+              {/* Right: 1/3 */}
+              <div className="lg:col-span-1">
+                {activeChildId && activeChildId !== "__all__" && selectedDetail ? (
+                  <div className="lg:sticky lg:top-6">
+                    <TodayOverview
+                      detail={selectedDetail}
+                      selectedDate={selectedDate}
+                      reminderStates={reminderStates}
+                      onReminderStateChange={handleReminderStateChange}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
           </section>
         </>

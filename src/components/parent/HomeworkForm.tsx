@@ -12,6 +12,7 @@ import {
   buildHomeworkDraftFromSource,
   buildHomeworkInsertRows,
   buildHomeworkRulePreview,
+  decodeDescriptionMeta,
   type HomeworkFormState,
 } from "@/lib/homework-form";
 import type { Database } from "@/lib/supabase/types";
@@ -34,9 +35,22 @@ const DEFAULT_TYPES = [
   { id: "musical", name: "Musical", icon: "🎭", default_points: 3 },
   { id: "housework", name: "家务", icon: "🧹", default_points: 2 },
   { id: "english_reading", name: "英文阅读", icon: "📚", default_points: 5 },
+  { id: "math", name: "数学", icon: "📐", default_points: 4 },
+  { id: "english", name: "英语", icon: "🔤", default_points: 4 },
+  { id: "science", name: "科学", icon: "🔬", default_points: 3 },
+  { id: "coding", name: "编程", icon: "💻", default_points: 4 },
+  { id: "calligraphy", name: "书法", icon: "✍️", default_points: 3 },
+  { id: "drawing", name: "画画", icon: "🎨", default_points: 3 },
+  { id: "dance", name: "舞蹈", icon: "💃", default_points: 3 },
+  { id: "swimming", name: "游泳", icon: "🏊", default_points: 3 },
+  { id: "running", name: "跑步", icon: "🏃", default_points: 2 },
+  { id: "skipping", name: "跳绳", icon: "🪢", default_points: 2 },
+  { id: "poetry", name: "古诗背诵", icon: "📜", default_points: 4 },
+  { id: "mental_math", name: "口算", icon: "🧮", default_points: 3 },
+  { id: "writing", name: "写字", icon: "✏️", default_points: 3 },
+  { id: "listening", name: "听力", icon: "🎧", default_points: 3 },
+  { id: "speaking", name: "口语", icon: "🗣️", default_points: 4 },
 ];
-
-const ALL_ICONS = ["📝", "✏️", "📋", "🎨", "⚽", "🏀", "🎸", "🧮", "🔬", "📐", "✍️", "🗣️", "🎹", "📖", "💻", "📚", "🔢", "🇨🇳", "🏐", "👯", "🎭", "🧹", "📸", "🎵", "🌟", "🧩", "🖊️", "📏", "🎯", "🏃"];
 
 interface HomeworkFormProps {
   homework?: Database["public"]["Tables"]["homeworks"]["Row"];
@@ -58,9 +72,10 @@ export function HomeworkForm({
   const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
   const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showIconPicker, setShowIconPicker] = useState(false);
-  const [readingArticles, setReadingArticles] = useState<Array<{id:string, title:string, grade_level:number, category:string}>>([]);
-  const [selectedReadingArticleId, setSelectedReadingArticleId] = useState<string>("");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [readingArticles, setReadingArticles] = useState<
+    Array<{ id: string; title: string; grade_level: number; category: string }>
+  >([]);
   const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
   const [homeworkRoutingMode, setHomeworkRoutingMode] = useState<
     "child_default" | "homework_override"
@@ -73,14 +88,22 @@ export function HomeworkForm({
 
   const isEditing = !!homework;
 
+  const editingDescriptionMeta = homework?.description
+    ? decodeDescriptionMeta(homework.description)
+    : { description: "", meta: {} };
+
   const [formData, setFormData] = useState<HomeworkFormState>({
     child_ids: homework?.child_id ? [homework.child_id] : [],
     type_id: homework?.type_id || "",
     type_name: homework?.type_name || "",
     type_icon: homework?.type_icon || "📝",
     title: homework?.title || "",
-    description: homework?.description || "",
-    repeat_type: (homework?.repeat_type || "daily") as "daily" | "weekly" | "interval" | "once",
+    description: editingDescriptionMeta.description || homework?.description || "",
+    repeat_type: (homework?.repeat_type || "daily") as
+      | "daily"
+      | "weekly"
+      | "interval"
+      | "once",
     repeat_days: homework?.repeat_days || [],
     repeat_interval: homework?.repeat_interval || 1,
     repeat_start_date: homework?.repeat_start_date || "",
@@ -88,11 +111,16 @@ export function HomeworkForm({
     point_deduction: homework?.point_deduction ?? 3,
     estimated_minutes: homework?.estimated_minutes ?? null,
     daily_cutoff_time: homework?.daily_cutoff_time || "23:30",
-    required_checkpoint_type: (homework?.required_checkpoint_type || "") as "" | "photo" | "audio",
+    required_checkpoint_type: (homework?.required_checkpoint_type || "") as
+      | ""
+      | "photo"
+      | "audio",
     platform_binding_platform: homework?.platform_binding_platform || "",
     platform_binding_source_ref: homework?.platform_binding_source_ref || "",
     send_to_wechat: homework?.send_to_wechat || false,
     wechat_group_id: homework?.wechat_group_id || "",
+    enable_recording: (editingDescriptionMeta.meta.enable_recording as boolean) || false,
+    reading_article_id: (editingDescriptionMeta.meta.reading_article_id as string) || "",
   });
 
   useEffect(() => {
@@ -115,19 +143,21 @@ export function HomeworkForm({
           { data: platformAccountsData },
           { data: routingRulesData },
           { data: wechatGroupsData },
-        ] =
-          await Promise.all([
-            supabase
-              .from("platform_accounts")
-              .select("*")
-              .in("child_id", childIds),
-            supabase
-              .from("message_routing_rules")
-              .select("*")
-              .in("child_id", childIds)
-              .order("created_at", { ascending: false }),
-            supabase.from("wechat_groups").select("*").eq("parent_id", session.user.id),
-          ]);
+        ] = await Promise.all([
+          supabase
+            .from("platform_accounts")
+            .select("*")
+            .in("child_id", childIds),
+          supabase
+            .from("message_routing_rules")
+            .select("*")
+            .in("child_id", childIds)
+            .order("created_at", { ascending: false }),
+          supabase
+            .from("wechat_groups")
+            .select("*")
+            .eq("parent_id", session.user.id),
+        ]);
 
         if (platformAccountsData) {
           setPlatformAccounts(platformAccountsData as PlatformAccount[]);
@@ -140,14 +170,12 @@ export function HomeworkForm({
         }
       }
 
-      // Only auto-select first child on initial load when editing a new homework
       if (!homework && !copyFromHomeworkId && childrenData?.length && !prefilledChildId) {
         setFormData((prev) => ({ ...prev, child_ids: [childrenData[0].id] }));
       }
     };
 
     fetchData();
-    // Intentionally omits formData.child_ids to avoid re-fetching when selection changes.
   }, [supabase, copyFromHomeworkId, homework]);
 
   useEffect(() => {
@@ -176,8 +204,6 @@ export function HomeworkForm({
     if (prefilledChildId && !formData.child_ids.length && children.length > 0) {
       setFormData((prev) => ({ ...prev, child_ids: [prefilledChildId] }));
     }
-    // Only runs when prefilledChildId changes or children first load.
-    // Intentionally omits formData.child_ids from deps to avoid re-triggering.
   }, [prefilledChildId, children.length]);
 
   useEffect(() => {
@@ -244,6 +270,9 @@ export function HomeworkForm({
   const preview = buildHomeworkRulePreview(formData, assignmentSummary.childNames);
   const canBatchAssign = !isEditing && !prefilledChildId;
 
+  const isReadingType =
+    formData.type_name === "阅读" || formData.type_name === "英文阅读";
+
   useEffect(() => {
     if (!autoMatchedPlatform || !canConfigurePlatformBinding) {
       return;
@@ -262,22 +291,20 @@ export function HomeworkForm({
   }, [autoMatchedPlatform, canConfigurePlatformBinding]);
 
   useEffect(() => {
-    if (formData.type_name !== "英文阅读") return;
+    if (!isReadingType) return;
     fetch("/api/reading/articles")
-      .then(r => r.json())
-      .then(d => setReadingArticles(d.articles || []))
+      .then((r) => r.json())
+      .then((d) => setReadingArticles(d.articles || []))
       .catch(() => {});
-  }, [formData.type_name]);
+  }, [formData.type_name, isReadingType]);
 
   const handleTypeSelect = (type: (typeof allTypes)[0]) => {
-    // Auto-fill title unless user has manually customized it
     const prevDefaultTitle = formData.type_name
       ? (() => {
           const found = DEFAULT_TYPES.find((t) => t.name === formData.type_name);
           if (found) return found.name + "练习";
         })()
       : null;
-    // If no previous type, or current title matches previous default, it's auto-filled
     const isAutoTitle = !prevDefaultTitle || formData.title === prevDefaultTitle;
 
     setFormData((prev) => ({
@@ -323,14 +350,17 @@ export function HomeworkForm({
         }
       }
 
-      // Create reading assignment for english reading homework
-      if (formData.type_name === "英文阅读" && selectedReadingArticleId && savedHomeworkId) {
+      // Create reading assignment for reading/homework types
+      if (isReadingType && formData.reading_article_id && savedHomeworkId) {
         for (const childId of formData.child_ids) {
           try {
             await fetch("/api/reading/assignments", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ childId, articleId: selectedReadingArticleId }),
+              body: JSON.stringify({
+                childId,
+                articleId: formData.reading_article_id,
+              }),
             });
           } catch {}
         }
@@ -402,7 +432,6 @@ export function HomeworkForm({
         ? prev.child_ids.filter((id) => id !== childId)
         : [...prev.child_ids, childId];
 
-      // Always update, even if empty - user should be able to deselect all
       return {
         ...prev,
         child_ids,
@@ -410,417 +439,328 @@ export function HomeworkForm({
     });
   };
 
-  const handleQuickTypeChange = (value: string) => {
-    const matchedType = allTypes.find((type) => type.name === value);
-
-    if (!matchedType) {
-      setFormData((prev) => ({
-        ...prev,
-        type_id: "",
-        type_name: "",
-      }));
-      return;
-    }
-
-    handleTypeSelect(matchedType);
+  const handleClearType = () => {
+    setFormData((prev) => ({
+      ...prev,
+      type_id: "",
+      type_name: "",
+      type_icon: "📝",
+    }));
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="space-y-4">
-          <HomeworkAssignmentPanel
-            children={children}
-            selectedIds={formData.child_ids}
-            canBatchAssign={canBatchAssign}
-            createCountLabel={assignmentSummary.createCountLabel}
-            independenceHint={assignmentSummary.independenceHint}
-            onToggle={handleToggleChild}
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
+      {/* Compact Rule Preview Card (sticky summary) */}
+      <div className="sticky top-0 z-10">
+        <HomeworkRulePreview preview={preview} />
+      </div>
+
+      {/* Section 1: 基本信息 (always expanded) */}
+      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
+        <h2 className="text-lg font-semibold text-forest-700">基本信息</h2>
+
+        <HomeworkAssignmentPanel
+          children={children}
+          selectedIds={formData.child_ids}
+          canBatchAssign={canBatchAssign}
+          createCountLabel={assignmentSummary.createCountLabel}
+          independenceHint={assignmentSummary.independenceHint}
+          onToggle={handleToggleChild}
+        />
+
+        {/* Type chip grid selector */}
+        <div>
+          <label className="block text-sm font-medium text-forest-700 mb-1">
+            作业类型
+          </label>
+          <p className="text-sm text-forest-500 mb-3">
+            选择一个类型自动带入标题建议、图标和默认积分。
+          </p>
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+            <button
+              type="button"
+              onClick={handleClearType}
+              className={`rounded-xl border-2 px-2 py-2 text-center text-sm transition-all ${
+                !formData.type_name
+                  ? "border-primary bg-primary/10 text-primary font-medium"
+                  : "border-forest-200 text-forest-600 hover:border-forest-300"
+              }`}
+            >
+              <div className="text-lg">📝</div>
+              <div className="text-xs mt-0.5">自定义</div>
+            </button>
+            {allTypes.map((type) => {
+              const isSelected = formData.type_name === type.name;
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => handleTypeSelect(type)}
+                  className={`rounded-xl border-2 px-2 py-2 text-center text-sm transition-all ${
+                    isSelected
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-forest-200 text-forest-600 hover:border-forest-300"
+                  }`}
+                >
+                  <div className="text-lg">{type.icon}</div>
+                  <div className="text-xs mt-0.5">{type.name}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Section 2: 作业标题 (always visible) */}
+      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
+        <h2 className="text-lg font-semibold text-forest-700">作业标题</h2>
+
+        <Input
+          label="标题"
+          aria-label="作业标题"
+          value={formData.title}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, title: e.target.value }))
+          }
+          placeholder={
+            formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"
+          }
+          required
+        />
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-forest-700">
+            描述（可选）
+          </label>
+          <textarea
+            aria-label="描述（可选）"
+            value={formData.description}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, description: e.target.value }))
+            }
+            placeholder="详细说明..."
+            className="w-full rounded-xl border-2 border-forest-200 px-4 py-2 focus:border-primary focus:outline-none"
+            rows={3}
           />
-          <HomeworkRulePreview preview={preview} />
+        </div>
+      </section>
+
+      {/* Section 3: 作业规则 (always expanded) */}
+      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
+        <h2 className="text-lg font-semibold text-forest-700">作业规则</h2>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-forest-700">
+            重复规则
+          </label>
+          <div className="flex gap-2 flex-wrap">
+            {(["daily", "weekly", "interval", "once"] as const).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() =>
+                  setFormData((prev) => ({ ...prev, repeat_type: type }))
+                }
+                className={`px-4 py-2 rounded-xl border-2 transition-all ${
+                  formData.repeat_type === type
+                    ? "border-primary bg-primary/10"
+                    : "border-forest-200"
+                }`}
+              >
+                {{
+                  daily: "每日",
+                  weekly: "每周",
+                  interval: "间隔",
+                  once: "单次",
+                }[type]}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="space-y-6 rounded-3xl border border-forest-200 bg-white/90 p-5">
-          <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
-            <div className="flex-1">
-              <label
-                htmlFor="homework-quick-type"
-                className="block text-sm font-medium text-forest-700"
-              >
-                快捷类型（可选）
-              </label>
-              <p className="mt-1 text-sm text-forest-500">
-                选一个常用类型，自动带入标题建议、图标和默认积分。自定义类型请到设置页维护。
-              </p>
-            </div>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-              <select
-                id="homework-quick-type"
-                aria-label="快捷类型（可选）"
-                value={formData.type_name}
-                onChange={(e) => handleQuickTypeChange(e.target.value)}
-                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-700 outline-none transition-all focus:border-primary"
-              >
-                <option value="">不预设类型</option>
-                {allTypes.map((type) => (
-                  <option key={type.id} value={type.name}>
-                    {type.icon} {type.name}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                type="button"
-                onClick={() => setShowIconPicker((prev) => !prev)}
-                className="flex items-center justify-center gap-2 rounded-xl border border-forest-200 bg-white px-4 py-3 text-sm text-forest-600 transition-all hover:border-primary hover:text-primary"
-              >
-                图标 {formData.type_icon}
-              </button>
-            </div>
-
-            {showIconPicker && (
-              <div className="mt-3 flex flex-wrap gap-1">
-                {ALL_ICONS.map((icon) => (
-                  <button
-                    key={icon}
-                    type="button"
-                    onClick={() => {
-                      setFormData((prev) => ({ ...prev, type_icon: icon }));
-                      setShowIconPicker(false);
-                    }}
-                    className={`w-9 h-9 rounded-lg border-2 text-xl transition-all ${
-                      formData.type_icon === icon
-                        ? "border-primary bg-primary/10"
-                        : "border-forest-200"
-                    }`}
-                  >
-                    {icon}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {formData.type_name === "英文阅读" && (
-            <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
-              <label className="block text-sm font-medium text-forest-700 mb-2">
-                选择阅读文章
-              </label>
-              <select
-                value={selectedReadingArticleId}
-                onChange={(e) => setSelectedReadingArticleId(e.target.value)}
-                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm"
-              >
-                <option value="">选择一篇文章...</option>
-                {readingArticles.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    [{a.category}] {a.title} (G{a.grade_level})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <Input
-            label="作业标题"
-            aria-label="作业标题"
-            value={formData.title}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, title: e.target.value }))
-            }
-            placeholder={formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"}
-            required
-          />
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-forest-700">
-              描述（可选）
-            </label>
-            <textarea
-              aria-label="描述（可选）"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, description: e.target.value }))
-              }
-              placeholder="详细说明..."
-              className="w-full rounded-xl border-2 border-forest-200 px-4 py-2 focus:border-primary focus:outline-none"
-              rows={3}
-            />
-          </div>
-
+        {formData.repeat_type === "weekly" && (
           <div>
             <label className="mb-2 block text-sm font-medium text-forest-700">
-              重复规则
+              选择星期
             </label>
-            <div className="flex gap-2 flex-wrap">
-              {(["daily", "weekly", "interval", "once"] as const).map((type) => (
+            <div className="flex gap-2">
+              {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
                 <button
-                  key={type}
+                  key={day}
                   type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({ ...prev, repeat_type: type }))
-                  }
-                  className={`px-4 py-2 rounded-xl border-2 transition-all ${
-                    formData.repeat_type === type
-                      ? "border-primary bg-primary/10"
+                  onClick={() => {
+                    const days = formData.repeat_days.includes(index)
+                      ? formData.repeat_days.filter((d) => d !== index)
+                      : [...formData.repeat_days, index];
+                    setFormData((prev) => ({ ...prev, repeat_days: days }));
+                  }}
+                  className={`w-10 h-10 rounded-full border-2 transition-all ${
+                    formData.repeat_days.includes(index)
+                      ? "border-primary bg-primary text-white"
                       : "border-forest-200"
                   }`}
                 >
-                  {{
-                    daily: "每日",
-                    weekly: "每周",
-                    interval: "间隔",
-                    once: "单次",
-                  }[type]}
+                  {day}
                 </button>
               ))}
             </div>
           </div>
+        )}
 
-          {formData.repeat_type === "weekly" && (
-            <div>
-              <label className="mb-2 block text-sm font-medium text-forest-700">
-                选择星期
-              </label>
-              <div className="flex gap-2">
-                {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => {
-                      const days = formData.repeat_days.includes(index)
-                        ? formData.repeat_days.filter((d) => d !== index)
-                        : [...formData.repeat_days, index];
-                      setFormData((prev) => ({ ...prev, repeat_days: days }));
-                    }}
-                    className={`w-10 h-10 rounded-full border-2 transition-all ${
-                      formData.repeat_days.includes(index)
-                        ? "border-primary bg-primary text-white"
-                        : "border-forest-200"
-                    }`}
-                  >
-                    {day}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-forest-700">
-              证明要求
-            </label>
-            <div className="flex gap-2">
-              {([
-                ["none", "无要求", "—"],
-                ["photo", "照片", "📸"],
-                ["audio", "录音", "🎵"],
-              ] as const).map(([value, label, icon]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      required_checkpoint_type: value === "none" ? "" : value,
-                    }))
-                  }
-                  className={`flex-1 py-2 rounded-xl border-2 text-center transition-all ${
-                    (value === "none" && !formData.required_checkpoint_type) ||
-                    formData.required_checkpoint_type === value
-                      ? "border-primary bg-primary/10"
-                      : "border-forest-200 hover:border-forest-300"
-                  }`}
-                >
-                  <span className="text-lg">{icon}</span>
-                  <div className="text-xs">{label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="积分奖励"
-              type="number"
-              min={1}
-              max={20}
-              value={formData.point_value}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  point_value: parseInt(e.target.value),
-                }))
-              }
-            />
-            <Input
-              label="积分扣减（当日未完成）"
-              type="number"
-              min={0}
-              max={20}
-              value={formData.point_deduction}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  point_deduction: parseInt(e.target.value),
-                }))
-              }
-            />
-          </div>
+        {formData.repeat_type === "interval" && (
           <Input
-            label="预计时长（分钟）"
+            label="每隔几天"
             type="number"
-            min={5}
-            max={180}
-            value={formData.estimated_minutes ?? ""}
+            min={1}
+            max={30}
+            value={formData.repeat_interval}
             onChange={(e) =>
               setFormData((prev) => ({
                 ...prev,
-                estimated_minutes:
-                  e.target.value.trim() === ""
-                    ? null
-                    : parseInt(e.target.value, 10),
+                repeat_interval: parseInt(e.target.value),
               }))
             }
           />
+        )}
 
+        {["interval", "once"].includes(formData.repeat_type) && (
           <Input
-            label="每日截止时间"
-            type="time"
-            value={formData.daily_cutoff_time}
+            label={formData.repeat_type === "once" ? "作业日期" : "开始日期"}
+            type="date"
+            value={formData.repeat_start_date}
             onChange={(e) =>
               setFormData((prev) => ({
                 ...prev,
-                daily_cutoff_time: e.target.value,
+                repeat_start_date: e.target.value,
+              }))
+            }
+            required
+          />
+        )}
+
+        <Input
+          label="每日截止时间"
+          type="time"
+          value={formData.daily_cutoff_time}
+          onChange={(e) =>
+            setFormData((prev) => ({
+              ...prev,
+              daily_cutoff_time: e.target.value,
+            }))
+          }
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="积分奖励"
+            type="number"
+            min={1}
+            max={20}
+            value={formData.point_value}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                point_value: parseInt(e.target.value),
               }))
             }
           />
+          <Input
+            label="积分扣减（当日未完成）"
+            type="number"
+            min={0}
+            max={20}
+            value={formData.point_deduction}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                point_deduction: parseInt(e.target.value),
+              }))
+            }
+          />
+        </div>
+      </section>
 
-          {formData.repeat_type === "interval" && (
-            <Input
-              label="每隔几天"
-              type="number"
-              min={1}
-              max={30}
-              value={formData.repeat_interval}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  repeat_interval: parseInt(e.target.value),
-                }))
-              }
-            />
-          )}
+      {/* Section 4: 证明要求 (always expanded, simplified) */}
+      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
+        <h2 className="text-lg font-semibold text-forest-700">证明要求</h2>
 
-          {["interval", "once"].includes(formData.repeat_type) && (
-            <Input
-              label={formData.repeat_type === "once" ? "作业日期" : "开始日期"}
-              type="date"
-              value={formData.repeat_start_date}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  repeat_start_date: e.target.value,
-                }))
-              }
-              required
-            />
-          )}
-
-          <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
-            <div>
-              <label className="block text-sm font-medium text-forest-700">
-                平台任务绑定
-              </label>
-              <p className="mt-1 text-sm text-forest-500">
-                绑定后，平台同步会优先把学习事件匹配到这条作业。适合单个孩子的精确任务；多人批量创建时先保持为空更稳妥。
-              </p>
-            </div>
-
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="platform-binding-platform"
-                  className="mb-1 block text-sm font-medium text-forest-700"
-                >
-                  来源平台
-                </label>
-                <select
-                  id="platform-binding-platform"
-                  aria-label="来源平台"
-                  disabled={!canConfigurePlatformBinding}
-                  value={formData.platform_binding_platform}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      platform_binding_platform: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary disabled:cursor-not-allowed disabled:bg-forest-100"
-                >
-                  <option value="">不绑定具体平台任务</option>
-                  <option value="ixl">IXL</option>
-                  <option value="khan-academy">Khan Academy</option>
-                </select>
-              </div>
-
-              <Input
-                id="platform-binding-source-ref"
-                label="平台任务 Source Ref"
-                aria-label="平台任务 Source Ref"
-                disabled={!canConfigurePlatformBinding}
-                value={formData.platform_binding_source_ref}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    platform_binding_source_ref: e.target.value,
-                  }))
-                }
-                placeholder="例如 lesson-123 / skill-a4"
-              />
-            </div>
-
-            <p className="mt-3 text-xs text-forest-500">
-              {canConfigurePlatformBinding
-                ? "如果平台端有明确的任务编号或课程编号，建议在这里填入，能明显减少误匹配。"
-                : "当前选择了多个孩子，已暂时禁用精确平台绑定，避免不同孩子共享同一个外部任务编号。"}
+        {/* Photo toggle */}
+        <div className="flex items-center justify-between py-2">
+          <div>
+            <span className="text-sm font-medium text-forest-700">
+              需要拍照证明
+            </span>
+            <p className="text-xs text-forest-500 mt-0.5">
+              开启后孩子完成时需要提交照片
             </p>
-
-            {canConfigurePlatformBinding ? (
-              <div className="mt-3 rounded-xl border border-forest-100 bg-white px-3 py-3 text-sm text-forest-600">
-                <p className="font-medium text-forest-700">孩子平台账号自动匹配</p>
-                {matchedPlatformAccount ? (
-                  <p className="mt-1">
-                    已匹配 {matchedPlatformAccount.platform} 账号：
-                    {matchedPlatformAccount.external_account_ref}
-                  </p>
-                ) : autoMatchedPlatform ? (
-                  <p className="mt-1 text-amber-700">
-                    当前作业类型已自动匹配到平台 {autoMatchedPlatform}，但这个孩子还没有绑定对应的平台账号。
-                  </p>
-                ) : (
-                  <p className="mt-1">
-                    当作业类型是 IXL 或 Khan Academy 时，这里会自动带出对应平台，作业级只需要再补精确的 task source ref。
-                  </p>
-                )}
-              </div>
-            ) : null}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFormData((prev) => {
+                const newVal =
+                  prev.required_checkpoint_type === "photo" ? "" : "photo";
+                return {
+                  ...prev,
+                  required_checkpoint_type: newVal as "" | "photo",
+                };
+              });
+            }}
+            className={`relative w-12 h-7 rounded-full transition-colors ${
+              formData.required_checkpoint_type === "photo"
+                ? "bg-forest-500"
+                : "bg-ink-300"
+            }`}
+          >
+            <div
+              className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                formData.required_checkpoint_type === "photo"
+                  ? "left-6"
+                  : "left-1"
+              }`}
+            />
+          </button>
+        </div>
 
-          <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
-            <div>
-              <label className="block text-sm font-medium text-forest-700">
-                作业提交群
-              </label>
-              <p className="mt-1 text-sm text-forest-500">
-                设置作业提交后自动发送到微信群。选择具体群将覆盖孩子的默认群设置；留空则继承孩子默认群。
-              </p>
-            </div>
+        {/* Recording toggle */}
+        <div className="flex items-center justify-between py-2 border-t border-forest-100">
+          <div>
+            <span className="text-sm font-medium text-forest-700">
+              开启录音打卡
+            </span>
+            <p className="text-xs text-forest-500 mt-0.5">
+              开启后孩子完成作业时需要录音打卡
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFormData((prev) => ({
+                ...prev,
+                enable_recording: !prev.enable_recording,
+                send_to_wechat: !prev.enable_recording
+                  ? prev.send_to_wechat
+                  : false,
+              }));
+            }}
+            className={`relative w-12 h-7 rounded-full transition-colors ${
+              formData.enable_recording ? "bg-forest-500" : "bg-ink-300"
+            }`}
+          >
+            <div
+              className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
+                formData.enable_recording ? "left-6" : "left-1"
+              }`}
+            />
+          </button>
+        </div>
 
+        {/* WeChat push — inline, only when recording is ON */}
+        {formData.enable_recording && (
+          <div className="border-t border-forest-100 pt-4 space-y-3">
             {canConfigurePlatformBinding ? (
               <>
-                <label className="mt-4 flex items-center gap-3 text-sm text-forest-700">
+                <label className="flex items-center gap-3 text-sm text-forest-700">
                   <input
                     type="checkbox"
                     checked={formData.send_to_wechat}
@@ -828,95 +768,245 @@ export function HomeworkForm({
                       setFormData((prev) => ({
                         ...prev,
                         send_to_wechat: e.target.checked,
-                        wechat_group_id: e.target.checked ? prev.wechat_group_id : "",
+                        wechat_group_id: e.target.checked
+                          ? prev.wechat_group_id
+                          : "",
                       }))
                     }
                   />
                   提交完成后自动发到微信群
                 </label>
 
-                {formData.send_to_wechat ? (
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label
-                        htmlFor="homework-wechat-group"
-                        className="mb-1 block text-sm font-medium text-forest-700"
-                      >
-                        提交到哪个微信群
-                      </label>
-                      <select
-                        id="homework-wechat-group"
-                        aria-label="提交到哪个微信群"
-                        value={formData.wechat_group_id}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            wechat_group_id: e.target.value,
-                          }))
-                        }
-                        className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary"
-                      >
-                        <option value="">继承孩子默认群</option>
-                        {wechatGroups.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.display_name
-                              ? `"${group.display_name}"`
-                              : `群聊 ${group.recipient_ref.slice(0, 12)}...`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                ) : null}
+                {formData.send_to_wechat && (
+                  <div>
+                    <label
+                      htmlFor="homework-wechat-group"
+                      className="mb-1 block text-sm font-medium text-forest-700"
+                    >
+                      提交到哪个微信群
+                    </label>
+                    <select
+                      id="homework-wechat-group"
+                      aria-label="提交到哪个微信群"
+                      value={formData.wechat_group_id}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          wechat_group_id: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary"
+                    >
+                      <option value="">继承孩子默认群</option>
+                      {wechatGroups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.display_name
+                            ? `"${group.display_name}"`
+                            : `群聊 ${group.recipient_ref.slice(0, 12)}...`}
+                        </option>
+                      ))}
+                    </select>
 
-                {formData.send_to_wechat ? (
-                  formData.wechat_group_id ? (
-                    <p className="mt-4 text-sm text-forest-500">
-                      当前这条作业会使用单独指定的提交群，覆盖孩子默认设置。
-                    </p>
-                  ) : (
-                    <p className="mt-4 text-sm text-forest-500">
-                      {selectedChildDefaultGroup ? (
-                        <>
-                          当前会继承 {selectedChild?.name} 的默认提交群
-                          {selectedChildDefaultGroup.display_name
-                            ? `"${selectedChildDefaultGroup.display_name}"`
-                            : `群聊 ${selectedChildDefaultGroup.recipient_ref.slice(0, 12)}...`}
-                          。可在孩子集成页修改默认群。
-                        </>
-                      ) : (
-                        <>
-                          当前会继承 {selectedChild?.name} 的默认提交群，但这个孩子暂时还没有设置默认群。可在孩子集成页修改默认群。
-                        </>
-                      )}
-                    </p>
-                  )
-                ) : (
-                  <p className="mt-4 text-sm text-forest-500">
-                    当前这条作业不会自动发送到微信群。
-                  </p>
+                    {formData.send_to_wechat && (
+                      <p className="mt-3 text-sm text-forest-500">
+                        {formData.wechat_group_id ? (
+                          "当前这条作业会使用单独指定的提交群，覆盖孩子默认设置。"
+                        ) : (
+                          <>
+                            {selectedChildDefaultGroup ? (
+                              <>
+                                当前会继承 {selectedChild?.name} 的默认提交群
+                                {selectedChildDefaultGroup.display_name
+                                  ? `"${selectedChildDefaultGroup.display_name}"`
+                                  : `群聊 ${selectedChildDefaultGroup.recipient_ref.slice(0, 12)}...`}
+                                。可在孩子集成页修改默认群。
+                              </>
+                            ) : (
+                              <>
+                                当前会继承 {selectedChild?.name}
+                                的默认提交群，但这个孩子暂时还没有设置默认群。可在孩子集成页修改默认群。
+                              </>
+                            )}
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </div>
                 )}
               </>
             ) : (
-              <p className="mt-4 text-sm text-forest-500">
+              <p className="text-sm text-forest-500">
                 当前是多人批量创建。作业级提交群只在单个孩子的作业上配置，避免把同一目标误绑给多个孩子。
               </p>
             )}
           </div>
+        )}
+      </section>
 
-          <div className="flex gap-3">
-            <Button type="button" variant="ghost" onClick={() => router.back()}>
-              取消
-            </Button>
-            <Button
-              type="submit"
-              className="flex-1"
-              disabled={loading || formData.child_ids.length === 0 || !formData.title}
-            >
-              {loading ? "保存中..." : homework ? "更新作业" : "创建作业"}
-            </Button>
+      {/* Section 5: 高级设置 (collapsible, collapsed by default) */}
+      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5">
+        <button
+          type="button"
+          onClick={() => setShowAdvancedSettings((prev) => !prev)}
+          className="flex w-full items-center justify-between text-left"
+        >
+          <h2 className="text-lg font-semibold text-forest-700">高级设置</h2>
+          <span className="text-forest-500 text-sm transition-transform">
+            {showAdvancedSettings ? "收起 ▲" : "展开 ▼"}
+          </span>
+        </button>
+
+        {showAdvancedSettings && (
+          <div className="mt-4 space-y-4 border-t border-forest-100 pt-4">
+            {/* Reading article binding — only for 阅读 or 英文阅读 */}
+            {isReadingType && (
+              <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
+                <label className="block text-sm font-medium text-forest-700 mb-2">
+                  绑定阅读文章（可选）
+                </label>
+                <p className="text-sm text-forest-500 mb-3">
+                  留空则孩子可以从阅读库中自由选择
+                </p>
+                <select
+                  value={formData.reading_article_id}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      reading_article_id: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm"
+                >
+                  <option value="">不绑定，自由选择</option>
+                  {readingArticles.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      [{a.category}] {a.title} (G{a.grade_level})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Platform binding */}
+            <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
+              <div>
+                <label className="block text-sm font-medium text-forest-700">
+                  平台任务绑定
+                </label>
+                <p className="mt-1 text-sm text-forest-500">
+                  绑定后，平台同步会优先把学习事件匹配到这条作业。适合单个孩子的精确任务；多人批量创建时先保持为空更稳妥。
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="platform-binding-platform"
+                    className="mb-1 block text-sm font-medium text-forest-700"
+                  >
+                    来源平台
+                  </label>
+                  <select
+                    id="platform-binding-platform"
+                    aria-label="来源平台"
+                    disabled={!canConfigurePlatformBinding}
+                    value={formData.platform_binding_platform}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        platform_binding_platform: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary disabled:cursor-not-allowed disabled:bg-forest-100"
+                  >
+                    <option value="">不绑定具体平台任务</option>
+                    <option value="ixl">IXL</option>
+                    <option value="khan-academy">Khan Academy</option>
+                  </select>
+                </div>
+
+                <Input
+                  id="platform-binding-source-ref"
+                  label="平台任务 Source Ref"
+                  aria-label="平台任务 Source Ref"
+                  disabled={!canConfigurePlatformBinding}
+                  value={formData.platform_binding_source_ref}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      platform_binding_source_ref: e.target.value,
+                    }))
+                  }
+                  placeholder="例如 lesson-123 / skill-a4"
+                />
+              </div>
+
+              <p className="mt-3 text-xs text-forest-500">
+                {canConfigurePlatformBinding
+                  ? "如果平台端有明确的任务编号或课程编号，建议在这里填入，能明显减少误匹配。"
+                  : "当前选择了多个孩子，已暂时禁用精确平台绑定，避免不同孩子共享同一个外部任务编号。"}
+              </p>
+
+              {canConfigurePlatformBinding && (
+                <div className="mt-3 rounded-xl border border-forest-100 bg-white px-3 py-3 text-sm text-forest-600">
+                  <p className="font-medium text-forest-700">
+                    孩子平台账号自动匹配
+                  </p>
+                  {matchedPlatformAccount ? (
+                    <p className="mt-1">
+                      已匹配 {matchedPlatformAccount.platform} 账号：
+                      {matchedPlatformAccount.external_account_ref}
+                    </p>
+                  ) : autoMatchedPlatform ? (
+                    <p className="mt-1 text-amber-700">
+                      当前作业类型已自动匹配到平台 {autoMatchedPlatform}
+                      ，但这个孩子还没有绑定对应的平台账号。
+                    </p>
+                  ) : (
+                    <p className="mt-1">
+                      当作业类型是 IXL 或 Khan Academy
+                      时，这里会自动带出对应平台，作业级只需要再补精确的 task source ref。
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Estimated minutes */}
+            <Input
+              label="预计时长（分钟）"
+              type="number"
+              min={5}
+              max={180}
+              value={formData.estimated_minutes ?? ""}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  estimated_minutes:
+                    e.target.value.trim() === ""
+                      ? null
+                      : parseInt(e.target.value, 10),
+                }))
+              }
+            />
           </div>
-        </div>
+        )}
+      </section>
+
+      {/* Submit buttons */}
+      <div className="flex gap-3">
+        <Button type="button" variant="ghost" onClick={() => router.back()}>
+          取消
+        </Button>
+        <Button
+          type="submit"
+          className="flex-1"
+          disabled={
+            loading || formData.child_ids.length === 0 || !formData.title
+          }
+        >
+          {loading ? "保存中..." : homework ? "更新作业" : "创建作业"}
+        </Button>
       </div>
     </form>
   );

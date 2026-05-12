@@ -1,6 +1,6 @@
 import type { Database } from "@/lib/supabase/types";
-import { formatDateKey, getHomeworksForDate, parseDateValue } from "@/lib/homework-utils";
-import { buildDailyTaskStatuses } from "@/lib/tasks/daily-task";
+import { formatDateKey, getHomeworksForDate, isAfterCutoff, parseDateValue } from "@/lib/homework-utils";
+import { buildDailyTaskStatuses, type DailyTaskStatus } from "@/lib/tasks/daily-task";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
@@ -85,6 +85,30 @@ export type ParentMonthlyDashboard = {
   weakestTypes: ParentMonthlyInsight[];
   monthlyStats?: ParentMonthlyStats;
   checkInHeatmap?: ParentCheckInHeatmapBucket[];
+  recentCheckIns: RecentCheckIn[];
+  incompleteHomeworks: IncompleteHomework[];
+};
+
+export type RecentCheckIn = {
+  checkInId: string;
+  homeworkTitle: string;
+  typeIcon: string | null;
+  completedAt: string; // ISO timestamp
+  childName: string;
+  childAvatar: string | null;
+  proofType: "photo" | "audio" | null;
+  points: number;
+};
+
+export type IncompleteHomework = {
+  homeworkId: string;
+  childId: string;
+  childName: string;
+  childAvatar: string | null;
+  title: string;
+  typeIcon: string | null;
+  cutoffTime: string | null;
+  isPastCutoff: boolean;
 };
 
 type ParentDashboardInput = {
@@ -408,6 +432,90 @@ function buildWeakestTypes(
     });
 }
 
+function buildRecentCheckIns(
+  children: Child[],
+  homeworks: Homework[],
+  checkIns: CheckIn[],
+  date: string
+): RecentCheckIn[] {
+  const childMap = new Map(children.map((c) => [c.id, c]));
+  const homeworkMap = new Map(homeworks.map((h) => [h.id, h]));
+
+  const todayCheckIns = checkIns.filter((ci) => {
+    if (!ci.completed_at) return false;
+    return formatDateKey(parseDateValue(ci.completed_at)) === date;
+  });
+
+  todayCheckIns.sort((a, b) => {
+    if (!a.completed_at || !b.completed_at) return 0;
+    return new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime();
+  });
+
+  return todayCheckIns.slice(0, 20).map((ci) => {
+    const homework = homeworkMap.get(ci.homework_id);
+    const child = childMap.get(ci.child_id);
+    return {
+      checkInId: ci.id,
+      homeworkTitle: homework?.title ?? "未知作业",
+      typeIcon: homework?.type_icon ?? null,
+      completedAt: ci.completed_at,
+      childName: child?.name ?? "未知孩子",
+      childAvatar: child?.avatar ?? null,
+      proofType: (ci.proof_type ?? null) as "photo" | "audio" | null,
+      points: ci.awarded_points ?? ci.points_earned ?? 0,
+    };
+  });
+}
+
+function buildIncompleteHomeworks(
+  children: Child[],
+  homeworks: Homework[],
+  checkIns: CheckIn[],
+  date: string
+): IncompleteHomework[] {
+  const result: IncompleteHomework[] = [];
+  const now = new Date();
+
+  for (const child of children) {
+    const childHomeworks = homeworks.filter((h) => h.child_id === child.id);
+    const childCheckIns = checkIns.filter((ci) => ci.child_id === child.id);
+    const visible = filterVisibleHomeworksForDate(childHomeworks, date);
+    const statuses = buildDailyTaskStatuses(visible, childCheckIns, date);
+
+    for (const status of statuses) {
+      if (status.completed) continue;
+
+      result.push({
+        homeworkId: status.homeworkId,
+        childId: child.id,
+        childName: child.name,
+        childAvatar: child.avatar,
+        title: status.title,
+        typeIcon: status.typeIcon,
+        cutoffTime: status.dailyCutoffTime,
+        isPastCutoff: isAfterCutoff(status.dailyCutoffTime, now),
+      });
+    }
+  }
+
+  result.sort((a, b) => {
+    // Past cutoff first
+    if (a.isPastCutoff !== b.isPastCutoff) {
+      return a.isPastCutoff ? -1 : 1;
+    }
+    // Then by cutoff time ascending
+    const aTime = a.cutoffTime ?? "99:99";
+    const bTime = b.cutoffTime ?? "99:99";
+    if (aTime !== bTime) {
+      return aTime.localeCompare(bTime);
+    }
+    // Then by title
+    return a.title.localeCompare(b.title, "zh-CN");
+  });
+
+  return result;
+}
+
 export function buildParentDashboard(
   input: ParentDashboardInput
 ): ParentMonthlyDashboard {
@@ -470,6 +578,8 @@ export function buildParentDashboard(
     weakestTypes: buildWeakestTypes(filteredHomeworks, filteredCheckIns, month),
     monthlyStats: buildMonthlyStats(filteredHomeworks, filteredCheckIns, month),
     checkInHeatmap: buildCheckInHeatmap(filteredCheckIns, month),
+    recentCheckIns: buildRecentCheckIns(input.children, input.homeworks, input.checkIns, input.date),
+    incompleteHomeworks: buildIncompleteHomeworks(input.children, input.homeworks, input.checkIns, input.date),
   };
 }
 

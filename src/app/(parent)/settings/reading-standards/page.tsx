@@ -164,18 +164,18 @@ export default function ReadingStandardsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="bg-primary p-4 text-white">
+        <header className="bg-forest-500 p-space-4 text-white">
           <div className="mx-auto flex max-w-3xl items-center gap-4">
             <Link href="/settings">
               <span className="text-xl">←</span>
             </Link>
             <div>
-              <h1 className="text-xl font-bold">阅读标准</h1>
-              <p className="mt-1 text-sm text-white/80">管理年级阅读能力标准</p>
+              <h1 className="text-ui-xl font-ui-display font-bold">阅读标准</h1>
+              <p className="mt-1 text-ui-sm text-white/80">管理年级阅读能力标准</p>
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-3xl p-4">
+        <main className="mx-auto max-w-3xl p-space-4">
           <div className="flex items-center justify-center py-20 text-forest-600">
             加载中...
           </div>
@@ -187,17 +187,17 @@ export default function ReadingStandardsPage() {
   if (!standards) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="bg-primary p-4 text-white">
+        <header className="bg-forest-500 p-space-4 text-white">
           <div className="mx-auto flex max-w-3xl items-center gap-4">
             <Link href="/settings">
               <span className="text-xl">←</span>
             </Link>
             <div>
-              <h1 className="text-xl font-bold">阅读标准</h1>
+              <h1 className="text-ui-xl font-ui-display font-bold">阅读标准</h1>
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-3xl p-4">
+        <main className="mx-auto max-w-3xl p-space-4">
           <Card>
             <p className="text-coral-600">加载失败，请检查配置。</p>
           </Card>
@@ -209,21 +209,21 @@ export default function ReadingStandardsPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-primary p-4 text-white">
+      <header className="bg-forest-500 p-space-4 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-4">
           <Link href="/settings">
             <span className="text-xl">←</span>
           </Link>
           <div>
-            <h1 className="text-xl font-bold">阅读标准</h1>
-            <p className="mt-1 text-sm text-white/80">
+            <h1 className="text-ui-xl font-ui-display font-bold">阅读标准</h1>
+            <p className="mt-1 text-ui-sm text-white/80">
               管理年级阅读能力标准 · 字数范围与阅读速度
             </p>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 p-4">
+      <main className="mx-auto max-w-3xl space-y-4 p-space-4">
         {/* Meta info */}
         {standards._meta?.lastUpdated && (
           <p className="text-ui-xs text-ink-500">
@@ -235,9 +235,9 @@ export default function ReadingStandardsPage() {
         <div className="flex gap-1 rounded-radius-md bg-forest-50 p-1">
           <button
             onClick={() => setActiveTab("en")}
-            className={`flex-1 rounded-radius-sm px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-radius-sm px-4 py-2 text-ui-sm font-medium transition-colors ${
               activeTab === "en"
-                ? "bg-white text-forest-700 shadow-sm"
+                ? "bg-white text-forest-700 shadow-elevation-raised"
                 : "text-forest-600 hover:text-forest-800"
             }`}
           >
@@ -245,9 +245,9 @@ export default function ReadingStandardsPage() {
           </button>
           <button
             onClick={() => setActiveTab("zh")}
-            className={`flex-1 rounded-radius-sm px-4 py-2 text-sm font-medium transition-colors ${
+            className={`flex-1 rounded-radius-sm px-4 py-2 text-ui-sm font-medium transition-colors ${
               activeTab === "zh"
-                ? "bg-white text-forest-700 shadow-sm"
+                ? "bg-white text-forest-700 shadow-elevation-raised"
                 : "text-forest-600 hover:text-forest-800"
             }`}
           >
@@ -264,13 +264,13 @@ export default function ReadingStandardsPage() {
                 <button
                   onClick={() => handleReset("en")}
                   disabled={resetting}
-                  className="text-sm text-ink-500 underline hover:text-ink-700"
+                  className="text-ui-sm text-ink-500 underline hover:text-ink-700"
                 >
                   {resetting ? "重置中..." : "重置为默认"}
                 </button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-ui-sm">
                   <thead>
                     <tr className="border-b border-forest-100 text-left text-forest-600">
                       <th className="pb-2 pr-3 font-medium">年级</th>
@@ -292,7 +292,7 @@ export default function ReadingStandardsPage() {
                               type="text"
                               value={std.razLevel}
                               onChange={(e) => handleRazLevelChange(g, e.target.value)}
-                              className="w-16 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-center text-sm"
+                              className="w-16 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-center text-ui-sm"
                             />
                           </td>
                           <td className="py-2 pr-3">
@@ -300,7 +300,7 @@ export default function ReadingStandardsPage() {
                               type="number"
                               value={std.wordCountMin}
                               onChange={(e) => handleChange("en", g, "wordCountMin", e.target.value)}
-                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-sm"
+                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-ui-sm"
                             />
                           </td>
                           <td className="py-2 pr-3">
@@ -308,7 +308,7 @@ export default function ReadingStandardsPage() {
                               type="number"
                               value={std.wordCountMax}
                               onChange={(e) => handleChange("en", g, "wordCountMax", e.target.value)}
-                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-sm"
+                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-ui-sm"
                             />
                           </td>
                           <td className="py-2 pr-3">
@@ -316,7 +316,7 @@ export default function ReadingStandardsPage() {
                               type="number"
                               value={std.wpm}
                               onChange={(e) => handleChange("en", g, "wpm", e.target.value)}
-                              className="w-16 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-sm"
+                              className="w-16 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-ui-sm"
                             />
                           </td>
                           <td className="py-2">
@@ -324,7 +324,7 @@ export default function ReadingStandardsPage() {
                               type="number"
                               value={std.lexileScore}
                               onChange={(e) => handleChange("en", g, "lexileScore", e.target.value)}
-                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-sm"
+                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-ui-sm"
                             />
                           </td>
                         </tr>
@@ -346,13 +346,13 @@ export default function ReadingStandardsPage() {
                 <button
                   onClick={() => handleReset("zh")}
                   disabled={resetting}
-                  className="text-sm text-ink-500 underline hover:text-ink-700"
+                  className="text-ui-sm text-ink-500 underline hover:text-ink-700"
                 >
                   {resetting ? "重置中..." : "重置为默认"}
                 </button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-ui-sm">
                   <thead>
                     <tr className="border-b border-forest-100 text-left text-forest-600">
                       <th className="pb-2 pr-3 font-medium">年级</th>
@@ -372,7 +372,7 @@ export default function ReadingStandardsPage() {
                               type="number"
                               value={std.charCountMin}
                               onChange={(e) => handleChange("zh", g, "charCountMin", e.target.value)}
-                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-sm"
+                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-ui-sm"
                             />
                           </td>
                           <td className="py-2 pr-3">
@@ -380,7 +380,7 @@ export default function ReadingStandardsPage() {
                               type="number"
                               value={std.charCountMax}
                               onChange={(e) => handleChange("zh", g, "charCountMax", e.target.value)}
-                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-sm"
+                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-ui-sm"
                             />
                           </td>
                           <td className="py-2">
@@ -388,7 +388,7 @@ export default function ReadingStandardsPage() {
                               type="number"
                               value={std.wpm}
                               onChange={(e) => handleChange("zh", g, "wpm", e.target.value)}
-                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-sm"
+                              className="w-20 rounded-radius-sm border border-forest-200 bg-white px-2 py-1 text-ui-sm"
                             />
                           </td>
                         </tr>
@@ -413,7 +413,7 @@ export default function ReadingStandardsPage() {
               {saving ? "保存中..." : "保存修改"}
             </Button>
             {dirty && (
-              <span className="text-sm text-ink-500">有未保存的更改</span>
+              <span className="text-ui-sm text-ink-500">有未保存的更改</span>
             )}
           </div>
           <Button
@@ -436,7 +436,7 @@ export default function ReadingStandardsPage() {
                 : "bg-forest-50 text-forest-700 border border-forest-200"
             }`}
           >
-            <p className="text-sm font-medium">{toast.message}</p>
+            <p className="text-ui-sm font-medium">{toast.message}</p>
           </div>
         )}
       </main>

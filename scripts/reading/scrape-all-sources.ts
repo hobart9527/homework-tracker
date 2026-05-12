@@ -149,7 +149,9 @@ async function main() {
   await scrapeAllSources({ dryRun, lang });
 }
 
-if (require.main === module) {
+// ESM-compatible entry point check (avoid CJS require.main in ESM context)
+const isEntryPoint = process.argv[1]?.includes("scrape-all-sources");
+if (isEntryPoint) {
   main().catch(console.error);
 }
 

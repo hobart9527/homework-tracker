@@ -575,7 +575,7 @@ export default function SettingsIntegrationsPage() {
                   setBindingError(null);
                   router.replace(`/settings/integrations?childId=${child.id}`, { scroll: false });
                 }}
-                className={`rounded-radius-md px-space-4 py-space-2 text-ui-sm font-medium transition-colors ${
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   selectedChildId === child.id
                     ? "bg-primary text-white"
                     : "bg-forest-50 text-forest-600 hover:bg-forest-100"
@@ -588,7 +588,7 @@ export default function SettingsIntegrationsPage() {
         )}
 
         {!selectedChildId && (
-          <div className="rounded-radius-lg border border-dashed border-forest-200 bg-forest-50 px-space-4 py-5 text-center text-ui-sm text-forest-500">
+          <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-center text-sm text-forest-500">
             请选择一个孩子开始配置
           </div>
         )}
@@ -597,14 +597,14 @@ export default function SettingsIntegrationsPage() {
         <div className="space-y-4">
           <div>
             <h2 className="font-bold text-forest-700">学习平台账号</h2>
-            <p className="mt-1 text-ui-sm text-forest-500">
+            <p className="mt-1 text-sm text-forest-500">
               孩子级绑定只负责"这个孩子在外部学习平台上是谁"，不直接决定具体作业或家庭通道。
             </p>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="platform-name" className="mb-1 block text-ui-sm font-medium text-forest-700">
+              <label htmlFor="platform-name" className="mb-1 block text-sm font-medium text-forest-700">
                 平台
               </label>
               <select
@@ -613,7 +613,7 @@ export default function SettingsIntegrationsPage() {
                 onChange={(e) =>
                   setBindingForm((prev) => ({ ...prev, platform: e.target.value as SupportedPlatform }))
                 }
-                className="w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-2 focus:border-primary focus:outline-none"
+                className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
               >
                 <option value="ixl">IXL</option>
                 <option value="khan-academy">Khan Academy</option>
@@ -642,13 +642,13 @@ export default function SettingsIntegrationsPage() {
                 placeholder="平台登录密码"
               />
             ) : (
-              <div className="rounded-radius-lg border border-sky-200 bg-sky-50 px-space-4 py-space-3 text-ui-sm text-sky-900">
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
                 {getPlatformDisplayName(bindingForm.platform)} 暂不支持自动登录，保存后可
                 通过卡片上的「更新 Session」手动录入。
               </div>
             )}
 
-            {bindingError ? <p className="text-ui-sm text-coral-600">{bindingError}</p> : null}
+            {bindingError ? <p className="text-sm text-rose-700">{bindingError}</p> : null}
 
             <div className="flex justify-end">
               <Button disabled={bindingLoading} onClick={handleBindingSubmit}>
@@ -662,7 +662,7 @@ export default function SettingsIntegrationsPage() {
               const filteredAccounts = platformAccounts.filter((a) => a.child_id === selectedChildId);
               if (filteredAccounts.length === 0) {
                 return (
-                  <div className="rounded-radius-lg border border-dashed border-forest-200 bg-forest-50 px-space-4 py-5 text-ui-sm text-forest-500">
+                  <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
                     {"这个孩子还没有绑定学习平台账号。"}
                   </div>
                 );
@@ -675,7 +675,7 @@ export default function SettingsIntegrationsPage() {
                 return (
                 <div
                   key={account.id}
-                  className="rounded-radius-lg border border-forest-100 bg-forest-50/70 px-space-4 py-space-3 text-ui-sm text-forest-600"
+                  className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
                 >
                   {/* Header */}
                   <div className="flex items-center justify-between">
@@ -733,7 +733,7 @@ export default function SettingsIntegrationsPage() {
                           placeholder="输入新密码以更新自动登录"
                         />
                       )}
-                      {bindingError && <p className="text-ui-sm text-coral-600">{bindingError}</p>}
+                      {bindingError && <p className="text-sm text-rose-700">{bindingError}</p>}
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
@@ -758,7 +758,7 @@ export default function SettingsIntegrationsPage() {
 
                   {/* Expandable details */}
                   {isExpanded && (
-                    <div className="mt-2 space-y-1 border-t border-forest-200 pt-2 text-ui-xs text-forest-500">
+                    <div className="mt-2 space-y-1 border-t border-forest-200 pt-2 text-xs text-forest-500">
                       <p>上次同步：{formatDateTime(account.last_synced_at)}</p>
                       <p>Session 捕获：{formatDateTime(account.managed_session_captured_at)}</p>
                       {account.managed_session_expires_at && (
@@ -782,7 +782,7 @@ export default function SettingsIntegrationsPage() {
                   )}
 
                   {account.last_sync_error_summary ? (
-                    <p className="mt-1 text-coral-600">{mapAuthError(account.last_sync_error_summary)}</p>
+                    <p className="mt-1 text-rose-600">{mapAuthError(account.last_sync_error_summary)}</p>
                   ) : null}
 
                   <div className="mt-2 border-t border-forest-200 pt-2">
@@ -846,8 +846,8 @@ export default function SettingsIntegrationsPage() {
 
                   {/* Delete confirmation */}
                   {deleteConfirmId === account.id && (
-                    <div className="mt-3 space-y-3 border-t border-coral-200 pt-3">
-                      <p className="text-coral-600">
+                    <div className="mt-3 space-y-3 border-t border-rose-200 pt-3">
+                      <p className="text-rose-700">
                         确定要删除 {childName} 的 {getPlatformDisplayName(account.platform)} 账号绑定吗？该操作不可撤销。
                       </p>
                       <div className="flex items-center gap-2">
@@ -887,11 +887,11 @@ export default function SettingsIntegrationsPage() {
               size="md"
             >
               <div className="space-y-4">
-                <div className="flex rounded-radius-md border border-forest-200 p-0.5">
+                <div className="flex rounded-lg border border-forest-200 p-0.5">
                   <button
                     type="button"
                     onClick={() => setTakeoverMethod("auto")}
-                    className={`flex-1 rounded-radius-sm px-2 py-space-2 text-ui-xs font-medium transition-colors ${
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
                       takeoverMethod === "auto"
                         ? "bg-primary text-white"
                         : "text-forest-600 hover:bg-forest-50"
@@ -902,7 +902,7 @@ export default function SettingsIntegrationsPage() {
                   <button
                     type="button"
                     onClick={() => setTakeoverMethod("script")}
-                    className={`flex-1 rounded-radius-sm px-2 py-space-2 text-ui-xs font-medium transition-colors ${
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
                       takeoverMethod === "script"
                         ? "bg-primary text-white"
                         : "text-forest-600 hover:bg-forest-50"
@@ -913,7 +913,7 @@ export default function SettingsIntegrationsPage() {
                   <button
                     type="button"
                     onClick={() => setTakeoverMethod("manual")}
-                    className={`flex-1 rounded-radius-sm px-2 py-space-2 text-ui-xs font-medium transition-colors ${
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
                       takeoverMethod === "manual"
                         ? "bg-primary text-white"
                         : "text-forest-600 hover:bg-forest-50"
@@ -925,7 +925,7 @@ export default function SettingsIntegrationsPage() {
 
                 {takeoverMethod === "auto" ? (
                   <div className="space-y-3">
-                    <div className="rounded-radius-md bg-emerald-50 px-space-3 py-2.5 text-ui-xs text-emerald-800">
+                    <div className="rounded-lg bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
                       <p className="font-medium mb-1">自动登录并抓取 Session</p>
                       <p>系统将使用存储的凭据自动登录平台，完成后自动保存 Session。</p>
                     </div>
@@ -940,14 +940,14 @@ export default function SettingsIntegrationsPage() {
                         开始自动登录
                       </Button>
                     ) : (
-                      <p className="text-ui-sm text-amber-700 bg-amber-50 rounded-radius-md px-space-3 py-space-2">
+                      <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
                         该账号未存储登录凭据，无法使用自动登录。请先通过「编辑账号」填入密码，或切换到「本地脚本」方式。
                       </p>
                     )}
                   </div>
                 ) : takeoverMethod === "script" ? (
                   <div className="space-y-3">
-                    <div className="rounded-radius-md bg-forest-50 px-space-3 py-2.5 text-ui-xs text-forest-600">
+                    <div className="rounded-lg bg-forest-50 px-3 py-2.5 text-xs text-forest-600">
                       <p className="font-medium text-forest-700 mb-1">使用步骤：</p>
                       <ol className="list-decimal space-y-0.5 pl-4">
                         <li>在终端运行以下命令</li>
@@ -959,7 +959,7 @@ export default function SettingsIntegrationsPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 rounded-radius-md bg-cream-100 px-space-3 py-space-2 text-ui-xs font-mono text-ink-700">
+                      <code className="flex-1 rounded-lg bg-cream-100 px-3 py-2 text-xs font-mono text-ink-700">
                         npm run session:collect -- --platform={account.platform}
                       </code>
                       <Button
@@ -977,7 +977,7 @@ export default function SettingsIntegrationsPage() {
                       </Button>
                     </div>
 
-                    <p className="text-ui-xs text-forest-500">
+                    <p className="text-xs text-forest-500">
                       首次使用需要先安装 Playwright：
                       <code className="mx-1 rounded bg-cream-100 px-1 py-0.5 font-mono text-ink-500">
                         npm install playwright && npx playwright install chromium
@@ -1018,7 +1018,7 @@ export default function SettingsIntegrationsPage() {
                       href={getManualSessionLoginUrl(account.platform)}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex text-ui-sm font-medium text-primary underline"
+                      className="inline-flex text-sm font-medium text-primary underline"
                     >
                       打开 {getPlatformDisplayName(account.platform)} 登录页
                     </a>
@@ -1026,7 +1026,7 @@ export default function SettingsIntegrationsPage() {
                       value={takeoverPayload}
                       onChange={(e) => setTakeoverPayload(e.target.value)}
                       placeholder='{"cookies":[{"name":"PHPSESSID","value":"..."}]}'
-                      className="min-h-24 w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-3 text-ui-sm text-forest-800 focus:border-primary focus:outline-none"
+                      className="min-h-24 w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm text-forest-800 focus:border-primary focus:outline-none"
                     />
                     <div className="flex items-center gap-2">
                       <Button
@@ -1061,7 +1061,7 @@ export default function SettingsIntegrationsPage() {
           <div className="space-y-4">
             <div>
               <h2 className="font-bold text-forest-700">默认微信群</h2>
-              <p className="mt-1 text-ui-sm text-forest-500">
+              <p className="mt-1 text-sm text-forest-500">
                 孩子提交作业的默认目标微信群；作业级覆盖在作业编辑时确定。
               </p>
             </div>
@@ -1070,12 +1070,12 @@ export default function SettingsIntegrationsPage() {
               const child = children.find((c) => c.id === selectedChildId);
               if (!child) return null;
               return (
-                <div className="rounded-radius-lg border border-forest-100 bg-forest-50/70 px-space-4 py-4">
+                <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div className="flex-1">
                       <label
                         htmlFor="default-group-select"
-                        className="mb-1 block text-ui-sm font-medium text-forest-700"
+                        className="mb-1 block text-sm font-medium text-forest-700"
                       >
                         {child.name} 默认群
                       </label>
@@ -1088,7 +1088,7 @@ export default function SettingsIntegrationsPage() {
                             [child.id]: e.target.value,
                           }))
                         }
-                        className="w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-2 focus:border-primary focus:outline-none"
+                        className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 focus:border-primary focus:outline-none"
                       >
                         <option value="">暂不设置默认群</option>
                         {wechatGroups.map((group) => (
@@ -1135,21 +1135,21 @@ export default function SettingsIntegrationsPage() {
           <div className="space-y-4">
             <div>
               <h2 className="font-bold text-forest-700">微信群管理</h2>
-              <p className="mt-1 text-ui-sm text-forest-500">
+              <p className="mt-1 text-sm text-forest-500">
                 管理你的目标微信群，系统自动发现活跃群，也可以手动添加。
               </p>
             </div>
 
             <div className="space-y-2">
               {wechatGroups.length === 0 ? (
-                <div className="rounded-radius-lg border border-dashed border-forest-200 bg-forest-50 px-space-4 py-5 text-ui-sm text-forest-500">
+                <div className="rounded-xl border border-dashed border-forest-200 bg-forest-50 px-4 py-5 text-sm text-forest-500">
                   还没有微信群。点击下方「手动添加微信群」输入企业微信 chatid 即可添加。
                 </div>
               ) : (
                 wechatGroups.map((group) => (
                   <div
                     key={group.id}
-                    className="flex items-center justify-between rounded-radius-lg border border-forest-100 bg-forest-50/70 px-space-4 py-space-3"
+                    className="flex items-center justify-between rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3"
                   >
                     {groupEditingId === group.id ? (
                       <div className="flex flex-1 items-center gap-2">
@@ -1158,7 +1158,7 @@ export default function SettingsIntegrationsPage() {
                           value={groupEditName}
                           onChange={(e) => setGroupEditName(e.target.value)}
                           placeholder="群显示名称"
-                          className="flex-1 rounded-radius-md border border-forest-200 px-space-3 py-space-2 text-ui-sm focus:border-primary focus:outline-none"
+                          className="flex-1 rounded-lg border border-forest-200 px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
                           autoFocus
                         />
                         <Button
@@ -1178,11 +1178,11 @@ export default function SettingsIntegrationsPage() {
                       </div>
                     ) : (
                       <>
-                        <div className="text-ui-sm">
+                        <div className="text-sm">
                           <p className="font-medium text-forest-700">
                             {group.display_name || "未命名群"}
                           </p>
-                          <p className="mt-0.5 text-ui-xs text-forest-500">
+                          <p className="mt-0.5 text-xs text-forest-500">
                             chatid: {group.recipient_ref}
                           </p>
                         </div>
@@ -1200,7 +1200,7 @@ export default function SettingsIntegrationsPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-coral-600"
+                            className="text-red-500"
                             onClick={() => handleGroupDelete(group.id)}
                           >
                             删除
@@ -1214,8 +1214,8 @@ export default function SettingsIntegrationsPage() {
             </div>
 
             {showGroupAddForm ? (
-              <div className="rounded-radius-lg border border-forest-200 bg-white p-space-4 space-y-3">
-                <p className="text-ui-sm font-medium text-forest-700">手动添加微信群</p>
+              <div className="rounded-xl border border-forest-200 bg-white p-4 space-y-3">
+                <p className="text-sm font-medium text-forest-700">手动添加微信群</p>
                 <Input
                   label="群聊 ID（chatid）"
                   value={groupAddForm.recipientRef}
@@ -1224,7 +1224,7 @@ export default function SettingsIntegrationsPage() {
                   }
                   placeholder="在 WeCom 后台群聊信息中查看"
                 />
-                <p className="mt-0.5 text-ui-xs text-forest-500">
+                <p className="mt-0.5 text-xs text-forest-500">
                   chatid 可在企业微信管理后台「应用管理 → 群聊」中查看
                 </p>
                 <Input
@@ -1235,11 +1235,11 @@ export default function SettingsIntegrationsPage() {
                   }
                   placeholder="例如 Mia 数学群"
                 />
-                <p className="mt-0.5 text-ui-xs text-forest-500">
+                <p className="mt-0.5 text-xs text-forest-500">
                   给这个群起一个好记的名字，例如"张老师数学群"
                 </p>
                 {groupAddError ? (
-                  <p className="text-ui-sm text-coral-600">{groupAddError}</p>
+                  <p className="text-sm text-rose-700">{groupAddError}</p>
                 ) : null}
                 <div className="flex items-center gap-2">
                   <Button size="sm" disabled={groupAddLoading} onClick={handleGroupAdd}>
@@ -1281,7 +1281,7 @@ export default function SettingsIntegrationsPage() {
                 <>
                   <div>
                     <h3 className="font-medium text-forest-700">遗留路由规则</h3>
-                    <p className="mt-1 text-ui-sm text-forest-500">
+                    <p className="mt-1 text-sm text-forest-500">
                       以下规则来自旧版系统，仅做展示参考，不再支持新增和编辑。
                     </p>
                   </div>
@@ -1289,7 +1289,7 @@ export default function SettingsIntegrationsPage() {
                     {filteredRules.map((rule) => (
                       <div
                         key={rule.id}
-                        className="rounded-radius-lg border border-forest-100 bg-forest-50/70 px-space-4 py-space-3 text-ui-sm text-forest-600"
+                        className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600"
                       >
                         <p className="font-medium text-forest-700">
                           {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}

@@ -60,7 +60,7 @@ export default function ChildrenListPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-bold text-forest-700">孩子相关集成</h2>
-              <p className="text-sm text-forest-500">
+              <p className="text-ui-sm text-forest-500">
                 这里管理孩子自己的学习平台账号和默认消息目标。家庭级的通知通道配置仍然统一放在设置页。
               </p>
             </div>
@@ -73,7 +73,7 @@ export default function ChildrenListPage() {
         {children.length === 0 ? (
           <div className="text-center py-12">
             <span className="text-6xl">👶</span>
-            <h2 className="text-xl font-bold text-forest-700 mt-4">
+            <h2 className="text-ui-xl font-ui-display font-bold text-forest-700 mt-4">
               {t('parent.children.noChildren')}
             </h2>
             <p className="text-forest-500 mt-2">{t('parent.children.addFirst')}</p>
@@ -86,11 +86,11 @@ export default function ChildrenListPage() {
                   <span className="text-4xl">{child.avatar || "🦊"}</span>
                   <div className="flex-1">
                     <h3 className="font-bold text-forest-700">{child.name}</h3>
-                    <p className="text-sm text-forest-500">
+                    <p className="text-ui-sm text-forest-500">
                       {child.age}岁 •{" "}
                       {child.gender === "female" ? "女孩" : "男孩"}
                     </p>
-                    <p className="text-sm text-forest-600">
+                    <p className="text-ui-sm text-forest-600">
                       ⭐ {child.points} 积分 • 🔥 {child.streak_days} 天连续
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -118,7 +118,7 @@ export default function ChildrenListPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => handleDelete(child.id)}
-                      className="text-red-500"
+                      className="text-coral-600"
                     >
                       {t('common.delete')}
                     </Button>

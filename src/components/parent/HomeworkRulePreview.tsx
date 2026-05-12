@@ -22,6 +22,8 @@ export function HomeworkRulePreview({
         <li>{preview.proofLabel}</li>
         <li>{preview.cutoffLabel}</li>
         <li>{preview.scoringLabel}</li>
+        <li>{preview.recordingLabel}</li>
+        <li>{preview.wechatPushLabel}</li>
       </ul>
     </aside>
   );

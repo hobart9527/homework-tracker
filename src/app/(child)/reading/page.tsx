@@ -17,6 +17,7 @@ interface Article {
   source?: string;
   cover_image_url?: string;
   language?: "zh" | "en";
+  status?: string;
   isCompleted?: boolean;
   score?: number;
 }
@@ -86,6 +87,8 @@ export default function ReadingBrowserPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [activeCategory, setActiveCategory] = useState("");
   const [activeLanguage, setActiveLanguage] = useState<"zh" | "en">("en");
+  const [sortNewFirst, setSortNewFirst] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const fetchReadingData = useCallback(async () => {
     setLoading(true);
@@ -127,12 +130,16 @@ export default function ReadingBrowserPage() {
         }
       }
 
-      // Enrich articles with completion status
+      // Enrich articles with status, isNew, isInProgress flags
       const enrichedArticles = fetchedArticles.map((article: Article) => {
         const assignment = assignmentMap[article.id];
+        const status = assignment?.status;
         return {
           ...article,
-          isCompleted: assignment?.status === "completed",
+          status,
+          isCompleted: status === "completed",
+          isNew: !status || status === "recommended",
+          isInProgress: status === "in_progress",
           score: assignment?.score,
         };
       });
@@ -153,12 +160,22 @@ export default function ReadingBrowserPage() {
   const categoriesForLanguage =
     activeLanguage === "zh" ? ZH_CATEGORIES : EN_CATEGORIES;
 
-  const filteredArticles = articles.filter((a) => {
-    const lang = inferLanguage(a);
-    const langMatch = lang === activeLanguage;
-    const categoryMatch = !activeCategory || a.category === activeCategory;
-    return langMatch && categoryMatch;
-  });
+  const filteredArticles = articles
+    .filter((a) => {
+      const lang = inferLanguage(a);
+      const langMatch = lang === activeLanguage;
+      const categoryMatch = !activeCategory || a.category === activeCategory;
+      const searchMatch = !searchQuery || a.title.toLowerCase().includes(searchQuery.toLowerCase());
+      return langMatch && categoryMatch && searchMatch;
+    })
+    .sort((a, b) => {
+      if (sortNewFirst) {
+        const aOrder = a.isCompleted ? 2 : (a as any).isInProgress ? 1 : 0;
+        const bOrder = b.isCompleted ? 2 : (b as any).isInProgress ? 1 : 0;
+        return aOrder - bOrder;
+      }
+      return 0;
+    });
 
   // --- Error state ---
   if (error) {
@@ -244,6 +261,32 @@ export default function ReadingBrowserPage() {
           ))}
         </div>
 
+        {/* Sort & Search */}
+        <div className="mb-5 flex items-center gap-3">
+          <button
+            onClick={() => setSortNewFirst(!sortNewFirst)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              sortNewFirst
+                ? "bg-coral-100 text-coral-700 ring-1 ring-coral-200"
+                : "bg-cream-100 text-ink-500 hover:bg-cream-200"
+            }`}
+          >
+            {sortNewFirst ? "🆕 未读优先" : "📋 默认排序"}
+          </button>
+          <div className="relative flex-1 max-w-sm ml-auto">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索文章标题..."
+              className="w-full pl-9 pr-4 py-2 rounded-lg bg-white text-sm border border-cream-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+            </svg>
+          </div>
+        </div>
+
         {/* --- Article grid --- */}
         {loading ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -279,6 +322,7 @@ export default function ReadingBrowserPage() {
                 coverImageUrl={article.cover_image_url}
                 language={article.language}
                 isCompleted={article.isCompleted}
+                isInProgress={(article as any).isInProgress}
                 score={article.score}
                 onClick={() => router.push(`/reading/${article.id}`)}
               />

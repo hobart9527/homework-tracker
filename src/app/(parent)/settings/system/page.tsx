@@ -239,7 +239,7 @@ export default function SettingsSystemPage() {
         <div className="space-y-4">
           <div>
             <h2 className="font-bold text-forest-700">平台手动同步</h2>
-            <p className="mt-1 text-sm text-forest-500">
+            <p className="mt-1 text-ui-sm text-forest-500">
               手动触发所有已绑定平台的学习记录同步（IXL、Khan Academy 等）。
               系统会遍历孩子的平台账号，拉取最新活动数据并自动匹配作业。
             </p>
@@ -275,11 +275,11 @@ export default function SettingsSystemPage() {
           </Button>
           {manualSyncMessage ? (
             <p
-              className={`text-sm ${
+              className={`text-ui-sm ${
                 manualSyncTone === "success"
                   ? "text-emerald-700"
                   : manualSyncTone === "danger"
-                    ? "text-rose-700"
+                    ? "text-coral-600"
                     : "text-forest-600"
               }`}
             >
@@ -293,7 +293,7 @@ export default function SettingsSystemPage() {
         <div className="space-y-4">
           <div>
             <h2 className="font-bold text-forest-700">英文阅读内容刷新</h2>
-            <p className="mt-1 text-sm text-forest-500">
+            <p className="mt-1 text-ui-sm text-forest-500">
               调用 OpenAI 为精选话题生成 G3 和 G6 两个年级的适配文章和阅读理解题。
               每次处理 5 个话题，生成约 10 篇文章。需要配置 OPENAI_API_KEY 环境变量。
             </p>
@@ -333,11 +333,11 @@ export default function SettingsSystemPage() {
           </Button>
           {readingRefreshMessage ? (
             <p
-              className={`text-sm ${
+              className={`text-ui-sm ${
                 readingRefreshTone === "success"
                   ? "text-emerald-700"
                   : readingRefreshTone === "danger"
-                    ? "text-rose-700"
+                    ? "text-coral-600"
                     : "text-forest-600"
               }`}
             >

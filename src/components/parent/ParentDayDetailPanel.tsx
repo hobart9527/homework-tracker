@@ -31,8 +31,8 @@ function MetricCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
-      <p className="text-xs font-medium uppercase tracking-[0.2em] text-ink-400">
+    <div className="rounded-radius-lg border border-ink-200 bg-white p-space-4 shadow-elevation-raised">
+      <p className="text-ui-xs font-medium uppercase tracking-[0.2em] text-ink-400">
         {label}
       </p>
       <p className="mt-2 text-2xl font-bold text-forest-800">{value}</p>
@@ -47,11 +47,11 @@ export function ParentDayDetailPanel({
   onReminderStateChange,
 }: ParentDayDetailPanelProps) {
   return (
-    <section className="space-y-5 rounded-2xl border border-ink-200 bg-white p-5 shadow-elevation-raised">
+    <section className="space-y-5 rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary/80">
+            <p className="text-ui-sm font-semibold uppercase tracking-[0.18em] text-primary/80">
               当天任务
             </p>
             <h2 className="mt-2 text-3xl font-bold text-forest-800">
@@ -60,26 +60,26 @@ export function ParentDayDetailPanel({
           </div>
 
           <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-3xl">
+            <div className="flex h-16 w-16 items-center justify-center rounded-radius-xl bg-primary/10 text-3xl">
               {detail.summary.avatar || "🦊"}
             </div>
             <div>
-              <p className="text-sm font-medium text-ink-500">
+              <p className="text-ui-sm font-medium text-ink-500">
                 {formatSelectedDate(selectedDate)}
               </p>
-              <p className="mt-1 text-base text-ink-600">{detail.summary.topNotice}</p>
+              <p className="mt-1 text-ui-base text-ink-600">{detail.summary.topNotice}</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-ink-200 bg-forest-50 px-5 py-4 text-right">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-ink-400">
+        <div className="rounded-radius-xl border border-ink-200 bg-forest-50 px-space-5 py-4 text-right">
+          <p className="text-ui-xs font-medium uppercase tracking-[0.18em] text-ink-400">
             今日完成率
           </p>
           <p className="mt-2 text-4xl font-bold text-forest-800">
             {formatPercent(detail.summary.completedCount, detail.summary.totalCount)}
           </p>
-          <p className="mt-1 text-sm text-ink-500">
+          <p className="mt-1 text-ui-sm text-ink-500">
             {detail.summary.completedCount}/{detail.summary.totalCount} 项完成
           </p>
         </div>

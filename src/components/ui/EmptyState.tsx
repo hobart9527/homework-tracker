@@ -20,7 +20,7 @@ export function EmptyState({
   action,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center text-center px-6 py-12 rounded-radius-2xl bg-gradient-to-br from-cream-100 to-coral-50 shadow-elevation-floating">
+    <div className="flex flex-col items-center justify-center text-center px-space-6 py-space-12 rounded-radius-2xl bg-gradient-to-br from-cream-100 to-coral-50 shadow-elevation-floating">
       {icon ? (
         <div className="text-6xl mb-4 text-forest-500">{icon}</div>
       ) : (
@@ -28,9 +28,9 @@ export function EmptyState({
           ?
         </div>
       )}
-      <h3 className="text-xl font-bold text-forest-800 mb-2">{title}</h3>
+      <h3 className="font-ui-display text-ui-xl font-bold text-forest-800 mb-2">{title}</h3>
       {subtitle && (
-        <p className="text-sm text-ink-500 mb-6 max-w-xs">{subtitle}</p>
+        <p className="text-ui-sm text-ink-500 mb-6 max-w-xs">{subtitle}</p>
       )}
       {action && (
         <Button variant="primary" onClick={action.onClick}>

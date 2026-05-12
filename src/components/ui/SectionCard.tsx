@@ -31,9 +31,9 @@ export default function SectionCard({
   className = "",
 }: SectionCardProps) {
   const paddingMap: Record<NonNullable<typeof padding>, string> = {
-    sm: "p-3",
-    md: "p-4",
-    lg: "p-6",
+    sm: "p-space-3",
+    md: "p-space-4",
+    lg: "p-space-6",
   };
 
   const surfaceMap: Record<
@@ -50,11 +50,11 @@ export default function SectionCard({
     },
     child: {
       raised:
-        "bg-white ring-1 ring-cream-200/40 shadow-none rounded-radius-lg",
+        "bg-white ring-1 ring-cream-200/40 shadow-none rounded-radius-xl",
       elevated:
         "bg-white ring-1 ring-cream-200/60 shadow-elevation-floating rounded-radius-xl",
       hero:
-        "bg-gradient-to-br from-cream-100 to-coral-50 shadow-elevation-floating rounded-radius-2xl",
+        "bg-gradient-to-br from-cream-100 to-coral-50 shadow-elevation-floating rounded-radius-xl",
     },
   };
 

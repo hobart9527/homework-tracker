@@ -385,47 +385,69 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
 // Page navigation - single page pagination
   const [currentPage, setCurrentPage] = useState(0);
-  const [paragraphsPerPage, setParagraphsPerPage] = useState(4);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
-  // Calculate paragraphs per page - more conservative approach
-  useEffect(() => {
-    const calculate = () => {
-      if (!contentRef.current || paragraphs.length === 0) return;
-      
-      const containerHeight = contentRef.current.clientHeight;
-      const lineHeightPx = fontSizePx * parseFloat(lineHeightValue);
-      
-      // Title height on first page
-      const titleHeight = currentPage === 0 ? 120 : 0;
-      const availableHeight = containerHeight - titleHeight;
-      
-      // More conservative: assume each paragraph needs ~3 lines of space
-      const linesPerParagraph = 3;
-      const paragraphHeight = lineHeightPx * linesPerParagraph + 24; // + margin
-      
-      // Calculate max paragraphs that fit
-      const maxFit = Math.floor(availableHeight / paragraphHeight);
-      
-      // Use conservative value: between 3-6 paragraphs per page
-      const paragraphsToUse = Math.max(3, Math.min(6, maxFit));
-      
-      // Only update if significantly different to avoid thrashing
-      if (Math.abs(paragraphsToUse - paragraphsPerPage) >= 1) {
-        setParagraphsPerPage(paragraphsToUse);
-      }
-    };
-    
-    const timer = setTimeout(calculate, 150);
-    window.addEventListener('resize', calculate);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', calculate);
-    };
-  }, [paragraphs.length, fontSizePx, lineHeightValue, currentPage]);
+  // --- Measurement-based pagination ---
+  const [paragraphHeights, setParagraphHeights] = useState<number[]>([]);
+  const [measured, setMeasured] = useState(false);
+  const measureRef = useRef<HTMLDivElement>(null);
 
-  const totalPages = Math.max(1, Math.ceil(paragraphs.length / paragraphsPerPage));
+  // Measure actual paragraph heights once after render
+  useEffect(() => {
+    if (!measureRef.current || paragraphs.length === 0) return;
+
+    const paraElements = measureRef.current.querySelectorAll('[data-measure-para]');
+    if (paraElements.length !== paragraphs.length) return;
+
+    const heights: number[] = [];
+    paraElements.forEach((el) => {
+      heights.push(el.getBoundingClientRect().height);
+    });
+
+    setParagraphHeights(heights);
+    setMeasured(true);
+  }, [paragraphs, fontSizePx, lineHeightValue, displayContent]);
+
+  // Calculate page breaks from measured heights
+  const pageBreaks = useMemo(() => {
+    if (!measured || paragraphHeights.length === 0) return [0];
+
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const topBarHeight = 44;
+    const bottomBarHeight = 56;
+    const contentPadding = 48;
+    const availableHeight = viewportHeight - topBarHeight - bottomBarHeight - contentPadding;
+
+    const breaks: number[] = [0];
+    let currentPageHeight = 0;
+    const titleHeight = 180;
+
+    for (let i = 0; i < paragraphHeights.length; i++) {
+      const paraHeight = paragraphHeights[i];
+      const isFirstPage = breaks.length === 1;
+      const pageLimit = isFirstPage ? availableHeight - titleHeight : availableHeight;
+      const sectionBreakHeight = (i > 0 && breaks[breaks.length - 1] === i - 1) ? 0 : 48;
+
+      if (currentPageHeight + paraHeight + sectionBreakHeight > pageLimit && currentPageHeight > 0) {
+        breaks.push(i);
+        currentPageHeight = paraHeight;
+      } else {
+        currentPageHeight += paraHeight + sectionBreakHeight;
+      }
+    }
+
+    return breaks;
+  }, [measured, paragraphHeights]);
+
+  const totalPages = pageBreaks.length;
+
+  // Guard: clamp currentPage if pageBreaks shrinks
+  useEffect(() => {
+    if (currentPage >= totalPages) {
+      setCurrentPage(Math.max(0, totalPages - 1));
+    }
+  }, [totalPages, currentPage]);
 
   const goToPage = useCallback((page: number) => {
     if (page < 0 || page >= totalPages) return;
@@ -436,10 +458,12 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     }, 150);
   }, [totalPages]);
 
+  // Page paragraphs for current page
   const pageParagraphs = useMemo(() => {
-    const start = currentPage * paragraphsPerPage;
-    return paragraphs.slice(start, start + paragraphsPerPage);
-  }, [currentPage, paragraphsPerPage, paragraphs]);
+    const start = pageBreaks[currentPage];
+    const end = currentPage + 1 < pageBreaks.length ? pageBreaks[currentPage + 1] : paragraphs.length;
+    return paragraphs.slice(start, end).map((p, i) => ({ text: p, globalIndex: start + i }));
+  }, [currentPage, pageBreaks, paragraphs]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !window.speechSynthesis) {
@@ -745,7 +769,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           parts.push(
             <ruby key={key++} className="ruby-pinyin" onClick={handleTextClick}>
               {isActive ? (
-                <mark className="bg-amber-200 rounded px-0.5">{char}</mark>
+                <mark className="bg-amber-200/70 rounded-sm" style={{ boxShadow: '0 0 0 1px rgba(251, 191, 36, 0.5)' }}>{char}</mark>
               ) : (
                 char
               )}
@@ -782,7 +806,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         return (
           <>
             <span onClick={handleTextClick}>{before}</span>
-            <mark className="bg-amber-200 rounded px-0.5" onClick={handleTextClick}>{active}</mark>
+            <mark className="bg-amber-200/70 rounded-sm" style={{ boxShadow: '0 0 0 1px rgba(251, 191, 36, 0.5)' }} onClick={handleTextClick}>{active}</mark>
             <span onClick={handleTextClick}>{after}</span>
           </>
         );
@@ -840,19 +864,16 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           .reader-paragraph + .reader-paragraph {
             margin-top: 0;
           }
-          mark.tts-highlight {
-            background-color: var(--reader-highlight);
-            color: var(--reader-accent);
-            border-radius: 2px;
-            padding: 0 1px;
-            transition: background-color 0.15s ease;
+          mark {
+            background-color: transparent;
+            color: inherit;
           }
         `
       }} />
 
       {/* Top bar - minimal, fades into background */}
       <div
-        className="sticky top-0 z-20 h-10 backdrop-blur-md flex items-center justify-between px-4"
+        className="sticky top-0 z-20 min-h-11 backdrop-blur-md flex items-center justify-between px-4"
         style={{
           backgroundColor: "var(--reader-surface)",
           borderBottom: "1px solid var(--reader-border)",
@@ -861,15 +882,17 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         {/* Left: Back */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-1 text-xs"
-          style={{ color: "var(--reader-text-muted)" }}
+          className="flex items-center gap-2 min-h-11 px-2 text-base font-semibold active:scale-95 transition-transform"
+          style={{ color: "var(--reader-text)" }}
+          aria-label="返回首页"
         >
-          ← 返回
+          <span className="text-lg">🏠</span>
+          <span>返回</span>
         </button>
 
         {/* Center: Page indicator */}
         {totalPages > 1 && (
-          <span className="text-xs font-medium" style={{ color: "var(--reader-text-muted)" }}>
+          <span className="text-base font-medium" style={{ color: "var(--reader-text-muted)" }}>
             {currentPage + 1} / {totalPages}
           </span>
         )}
@@ -877,13 +900,34 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         {/* Right: Recording status (only when active) */}
         <div className="flex items-center gap-2">
           {recordingSubmitted && (
-            <span className="text-xs text-green-600">
+            <span className="text-sm font-semibold text-green-600">
               ✅ 已打卡
             </span>
           )}
           {recordingState !== 'idle' && (
-            <span className={`text-xs ${recordingState === 'recording' ? 'text-red-500' : recordingState === 'paused' ? '' : 'text-green-600'}`} style={{ color: recordingState === 'paused' ? 'var(--reader-text-muted)' : undefined }}>
-              {recordingState === 'recording' ? `● ${formatDuration(recordingDuration)}` : recordingState === 'paused' ? `⏸ ${formatDuration(recordingDuration)}` : `✅ ${formatDuration(recordingDuration)}`}
+            <span className={`text-base font-bold transition-colors ${
+              recordingState === 'recording'
+                ? 'text-red-500'
+                : recordingState === 'paused'
+                  ? 'text-amber-500'
+                  : 'text-emerald-500'
+            }`}>
+              {recordingState === 'recording' ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  {formatDuration(recordingDuration)}
+                </span>
+              ) : recordingState === 'paused' ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <span>⏸</span>
+                  {formatDuration(recordingDuration)}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <span>✅</span>
+                  {formatDuration(recordingDuration)}
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -917,6 +961,31 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
       {/* Content area - single page pagination */}
       <div className="flex-1 overflow-hidden relative">
+        {/* Hidden measurement container — measures actual paragraph heights */}
+        {!measured && (
+          <div
+            ref={measureRef}
+            aria-hidden="true"
+            className="fixed left-0 top-0 w-full px-8 py-6 pointer-events-none"
+            style={{
+              visibility: 'hidden',
+              zIndex: -1,
+              fontSize: `${fontSizePx}px`,
+              lineHeight: lineHeightValue,
+              fontFamily: article.language === "zh"
+                ? "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif"
+                : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
+            }}
+          >
+            <div className="max-w-3xl mx-auto space-y-4">
+              {paragraphs.map((para, i) => (
+                <p key={i} data-measure-para className="reader-paragraph" style={{ color: 'transparent' }}>
+                  {para}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Page turn zones - left and right edges, wider for easier touch */}
         {totalPages > 1 && (
           <>
@@ -940,7 +1009,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         {/* Page content with transition */}
         <div
           ref={contentRef}
-          className={`h-[calc(100vh-40px-56px)] overflow-hidden px-8 py-6 ${isTransitioning ? 'page-transition' : 'page-transition-enter'}`}
+          className={`h-[calc(100vh-44px-56px)] overflow-hidden px-8 py-6 ${isTransitioning ? 'page-transition' : 'page-transition-enter'}`}
         >
           <div
             className="max-w-3xl mx-auto space-y-4"
@@ -953,6 +1022,17 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
             }}
           >
+            {!measured ? (
+              <div className="flex items-center justify-center h-full min-h-[200px]">
+                <div className="animate-pulse space-y-4 w-full max-w-3xl">
+                  <div className="h-8 w-3/4 rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.2 }} />
+                  <div className="h-4 w-full rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+                  <div className="h-4 w-5/6 rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+                  <div className="h-4 w-4/5 rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+                </div>
+              </div>
+            ) : (
+            <>
             {/* Title section - only show on first page */}
             {currentPage === 0 && (
               <div className="mb-6 pb-4 border-b" style={{ borderColor: "var(--reader-border)" }}>
@@ -969,11 +1049,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               </div>
             )}
 
-            {pageParagraphs.map((paragraph, index) => {
-              const globalIndex = currentPage * paragraphsPerPage + index;
+            {pageParagraphs.map(({ text, globalIndex }) => {
               const hasIllustration = illustrationMap.has(globalIndex);
               // Add section break before first paragraph of each page (except page 0)
-              const showSectionBreak = currentPage > 0 && index === 0;
+              const showSectionBreak = currentPage > 0 && globalIndex === pageBreaks[currentPage] && globalIndex > 0;
               return (
                 <div key={globalIndex}>
                   {showSectionBreak && (
@@ -983,7 +1062,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                       <div className="w-8 h-px" style={{ backgroundColor: "var(--reader-border)" }} />
                     </div>
                   )}
-                  <p className="reader-paragraph">{renderParagraph(paragraph, globalIndex)}</p>
+                  <p className="reader-paragraph">{renderParagraph(text, globalIndex)}</p>
                   {hasIllustration && (
                     <figure className="mt-4 mb-6 rounded-xl overflow-hidden shadow-sm">
                       <img
@@ -1001,6 +1080,8 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 </div>
               );
             })}
+            </>
+            )}
           </div>
         </div>
       </div>
@@ -1014,11 +1095,11 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           backdropFilter: "blur(12px)",
         }}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {/* Previous page button */}
           <button
             onClick={() => goToPage(currentPage - 1)}
-            className="flex items-center justify-center w-9 h-9 rounded-full transition-all"
+            className="flex items-center justify-center w-12 h-12 rounded-full transition-all active:scale-95"
             style={{
               color: currentPage > 0 ? 'var(--reader-text-muted)' : 'transparent',
               pointerEvents: currentPage > 0 ? 'auto' : 'none',
@@ -1026,7 +1107,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             aria-label="上一页"
             disabled={currentPage <= 0}
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="15 18 9 12 15 6"/>
             </svg>
           </button>
@@ -1034,28 +1115,28 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           {/* Read aloud button - primary action during reading */}
           <button
             onClick={handleTTS}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all"
+            className="flex items-center gap-2 px-5 py-3 rounded-full text-base font-semibold transition-all active:scale-95"
             style={{
               backgroundColor: ttsPlaying ? 'var(--reader-accent)' : 'var(--reader-highlight)',
               color: ttsPlaying ? 'var(--reader-bg)' : 'var(--reader-accent)',
             }}
           >
             {ttsPlaying && !ttsPaused ? (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="4" width="4" height="16" rx="1"/>
                 <rect x="14" y="4" width="4" height="16" rx="1"/>
               </svg>
             ) : ttsPaused ? (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
                 <polygon points="5 3 19 12 5 21 5 3"/>
               </svg>
             ) : (
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
               </svg>
             )}
-            <span className="text-xs">
+            <span className="text-base">
               {ttsPlaying && !ttsPaused ? '暂停' : ttsPaused ? '继续' : '朗读'}
             </span>
           </button>
@@ -1073,18 +1154,18 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 setShowRecordingMenu(true);
               }
             }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all"
+            className="flex items-center gap-2 px-5 py-3 rounded-full text-base font-semibold transition-all active:scale-95"
             style={{
               backgroundColor: recordingState === 'recording' ? '#EF4444' : recordingState === 'stopped' ? '#22C55E' : 'var(--reader-highlight)',
               color: recordingState === 'recording' || recordingState === 'stopped' ? 'white' : 'var(--reader-accent)',
             }}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
               <line x1="12" y1="19" x2="12" y2="23"/>
             </svg>
-            <span className="text-xs">
+            <span className="text-base">
               {recordingState === 'idle' ? '录音' :
                recordingState === 'recording' ? '暂停' :
                recordingState === 'paused' ? '继续' :
@@ -1095,24 +1176,24 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           {/* Quiz button */}
           <button
             onClick={onStartQuiz}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium text-white transition-all"
+            className="flex items-center gap-2 px-5 py-3 rounded-full text-base font-semibold text-white transition-all active:scale-95"
             style={{ backgroundColor: "var(--reader-accent)" }}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M9 11l3 3L22 4"/>
               <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
-            <span className="text-xs">答题</span>
+            <span className="text-base">答题</span>
           </button>
 
           {/* Settings button - minimal icon */}
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
-            className="p-2 rounded-full transition-all"
+            className="flex items-center justify-center w-12 h-12 rounded-full transition-all"
             style={{ color: "var(--reader-text-muted)" }}
             aria-label="设置"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3"/>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
@@ -1121,7 +1202,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           {/* Next page button */}
           <button
             onClick={() => goToPage(currentPage + 1)}
-            className="flex items-center justify-center w-9 h-9 rounded-full transition-all"
+            className="flex items-center justify-center w-12 h-12 rounded-full transition-all active:scale-95"
             style={{
               color: currentPage < totalPages - 1 ? 'var(--reader-text-muted)' : 'transparent',
               pointerEvents: currentPage < totalPages - 1 ? 'auto' : 'none',
@@ -1129,7 +1210,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             aria-label="下一页"
             disabled={currentPage >= totalPages - 1}
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
           </button>
@@ -1197,7 +1278,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
             {/* TTS Speed */}
             <div>
-              <label className="text-sm font-medium text-gray-700 mb-2 block">
+              <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>
                 朗读速度: {ttsRate.toFixed(1)}x
               </label>
               <input
@@ -1207,9 +1288,9 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 step="0.1"
                 value={ttsRate}
                 onChange={(e) => setTtsRate(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-forest-500"
+                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-forest-500"
               />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <div className="flex justify-between text-xs mt-1" style={{ color: "var(--reader-text-muted)" }}>
                 <span>慢</span>
                 <span>正常</span>
                 <span>快</span>

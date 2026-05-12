@@ -8,6 +8,10 @@ import type { ArticleReaderArticle, ArticleReaderRef } from "@/components/readin
 import { ReadAlong } from "@/components/reading/ReadAlong";
 import { QuizView } from "@/components/reading/QuizView";
 import type { QuizViewQuestion } from "@/components/reading/QuizView";
+import {
+  shouldAutoCompleteReading,
+  createReadingAutoCheckin,
+} from "@/lib/auto-checkins";
 
 interface ApiArticle {
   id: string;
@@ -144,9 +148,79 @@ export default function ReadingArticlePage({
     void fetchData();
   }, [fetchData]);
 
-  const handleQuizComplete = useCallback(() => {
-    window.dispatchEvent(new CustomEvent("child-points-changed"));
-  }, []);
+  const handleQuizComplete = useCallback(
+    async (result: { score: number; total: number; pointsEarned: number }) => {
+      window.dispatchEvent(new CustomEvent("child-points-changed"));
+
+      // ── Reading auto-checkin ──
+      if (assignmentId) {
+        try {
+          const supabase = createClient();
+
+          // Step 1: fetch the assignment with homework linkage.
+          // reading_assignments has no homework_id FK, so we join via
+          // the child_id + matching reading-type homework.
+          const { data: assignment } = await supabase
+            .from("reading_assignments")
+            .select("id, child_id")
+            .eq("id", assignmentId)
+            .single();
+
+          if (assignment) {
+            // Step 2: find a reading homework for this child that
+            // qualifies for auto-completion (type is 阅读/英文阅读 AND
+            // no recording required).
+            const { data: readingHomeworks } = await supabase
+              .from("homeworks")
+              .select("id, type_name, point_value, required_checkpoint_type")
+              .eq("child_id", assignment.child_id)
+              .is("deleted_at", null)
+              .in("type_name", ["阅读", "英文阅读"]);
+
+            if (readingHomeworks && readingHomeworks.length > 0) {
+              const qualifyingHomework = readingHomeworks.find((hw) =>
+                shouldAutoCompleteReading(hw)
+              );
+
+              if (qualifyingHomework) {
+                // Guard: skip if a check-in already exists for this
+                // homework today (server-side quiz submit may have
+                // linked its check-in to this homework already).
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                const todayEnd = new Date();
+                todayEnd.setHours(23, 59, 59, 999);
+                const { data: existingCheckIns } = await supabase
+                  .from("check_ins")
+                  .select("id")
+                  .eq("homework_id", qualifyingHomework.id)
+                  .gte("completed_at", todayStart.toISOString())
+                  .lte("completed_at", todayEnd.toISOString());
+
+                if (!existingCheckIns || existingCheckIns.length === 0) {
+                  await createReadingAutoCheckin({
+                    supabase,
+                    childId: assignment.child_id,
+                    homework: {
+                      id: qualifyingHomework.id,
+                      point_value: qualifyingHomework.point_value ?? 0,
+                    },
+                    articleId: params.id,
+                    score: result.score,
+                    total: result.total,
+                  });
+                }
+              }
+            }
+          }
+        } catch (err) {
+          // Auto-checkin is best-effort; never block the quiz flow.
+          console.error("Reading auto-checkin failed:", err);
+        }
+      }
+    },
+    [assignmentId, params.id]
+  );
 
   // ── Loading state ──
   if (loading) {
@@ -278,7 +352,11 @@ export default function ReadingArticlePage({
             articleId={params.id}
             childId={childId}
             assignmentId={assignmentId}
-            onComplete={handleQuizComplete}
+            onComplete={(result) => {
+              handleQuizComplete(result).catch((e) =>
+                console.error("handleQuizComplete error:", e)
+              );
+            }}
           />
         </div>
       )}

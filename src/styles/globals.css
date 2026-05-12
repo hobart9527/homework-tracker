@@ -54,6 +54,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ── Safe Area ─────────────────────────────────────────────── */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* ── Custom Scrollbar ───────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;

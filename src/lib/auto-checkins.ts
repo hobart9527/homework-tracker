@@ -143,3 +143,76 @@ export async function applyAutoCheckinMatches(input: {
     primaryLearningEventId: primaryMatch.learningEventId,
   };
 }
+
+/* ── Reading auto-checkin ── */
+
+/**
+ * Returns true when a reading homework qualifies for auto-completion:
+ * type_name is "阅读" or "英文阅读" AND required_checkpoint_type is
+ * empty-string or null (i.e. NOT "audio" recording mode).
+ */
+export function shouldAutoCompleteReading(homework: {
+  type_name: string;
+  required_checkpoint_type: string | null;
+}): boolean {
+  const isReadingType =
+    homework.type_name === "阅读" || homework.type_name === "英文阅读";
+  const noRecordingRequired =
+    homework.required_checkpoint_type === "" ||
+    homework.required_checkpoint_type === null;
+  return isReadingType && noRecordingRequired;
+}
+
+/**
+ * Create a check-in record that auto-completes a reading homework after
+ * the child finishes the article + quiz.
+ *
+ * The supabase client can be the real @supabase/ssr browser client — we
+ * use eslint-disable and an opaque type to avoid builder-chain mismatches.
+ *
+ * Returns the created row or null on error (errors are logged, not thrown).
+ */
+export async function createReadingAutoCheckin(input: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  childId: string;
+  homework: { id: string; point_value: number };
+  articleId: string;
+  score: number;
+  total: number;
+}) {
+  const { supabase, childId, homework, articleId, score, total } = input;
+  const note = `阅读自动打卡 — 文章: ${articleId}, 得分: ${score}/${total}`;
+
+  try {
+    const { data, error } = await supabase
+      .from("check_ins")
+      .insert({
+        child_id: childId,
+        homework_id: homework.id,
+        completed_at: new Date().toISOString(),
+        submitted_at: new Date().toISOString(),
+        points_earned: homework.point_value,
+        awarded_points: homework.point_value,
+        is_scored: true,
+        is_late: false,
+        proof_type: null,
+        note,
+      })
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error(
+        "createReadingAutoCheckin failed:",
+        error?.message || "No data returned"
+      );
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.error("createReadingAutoCheckin error:", err);
+    return null;
+  }
+}

@@ -305,163 +305,164 @@ export default function ProgressPage() {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════
-            第2区：月度日历 - 视觉化进度展示
+            Two-column: calendar + insights sidebar
             ═══════════════════════════════════════════════════════════════════ */}
-        <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
-          {/* 标题栏 */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-forest-800">
-                📅 {getMonthLabel(month)} {t('child.weekCalendar.title').replace('本周', '月历')}
-              </h2>
-              <p className="mt-1 text-sm text-forest-500">
-                {dashboard.summary.completedCount}/{dashboard.summary.totalAssigned} {t('child.progress.completed')} · {dashboard.summary.activeDays} {t('child.progress.activeDays')}
-              </p>
-            </div>
-            {/* 月份切换 */}
-            <div className="flex items-center gap-2">
-              <MonthSwitchButton
-                label="◀"
-                onClick={() => setMonth(prevMonth)}
-              />
-              <div className="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
-                {dashboard.summary.monthLabel}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px]">
+
+          {/* ═══════════════════════════════════════════════════════════════════
+              Left: Calendar — slightly larger than current cramped version
+              ═══════════════════════════════════════════════════════════════════ */}
+          <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
+            {/* 标题栏 */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-forest-800">
+                  📅 {getMonthLabel(month)} {t('child.weekCalendar.title').replace('本周', '月历')}
+                </h2>
+                <p className="mt-1 text-sm text-forest-500">
+                  {dashboard.summary.completedCount}/{dashboard.summary.totalAssigned} {t('child.progress.completed')} · {dashboard.summary.activeDays} {t('child.progress.activeDays')}
+                </p>
               </div>
-              <MonthSwitchButton
-                label="▶"
-                disabled={disableNextMonth}
-                onClick={() => {
-                  if (!disableNextMonth) setMonth(nextMonth);
-                }}
-              />
-            </div>
-          </div>
-
-          {/* 日历网格 */}
-          <div className="mt-4">
-            {/* 星期标签 */}
-            <div className="grid grid-cols-7 gap-2 text-center text-xs font-medium text-forest-400">
-              {WEEKDAY_LABELS.map((label) => (
-                <div key={label} className="py-2">周{label}</div>
-              ))}
-            </div>
-            {/* 日期格子 */}
-            <div className="mt-2 grid grid-cols-7 gap-2">
-              {Array.from({ length: leadingEmptySlots }).map((_, index) => (
-                <div key={`empty-${index}`} className="min-h-[80px] rounded-2xl border border-transparent" />
-              ))}
-              {dashboard.calendarDays.map((day) => (
-                <div
-                  key={day.date}
-                  role="img"
-                  aria-label={getHeatmapLabel(day)}
-                  className={`min-h-[80px] rounded-2xl border border-forest-100 p-2 shadow-sm ${getCalendarTone(day)}`}
-                >
-                  <span className="text-sm font-semibold">{day.date.slice(-2)}</span>
-                  {day.totalCount > 0 && (
-                    <div className="mt-2 text-center">
-                      <div className="text-xs font-bold">{day.completedCount}/{day.totalCount}</div>
-                      {day.pointsEarned > 0 && (
-                        <div className="text-[10px] opacity-80">+{day.pointsEarned}</div>
-                      )}
-                    </div>
-                  )}
+              {/* 月份切换 */}
+              <div className="flex items-center gap-2">
+                <MonthSwitchButton
+                  label="◀"
+                  onClick={() => setMonth(prevMonth)}
+                />
+                <div className="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
+                  {dashboard.summary.monthLabel}
                 </div>
-              ))}
+                <MonthSwitchButton
+                  label="▶"
+                  disabled={disableNextMonth}
+                  onClick={() => {
+                    if (!disableNextMonth) setMonth(nextMonth);
+                  }}
+                />
+              </div>
             </div>
-          </div>
-        </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            第3区：侧边栏 - 成就与建议（粘性布局）
-            ═══════════════════════════════════════════════════════════════════ */}
-        <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start" role="complementary">
-
-          {/* 作业类型表现 - 正向激励 */}
-          {dashboard.weakestTypes.length > 0 || dashboard.strongestTypes.length > 0 ? (
-            <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-forest-800">🏆 {t('child.progress.homeworkTypePerformance')}</h2>
-
-              {/* 最强项 - 优先展示 */}
-              {dashboard.strongestTypes.slice(0, 1).map((item) => (
-                <div
-                  key={`strong-${item.typeName}`}
-                  className="mt-4 rounded-3xl border-2 border-emerald-200 bg-emerald-50/80 p-4"
-                >
-                  <div className="flex items-center gap-2 text-sm font-medium text-emerald-600">
-                    <span>🌟</span> {t('child.progress.currentStrength')}
-                  </div>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <div>
-                      <div className="text-lg font-bold text-forest-950">{item.typeName}</div>
-                      <div className="text-sm text-forest-700">
-                        {item.completedCount}/{item.assignedCount} 完成
-                      </div>
-                    </div>
-                    <div className="text-3xl font-bold text-emerald-600">
-                      {formatPercent(item.completionRate)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* 需加强项 - 简化展示 */}
-              {dashboard.weakestTypes.slice(0, 1).map((item, index) => (
-                <div
-                  key={`weak-${item.typeName}`}
-                  className="mt-3 rounded-3xl border border-forest-100 bg-forest-50/80 p-4"
-                >
-                  <div className="flex items-center gap-2 text-xs font-medium text-forest-600">
-                    <span>📚</span> {t('child.progress.needsImprovement')}
-                  </div>
-                  <div className="mt-2 flex items-end justify-between gap-3">
-                    <div>
-                      <div className="text-base font-bold text-forest-950">{item.typeName}</div>
-                      <div className="text-sm text-forest-700">
-                        {item.completedCount}/{item.assignedCount} 完成
-                      </div>
-                    </div>
-                    <div className="text-2xl font-bold text-forest-700">
-                      {formatPercent(item.completionRate)}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </section>
-          ) : null}
-
-          {/* 学习习惯建议 - 简洁展示 */}
-          {dashboard.habitInsights.length > 0 ? (
-            <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-forest-800">💡 {t('child.progress.learningHabitSuggestions')}</h2>
-              <div className="mt-3 space-y-2">
-                {dashboard.habitInsights.slice(0, 2).map((item) => (
+            {/* 日历网格 */}
+            <div className="mt-4">
+              {/* 星期标签 */}
+              <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-medium text-forest-400">
+                {WEEKDAY_LABELS.map((label) => (
+                  <div key={label} className="py-1.5">周{label}</div>
+                ))}
+              </div>
+              {/* 日期格子 */}
+              <div className="mt-2 grid grid-cols-7 gap-1.5">
+                {Array.from({ length: leadingEmptySlots }).map((_, index) => (
+                  <div key={`empty-${index}`} className="min-h-[64px] rounded-2xl border border-transparent" />
+                ))}
+                {dashboard.calendarDays.map((day) => (
                   <div
-                    key={item.title}
-                    className="rounded-2xl bg-forest-50/80 p-3 text-forest-950"
+                    key={day.date}
+                    role="img"
+                    aria-label={getHeatmapLabel(day)}
+                    className={`min-h-[64px] rounded-2xl border border-forest-100 p-2 ${getCalendarTone(day)}`}
                   >
-                    <div className="text-sm font-semibold">{item.title}</div>
-                    <p className="mt-1 text-xs leading-5 text-forest-600">{item.description}</p>
+                    <span className="text-sm font-semibold">{day.date.slice(-2)}</span>
+                    {day.totalCount > 0 && (
+                      <div className="mt-2 text-center">
+                        <div className="text-xs font-bold">{day.completedCount}/{day.totalCount}</div>
+                        {day.pointsEarned > 0 && (
+                          <div className="text-[10px] opacity-80">+{day.pointsEarned}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
-            </section>
-          ) : null}
+            </div>
+          </section>
 
-          {/* 打卡时段分布 - 折叠展示 */}
-          {dashboard.timeHeatmap.length > 0 ? (
-            <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
-              <h2 className="text-lg font-bold text-forest-800">⏰ {t('child.progress.checkInPeakTime')}</h2>
-              <div className="mt-3">
-                <ParentCheckInHeatmap
-                  buckets={dashboard.timeHeatmap}
-                  description=""
-                />
-              </div>
-            </section>
-          ) : null}
+          {/* ═══════════════════════════════════════════════════════════════════
+              Right: Independent insight cards — sticky on desktop
+              ═══════════════════════════════════════════════════════════════════ */}
+          <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start" role="complementary">
 
-        </aside>
+            {/* Card 1: 作业类型表现 */}
+            {dashboard.weakestTypes.length > 0 || dashboard.strongestTypes.length > 0 ? (
+              <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-forest-800">🏆 作业类型表现</h2>
+                <p className="mt-1 text-xs text-forest-500">本月各类型作业的完成情况</p>
+                <div className="mt-4 space-y-3">
+                  {/* Strongest */}
+                  {dashboard.strongestTypes.slice(0, 1).map((item) => (
+                    <div key={`strong-${item.typeName}`} className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/80 p-4">
+                      <div className="flex items-center gap-2 text-sm font-medium text-emerald-600">
+                        <span>🌟</span> {t('child.progress.currentStrength')}
+                      </div>
+                      <div className="mt-2 flex items-end justify-between gap-3">
+                        <div>
+                          <div className="text-lg font-bold text-forest-950">{item.typeName}</div>
+                          <div className="text-sm text-forest-700">{item.completedCount}/{item.assignedCount} 完成</div>
+                        </div>
+                        <div className="text-3xl font-bold text-emerald-600">{formatPercent(item.completionRate)}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Weakest */}
+                  {dashboard.weakestTypes.slice(0, 1).map((item) => (
+                    <div key={`weak-${item.typeName}`} className="rounded-2xl border border-forest-100 bg-forest-50/80 p-4">
+                      <div className="flex items-center gap-2 text-xs font-medium text-forest-600">
+                        <span>📚</span> {t('child.progress.needsImprovement')}
+                      </div>
+                      <div className="mt-2 flex items-end justify-between gap-3">
+                        <div>
+                          <div className="text-base font-bold text-forest-950">{item.typeName}</div>
+                          <div className="text-sm text-forest-700">{item.completedCount}/{item.assignedCount} 完成</div>
+                        </div>
+                        <div className="text-2xl font-bold text-forest-700">{formatPercent(item.completionRate)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Card 2: 学习习惯建议 */}
+            {dashboard.habitInsights.length > 0 ? (
+              <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-forest-800">💡 学习习惯建议</h2>
+                <p className="mt-1 text-xs text-forest-500">基于本月数据生成的个性化建议</p>
+                <div className="mt-4 space-y-2">
+                  {dashboard.habitInsights.map((item) => (
+                    <div key={item.title} className={`rounded-2xl p-3 ${
+                      item.tone === 'good' ? 'bg-emerald-50/80' :
+                      item.tone === 'warn' ? 'bg-amber-50/80' :
+                      'bg-sky-50/80'
+                    }`}>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-forest-950">
+                        <span>{item.tone === 'good' ? '✅' : item.tone === 'warn' ? '⚠️' : '💡'}</span>
+                        {item.title}
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-forest-600">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Card 3: 打卡时段分布 */}
+            {dashboard.timeHeatmap.length > 0 ? (
+              <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-forest-800">⏰ 打卡时段分布</h2>
+                <p className="mt-1 text-xs text-forest-500">颜色越深说明这个时段越常完成作业</p>
+                <div className="mt-4">
+                  <ParentCheckInHeatmap
+                    buckets={dashboard.timeHeatmap}
+                    title=""
+                    description=""
+                  />
+                </div>
+              </section>
+            ) : null}
+
+          </aside>
+
+        </div>
       </div>
     </main>
   );

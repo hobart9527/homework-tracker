@@ -33,7 +33,7 @@ export function Card({
   > = {
     parent: {
       raised:
-        "bg-white ring-1 ring-ink-200 shadow-none rounded-radius-lg",
+        "bg-white ring-1 ring-ink-200 shadow-none rounded-radius-md",
       elevated:
         "bg-white ring-1 ring-ink-200 shadow-elevation-floating rounded-radius-xl",
     },

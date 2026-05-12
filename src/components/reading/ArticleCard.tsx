@@ -13,6 +13,7 @@ interface ArticleCardProps {
   coverImageUrl?: string;
   isRecommended?: boolean;
   isCompleted?: boolean;
+  isInProgress?: boolean;
   score?: number;
   language?: "zh" | "en";
   onClick: () => void;
@@ -44,6 +45,7 @@ export function ArticleCard({
   coverImageUrl,
   isRecommended,
   isCompleted,
+  isInProgress,
   score,
   language,
   onClick,
@@ -58,7 +60,11 @@ export function ArticleCard({
     <button
       type="button"
       onClick={onClick}
-      className="relative w-full text-left rounded-xl bg-white shadow-elevation-raised ring-1 ring-cream-200/40 transition-all hover:shadow-elevation-floating hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary overflow-hidden"
+      className={`relative w-full text-left rounded-xl bg-white transition-all hover:shadow-elevation-floating hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary overflow-hidden ${
+        isCompleted
+          ? "shadow-[0_0_0_2px_#F59E0B] ring-2 ring-amber-400"
+          : "shadow-elevation-raised ring-1 ring-cream-200/40"
+      }`}
     >
       {/* Cover image */}
       {thumbnailUrl ? (
@@ -74,6 +80,12 @@ export function ArticleCard({
               imgLoaded ? "opacity-100" : "opacity-0"
             }`}
           />
+          {isCompleted && (
+            <div className="absolute top-2 right-2 z-10 bg-amber-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+              <span>⭐</span>
+              <span>已完成</span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="relative aspect-[3/2] w-full flex items-center justify-center bg-gradient-to-br from-forest-100 to-cream-200">
@@ -88,6 +100,14 @@ export function ArticleCard({
         <div className="flex items-center gap-1.5 bg-gradient-to-r from-honey-300 to-coral-400 px-4 py-1.5 text-xs font-semibold text-white">
           <span>🎯</span>
           <span>今日推荐</span>
+        </div>
+      )}
+
+      {/* In-progress badge */}
+      {isInProgress && !isCompleted && (
+        <div className="flex items-center gap-1.5 bg-amber-100 px-4 py-1.5 text-xs font-semibold text-amber-700">
+          <span>📖</span>
+          <span>阅读中</span>
         </div>
       )}
 

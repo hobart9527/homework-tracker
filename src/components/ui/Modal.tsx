@@ -45,14 +45,14 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
       onClick={(e) => e.currentTarget === e.target && onClose()}
     >
       <div
-        className={`w-full ${SIZE_STYLES[size]} max-h-[90vh] overflow-auto rounded-3xl bg-cream-50 shadow-2xl`}
+        className={`w-full ${SIZE_STYLES[size]} max-h-[90vh] overflow-auto rounded-radius-xl bg-cream-50 shadow-elevation-modal`}
       >
         {title && (
-          <div className="p-5 border-b border-forest-100">
-            <h2 className="text-xl font-bold text-forest-700">{title}</h2>
+          <div className="p-space-5 border-b border-forest-100">
+            <h2 className="font-ui-display text-xl font-bold text-forest-700">{title}</h2>
           </div>
         )}
-        <div className="p-5">{children}</div>
+        <div className="p-space-5">{children}</div>
       </div>
     </div>
   );

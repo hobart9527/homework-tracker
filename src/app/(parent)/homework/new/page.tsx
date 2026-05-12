@@ -22,13 +22,13 @@ export default function NewHomeworkPage({
     <PageShell skin="parent">
       <header className="bg-forest-500 text-white p-4 lg:pt-6">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-xl font-bold">新建作业</h1>
-          <p className="mt-1 text-sm text-white/80">
+          <h1 className="text-ui-xl font-ui-display font-bold">新建作业</h1>
+          <p className="mt-1 text-ui-sm text-white/80">
             可以一次分配给多个孩子，系统会分别创建独立作业。
           </p>
         </div>
       </header>
-      <main className="max-w-6xl mx-auto p-4">
+      <main className="max-w-6xl mx-auto p-space-4">
         <HomeworkForm copyFromHomeworkId={copyFromHomeworkId} prefilledChildId={childId} />
       </main>
     </PageShell>

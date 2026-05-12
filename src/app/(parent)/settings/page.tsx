@@ -91,53 +91,53 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-primary p-4 text-white">
+      <header className="bg-forest-500 p-space-4 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-4">
           <Link href="/dashboard">
             <span className="text-xl">←</span>
           </Link>
           <div>
-            <h1 className="text-xl font-bold">{t("parent.settings.title")}</h1>
-            <p className="mt-1 text-sm text-white/80">
+            <h1 className="text-ui-xl font-ui-display font-bold">{t("parent.settings.title")}</h1>
+            <p className="mt-1 text-ui-sm text-white/80">
               先选对象，再配置功能。家庭级、孩子级、作业级和系统级入口已经分开整理。
             </p>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 p-4">
+      <main className="mx-auto max-w-3xl space-y-4 p-space-4">
         <Card>
           <div className="space-y-3">
             <div>
               <h2 className="font-bold text-forest-700">设置导航</h2>
-              <p className="mt-1 text-sm text-forest-500">
+              <p className="mt-1 text-ui-sm text-forest-500">
                 不同对象的配置入口已经拆开，避免把家庭通道、孩子身份和作业规则混在同一个页面里。
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
               <Link href="/settings/channels">
-                <div className="rounded-2xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
+                <div className="rounded-radius-xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
                   <h3 className="font-semibold text-forest-700">家庭通知通道</h3>
-                  <p className="mt-1 text-sm text-forest-500">
+                  <p className="mt-1 text-ui-sm text-forest-500">
                     Telegram、微信 bridge 与家庭级通知偏好
                   </p>
                 </div>
               </Link>
 
               <Link href="/settings/integrations">
-                <div className="rounded-2xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
+                <div className="rounded-radius-xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
                   <h3 className="font-semibold text-forest-700">孩子集成</h3>
-                  <p className="mt-1 text-sm text-forest-500">
+                  <p className="mt-1 text-ui-sm text-forest-500">
                     学习平台账号与孩子默认消息路由
                   </p>
                 </div>
               </Link>
 
               <Link href="/settings/system">
-                <div className="rounded-2xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
+                <div className="rounded-radius-xl border border-forest-100 bg-forest-50/70 p-4 transition-colors hover:border-primary">
                   <h3 className="font-semibold text-forest-700">系统运行</h3>
-                  <p className="mt-1 text-sm text-forest-500">
+                  <p className="mt-1 text-ui-sm text-forest-500">
                     平台同步、语音桥接、失败重试与排障
                   </p>
                 </div>
@@ -148,14 +148,14 @@ export default function SettingsPage() {
 
         <Card>
           <h2 className="mb-4 font-bold text-forest-700">阅读等级设置</h2>
-          <p className="mb-4 text-sm text-forest-500">
+          <p className="mb-4 text-ui-sm text-forest-500">
             为每个孩子单独设置英文阅读等级（Grade 1-12），默认与孩子年级一致。
           </p>
           <div className="space-y-3">
             {children.map((child) => (
               <div
                 key={child.id}
-                className="flex items-center justify-between rounded-xl bg-forest-50/70 p-3"
+                className="flex items-center justify-between rounded-radius-lg bg-forest-50/70 p-3"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{child.avatar || "🦊"}</span>
@@ -170,7 +170,7 @@ export default function SettingsPage() {
                   onChange={(e) =>
                     handleUpdateReadingGrade(child.id, parseInt(e.target.value))
                   }
-                  className="rounded-lg border-2 border-forest-200 bg-white px-3 py-1.5 text-sm text-forest-700 focus:border-primary focus:outline-none"
+                  className="rounded-radius-md border-2 border-forest-200 bg-white px-3 py-1.5 text-ui-sm text-forest-700 focus:border-primary focus:outline-none"
                 >
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => (
                     <option key={g} value={g}>

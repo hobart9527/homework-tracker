@@ -346,20 +346,20 @@ export default function ReadingNewsAdminPage() {
   if (authState === "anonymous" || authState === "non_parent") {
     return (
       <div className="min-h-screen bg-background">
-        <header className="bg-primary p-4 text-white">
+        <header className="bg-forest-500 p-space-4 text-white">
           <div className="mx-auto flex max-w-3xl items-center gap-4">
             <Link href="/login">
               <span className="text-xl">←</span>
             </Link>
             <div>
-              <h1 className="text-xl font-bold">新闻投稿</h1>
+              <h1 className="text-ui-xl font-ui-display font-bold">新闻投稿</h1>
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-3xl p-4">
+        <main className="mx-auto max-w-3xl p-space-4">
           <Card>
             <h2 className="font-bold text-coral-600">无访问权限</h2>
-            <p className="mt-2 text-sm text-forest-500">
+            <p className="mt-2 text-ui-sm text-forest-500">
               {authState === "anonymous"
                 ? "请先登录家长账号。"
                 : "当前账号不是家长账号，无法访问新闻投稿管理页面。"}
@@ -385,26 +385,26 @@ export default function ReadingNewsAdminPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="bg-primary p-4 text-white">
+      <header className="bg-forest-500 p-space-4 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-4">
           <Link href="/settings">
             <span className="text-xl">←</span>
           </Link>
           <div>
-            <h1 className="text-xl font-bold">新闻投稿</h1>
-            <p className="mt-1 text-sm text-white/80">
+            <h1 className="text-ui-xl font-ui-display font-bold">新闻投稿</h1>
+            <p className="mt-1 text-ui-sm text-white/80">
               粘贴新闻链接，自动改写为孩子可读的英文阅读文章。
             </p>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 p-4">
+      <main className="mx-auto max-w-3xl space-y-4 p-space-4">
         <Card>
           <div className="space-y-3">
             <div>
               <h2 className="font-bold text-forest-700">提交新闻链接</h2>
-              <p className="mt-1 text-sm text-forest-500">
+              <p className="mt-1 text-ui-sm text-forest-500">
                 输入要改写的新闻 URL，选择目标年级和新鲜度窗口。系统会调用
                 后端管线生成对应等级的英文阅读文章。
               </p>
@@ -425,7 +425,7 @@ export default function ReadingNewsAdminPage() {
                   placeholder="https://example.com/news/article"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  className="w-full rounded-radius-md border-2 border-forest-200 bg-white px-3 py-2 text-ui-base text-ink-800 focus:border-primary focus:outline-none"
+                  className="w-full rounded-radius-md border-2 border-forest-200 bg-white px-space-3 py-space-2 text-ui-base text-ink-800 focus:border-primary focus:outline-none"
                 />
                 {url && !urlValid ? (
                   <p className="text-ui-xs text-coral-600">
@@ -480,7 +480,7 @@ export default function ReadingNewsAdminPage() {
                   id="freshness-days"
                   value={freshnessDays}
                   onChange={(e) => setFreshnessDays(parseInt(e.target.value, 10))}
-                  className="w-full rounded-radius-md border-2 border-forest-200 bg-white px-3 py-2 text-ui-base text-ink-800 focus:border-primary focus:outline-none"
+                  className="w-full rounded-radius-md border-2 border-forest-200 bg-white px-space-3 py-space-2 text-ui-base text-ink-800 focus:border-primary focus:outline-none"
                 >
                   {FRESHNESS_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -599,15 +599,15 @@ export default function ReadingNewsAdminPage() {
             </div>
 
             {recentLoading ? (
-              <p className="rounded-radius-md bg-forest-50/70 p-3 text-sm text-forest-500">
+              <p className="rounded-radius-md bg-forest-50/70 p-3 text-ui-sm text-forest-500">
                 加载中…
               </p>
             ) : recentError ? (
-              <p className="rounded-radius-md border border-coral-200 bg-coral-50 p-3 text-sm text-coral-700">
+              <p className="rounded-radius-md border border-coral-200 bg-coral-50 p-3 text-ui-sm text-coral-700">
                 读取失败：{recentError}
               </p>
             ) : recentTopics.length === 0 ? (
-              <p className="rounded-radius-md bg-forest-50/70 p-3 text-sm text-forest-500">
+              <p className="rounded-radius-md bg-forest-50/70 p-3 text-ui-sm text-forest-500">
                 还没有时事类投稿。提交第一条新闻链接后会出现在这里。
               </p>
             ) : (
