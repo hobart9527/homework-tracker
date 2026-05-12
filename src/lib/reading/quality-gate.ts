@@ -10,6 +10,7 @@
 
 import type { GeneratedArticle, GeneratedQuestion } from "./types";
 import { convertToRubyPinyin } from "./pinyin-converter";
+import { getWordCountRange, type WordCountRange } from "./standards";
 
 // ---------------------------------------------------------------------------
 // Public contract (frozen — see ~/.planning/reading-pipeline-task-plan §3.9)
@@ -42,24 +43,12 @@ export interface QualityGateResult {
 // Word-count expected ranges (per task-plan §6 / content-generator.ts).
 // ---------------------------------------------------------------------------
 
-interface WordCountRange {
-  min: number;
-  max: number;
+function expectedRangeEn(grade: number) {
+  return getWordCountRange('en', grade);
 }
 
-function expectedRangeEn(grade: number): WordCountRange {
-  // G3-4 → 300-450 ; G5+ → 500-800.
-  if (grade <= 4) return { min: 300, max: 450 };
-  return { min: 500, max: 800 };
-}
-
-function expectedRangeZh(grade: number): WordCountRange {
-  // G1-3 150-220, G4 180-280, G5 220-350, G6 280-420, G7+ 350-500.
-  if (grade <= 3) return { min: 150, max: 220 };
-  if (grade === 4) return { min: 180, max: 280 };
-  if (grade === 5) return { min: 220, max: 350 };
-  if (grade === 6) return { min: 280, max: 420 };
-  return { min: 350, max: 500 };
+function expectedRangeZh(grade: number) {
+  return getWordCountRange('zh', grade);
 }
 
 // ---------------------------------------------------------------------------

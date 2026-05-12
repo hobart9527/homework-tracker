@@ -39,7 +39,7 @@ function makeCompletion(content: string) {
 }
 
 describe("buildEnglishPrompt", () => {
-  it("includes the G3 word range '300-450 words' and 5 questions", () => {
+  it("includes the G3 word range and 5 questions", () => {
     const prompt = buildEnglishPrompt({
       topicKey: "moon-return",
       language: "en",
@@ -48,13 +48,13 @@ describe("buildEnglishPrompt", () => {
       sourceText: "Astronauts went to the moon.",
     });
 
-    expect(prompt).toContain("300-450 words");
+    expect(prompt).toContain("350-550 words");
     expect(prompt).toContain("Grade 3");
     expect(prompt).toContain("scene_description");
     expect(prompt).toContain("illustrations");
   });
 
-  it("uses the 500-800 words range and 8 questions for G5+", () => {
+  it("uses the G5 word range and 8 questions for G5+", () => {
     const prompt = buildEnglishPrompt({
       topicKey: "moon-return",
       language: "en",
@@ -63,12 +63,12 @@ describe("buildEnglishPrompt", () => {
       sourceText: "Astronauts went to the moon.",
     });
 
-    expect(prompt).toContain("500-800 words");
+    expect(prompt).toContain("680-1180 words");
   });
 });
 
 describe("buildChinesePrompt", () => {
-  it("includes the G5 character range '220-350' and does NOT mention pinyin_content", () => {
+  it("includes the G5 character range and does NOT mention pinyin_content", () => {
     const prompt = buildChinesePrompt({
       topicKey: "守株待兔",
       language: "zh",
@@ -76,14 +76,14 @@ describe("buildChinesePrompt", () => {
       gradeLevel: 5,
     });
 
-    expect(prompt).toContain("220-350");
+    expect(prompt).toContain("400-1000");
     expect(prompt).not.toContain("pinyin_content");
     expect(prompt).toContain("scene_description");
     expect(prompt).toContain("classical_quote");
     expect(prompt).toContain("illustrations");
   });
 
-  it("uses the G3 word range '150-220'", () => {
+  it("uses the G3 character range", () => {
     const prompt = buildChinesePrompt({
       topicKey: "狼来了",
       language: "zh",
@@ -91,7 +91,7 @@ describe("buildChinesePrompt", () => {
       gradeLevel: 3,
     });
 
-    expect(prompt).toContain("150-220");
+    expect(prompt).toContain("200-600");
     expect(prompt).not.toContain("pinyin_content");
   });
 });

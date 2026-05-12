@@ -15,7 +15,8 @@
 
 // ── content-generator (article + questions LLM pipeline) ─────────────────
 export { generateArticleContent, generateReadingContent, buildChinesePrompt, buildEnglishPrompt } from "./content-generator";
-export type { GenerateArticleOptions, GenerateReadingOptions, GeneratedIllustration } from "./content-generator";
+export type { GenerateArticleOptions, GenerateReadingOptions } from "./content-generator";
+export type { LocalGeneratedIllustration } from "./content-generator";
 
 // ── types (canonical reading types + Supabase row aliases) ───────────────
 export type {
@@ -81,6 +82,24 @@ export type {
   GenerateIllustrationsOptions,
   IllustrationResult,
 } from "./illustration-generator";
+
+// ── ib-criteria-gate (IB MYP qualitative gate, parallel with quality-gate) ──
+export { validateIBCriteria } from "./ib-criteria-gate";
+export type {
+  IBCriteriaInput,
+  IBCriteriaIssue,
+  IBCriteriaResult,
+  IBCriteriaSeverity,
+} from "./ib-criteria-gate";
+
+// ── factual-gate (Tier 1/2 source fidelity gate, skips for Tier 3) ───────────
+export { validateFactualAccuracy } from "./factual-gate";
+export type {
+  FactualGateInput,
+  FactualGateIssue,
+  FactualGateResult,
+  FactualGateSeverity,
+} from "./factual-gate";
 
 // ── Wave 3 illustration-generator exports (added by W3-T2) ───────────────
 // Marker consumed above — safe to remove on next cleanup pass.

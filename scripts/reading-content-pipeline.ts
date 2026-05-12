@@ -29,6 +29,7 @@
 
 import { config } from "dotenv";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getCorpusEntry } from "./reading/classic-corpus";
 
 config({ path: ".env.local" });
 
@@ -46,6 +47,8 @@ const generateReadingContent = readingMod.generateReadingContent;
 const generateCover = readingMod.generateCover;
 const generateIllustrations = readingMod.generateIllustrations;
 const validateContent = readingMod.validateContent;
+const validateIBCriteria = readingMod.validateIBCriteria;
+const validateFactualAccuracy = readingMod.validateFactualAccuracy;
 const createServiceRoleClient = supabaseMod.createServiceRoleClient;
 const Pacer = concurrencyMod.Pacer;
 const withRetry = concurrencyMod.withRetry;
@@ -58,6 +61,7 @@ interface ReadingTopicRow {
   source_text: string | null;
   source_url: string | null;
   target_grades: number[] | null;
+  key_facts: string[] | null;
 }
 
 interface ReadingArticleRow {
@@ -476,7 +480,11 @@ async function processWorkItem(
       return { status: "skipped" };
     }
 
-    // Step 2: Generate article content (concurrent, with retry)
+    // Step 2: Resolve sourceText from corpus if not provided in topic
+    const corpusEntry = getCorpusEntry(topic.topic_key, "en");
+    const sourceText = topic.source_text || corpusEntry?.content || undefined;
+
+    // Step 3: Generate article content (concurrent, with retry)
     const contentResult = await pacer.run(() =>
       withRetry(() =>
         generateReadingContent({
@@ -484,22 +492,42 @@ async function processWorkItem(
           language: "en",
           category: topic.category,
           gradeLevel: grade,
-          sourceText: topic.source_text || undefined,
+          sourceText,
         })
       )
     );
 
     const { article, questions, illustrations } = contentResult;
 
-    // Step 3: Run quality gate
+    // Step 3: Run quality gate, IB criteria gate, and factual accuracy gate
     const gate = validateContent({
       article,
       questions,
       language: "en",
       gradeLevel: grade,
     });
+    const ibGate = validateIBCriteria({
+      article,
+      questions,
+      language: "en",
+      gradeLevel: grade,
+    });
+    const factualGate = validateFactualAccuracy({
+      article,
+      sourceText,
+      keyFacts: topic.key_facts || undefined,
+      language: "en",
+      gradeLevel: grade,
+    });
 
-    const status: "draft" | "published" = gate.pass ? "published" : "draft";
+    // Merge issues with source tagging
+    const allIssues = [
+      ...gate.issues.map(i => ({ ...i, source: "quality" as const })),
+      ...ibGate.issues.map(i => ({ ...i, source: "ib-criteria" as const })),
+      ...factualGate.issues.map(i => ({ ...i, source: "factual" as const })),
+    ];
+
+    const status: "draft" | "published" = gate.pass && ibGate.pass && factualGate.pass ? "published" : "draft";
 
     // Step 4: Generate cover image (concurrent, with retry)
     let coverResult: { url: string; source: string; source_url: string } | null = null;
@@ -558,7 +586,7 @@ async function processWorkItem(
       coverImageUrl: coverResult?.url ?? null,
       coverSource: coverResult?.source ?? null,
       coverSourceUrl: coverResult?.source_url ?? null,
-      qualityIssues: gate.issues.length > 0 ? gate.issues : null,
+      qualityIssues: allIssues.length > 0 ? allIssues : null,
     });
 
     // Step 7: Replace questions (DB operation, outside pacer)
@@ -579,9 +607,9 @@ async function processWorkItem(
       }))
     );
 
-    const gateLabel = gate.pass ? "published" : "draft";
+    const gateLabel = gate.pass && ibGate.pass && factualGate.pass ? "published" : "draft";
     console.log(
-      `OK — "${article.title}" (${questions.length} questions, ${illustrationResults.length} illustrations, ${gateLabel})`
+      `OK — "${article.title}" (${questions.length} questions, ${illustrationResults.length} illustrations, quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${factualGate.pass ? "pass" : "fail"}, ${gateLabel})`
     );
     return { status: "succeeded" };
   } catch (err) {

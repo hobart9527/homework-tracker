@@ -5,6 +5,8 @@ import {
   generateCover,
   generateIllustrations,
   validateContent,
+  validateIBCriteria,
+  validateFactualAccuracy,
 } from "@/lib/reading";
 
 // ---------------------------------------------------------------------------
@@ -67,15 +69,27 @@ async function runPipeline(
       sourceText,
     });
 
-  // 2. Quality gate
+  // 2. Quality gates
   const gate = validateContent({
     article,
     questions,
     language: "en",
     gradeLevel: grade,
   });
+  const ibCriteria = validateIBCriteria({
+    article,
+    questions,
+    language: "en",
+    gradeLevel: grade,
+  });
+  const factualCriteria = validateFactualAccuracy({
+    article,
+    sourceText: topic.source_text || undefined,
+    language: "en",
+    gradeLevel: grade,
+  });
 
-  const articleStatus = gate.pass ? "published" : "draft";
+  const articleStatus = gate.pass && ibCriteria.pass && factualCriteria.pass ? "published" : "draft";
 
   // 3. Upsert article
   const { data: articleData, error: articleError } = await supabase
@@ -94,7 +108,9 @@ async function runPipeline(
         difficulty: article.difficulty,
         status: articleStatus,
         scene_description: article.scene_description || null,
-        quality_issues: gate.issues.length > 0 ? gate.issues : null,
+        quality_issues: [...gate.issues, ...ibCriteria.issues, ...factualCriteria.issues].length > 0
+          ? [...gate.issues, ...ibCriteria.issues, ...factualCriteria.issues]
+          : null,
       },
       { onConflict: "topic_key,grade_level" }
     )

@@ -316,6 +316,8 @@ async function main(): Promise<void> {
   const supabaseMod = await import("@/lib/supabase/server");
   const generateReadingContent = readingMod.generateReadingContent;
   const validateContent = readingMod.validateContent;
+  const validateIBCriteria = readingMod.validateIBCriteria;
+  const validateFactualAccuracy = readingMod.validateFactualAccuracy;
   const createServiceRoleClient = supabaseMod.createServiceRoleClient;
 
   const supabase = (await createServiceRoleClient()) as SupabaseClient;
@@ -376,14 +378,34 @@ async function main(): Promise<void> {
         recommendedLevels: existing.recommended_levels ?? undefined,
       });
 
-      // 3. Quality gate.
+      // 3. Quality gate, IB criteria gate, and factual accuracy gate.
       const gate = validateContent({
         article,
         questions,
         language: lang,
         gradeLevel,
       });
-      const status: "draft" | "published" = gate.pass ? "published" : "draft";
+      const ibGate = validateIBCriteria({
+        article,
+        questions,
+        language: lang,
+        gradeLevel,
+      });
+      const factualGate = validateFactualAccuracy({
+        article,
+        sourceText: existing.source_text ?? undefined,
+        language: lang,
+        gradeLevel,
+      });
+
+      // Merge issues with source tagging
+      const allIssues = [
+        ...gate.issues.map(i => ({ ...i, source: "quality" as const })),
+        ...ibGate.issues.map(i => ({ ...i, source: "ib-criteria" as const })),
+        ...factualGate.issues.map(i => ({ ...i, source: "factual" as const })),
+      ];
+
+      const status: "draft" | "published" = gate.pass && ibGate.pass && factualGate.pass ? "published" : "draft";
 
       // 4. UPSERT by id (preserves id, topic_key, source_url, language).
       const upsertPayload: Record<string, unknown> = {
@@ -400,7 +422,7 @@ async function main(): Promise<void> {
         difficulty: article.difficulty,
         scene_description: article.scene_description,
         status,
-        quality_issues: gate.issues.length > 0 ? gate.issues : null,
+        quality_issues: allIssues.length > 0 ? allIssues : null,
       };
 
       const { error: upsertErr } = await (supabase as SupabaseClient)
@@ -449,7 +471,7 @@ async function main(): Promise<void> {
       }
 
       console.log(
-        `[regen] ${existing.id} ${article.title} status=${gate.pass ? "pass" : "draft"}`
+        `[regen] ${existing.id} ${article.title} status=${status} (quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${factualGate.pass ? "pass" : "fail"})`
       );
       summary.regenerated++;
     } catch (err) {

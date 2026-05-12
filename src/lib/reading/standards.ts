@@ -11,9 +11,8 @@
  */
 
 import standardsData from "../../../config/reading-standards.json";
-import type { WordCountRange } from "./types";
 
-export type { WordCountRange };
+export type WordCountRange = { min: number; max: number };
 
 // ─────────────────────────────────────────────
 // Raw JSON data interfaces

@@ -8,6 +8,7 @@
  */
 
 import { config } from "dotenv";
+import { getCorpusEntry } from "./reading/classic-corpus";
 config({ path: ".env.local" });
 
 interface TaskEntry {
@@ -15,6 +16,7 @@ interface TaskEntry {
     topic_key: string;
     category: string;
     target_grades: number[] | null;
+    key_facts: string[] | null;
   };
   grade: number;
   topicKey: string;
@@ -32,6 +34,7 @@ interface GenerationResult {
   pinyinContent: string;
   status: "published" | "draft";
   gate: { pass: boolean; issues: string[] };
+  allIssues: Array<{ code: string; severity: string; message: string; source: string }>;
 }
 
 async function main() {
@@ -44,6 +47,8 @@ async function main() {
     generateCover,
     generateIllustrations,
     validateContent,
+    validateIBCriteria,
+    validateFactualAccuracy,
   } = await import("@/lib/reading");
 
   const pacer = new Pacer(3); // 3 concurrent LLM calls
@@ -56,7 +61,7 @@ async function main() {
 
   const { data: topics, error: topicsError } = await supabase
     .from("reading_topics")
-    .select("topic_key, category, target_grades")
+    .select("topic_key, category, target_grades, key_facts")
     .eq("language", "zh")
     .eq("status", "active");
 
@@ -132,6 +137,10 @@ async function main() {
         console.log(`生成中: ${task.topic.topic_key} G${task.grade}...`);
 
         try {
+          // 0. Lookup sourceText from classic corpus if not provided
+          const corpusEntry = getCorpusEntry(task.topic.topic_key, "zh");
+          const sourceText = corpusEntry?.content ?? undefined;
+
           // 1. Generate content via unified pipeline (with concurrency + retry)
           const { article, questions, illustrations: generatedIllustrations } =
             await pacer.run(() =>
@@ -141,6 +150,7 @@ async function main() {
                   language: "zh",
                   category: task.topic.category,
                   gradeLevel: task.grade,
+                  sourceText,
                 })
               )
             );
@@ -148,15 +158,35 @@ async function main() {
           // 2. Post-process pinyin
           const pinyinContent = convertToRubyPinyin(article.content);
 
-          // 3. Quality gate
+          // 3. Quality gate, IB criteria gate, and factual accuracy gate
           const gate = validateContent({
             article,
             questions,
             language: "zh",
             gradeLevel: task.grade,
           });
+          const ibGate = validateIBCriteria({
+            article,
+            questions,
+            language: "zh",
+            gradeLevel: task.grade,
+          });
+          const factualGate = validateFactualAccuracy({
+            article,
+            sourceText,
+            keyFacts: task.topic.key_facts || undefined,
+            language: "zh",
+            gradeLevel: task.grade,
+          });
 
-          const status = gate.pass ? "published" : "draft";
+          // Merge issues with source tagging
+          const allIssues = [
+            ...gate.issues.map(i => ({ ...i, source: "quality" as const })),
+            ...ibGate.issues.map(i => ({ ...i, source: "ib-criteria" as const })),
+            ...factualGate.issues.map(i => ({ ...i, source: "factual" as const })),
+          ];
+
+          const status = gate.pass && ibGate.pass && factualGate.pass ? "published" : "draft";
 
           // 4. Generate cover (non-blocking failure)
           let coverResult: Awaited<ReturnType<typeof generateCover>> | null = null;
@@ -190,6 +220,7 @@ async function main() {
               pass: gate.pass,
               issues: gate.issues.map((i) => i.message),
             },
+            allIssues,
           } as GenerationResult;
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
@@ -240,7 +271,7 @@ async function main() {
           cover_image_url: gen.coverResult?.url ?? null,
           cover_source: gen.coverResult?.source ?? null,
           cover_source_url: gen.coverResult?.source_url ?? null,
-          quality_issues: gen.gate.issues.length > 0 ? gen.gate.issues : null,
+          quality_issues: gen.allIssues.length > 0 ? gen.allIssues : null,
         })
         .select()
         .single();

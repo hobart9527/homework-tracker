@@ -1,4 +1,7 @@
 import OpenAI from "openai";
+import { parseJsonWithRecovery } from "./json-recovery";
+import { getWordCountRange } from "./standards";
+import type { GeneratedArticle, GeneratedQuestion } from "./types";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
@@ -8,9 +11,14 @@ const openai = new OpenAI({
 // ---------------------------------------------------------------------------
 // Legacy types — kept for backward compatibility with existing callers.
 // The canonical types live in ./types.ts and are re-exported from index.ts.
+//
+// NOTE: This local GeneratedArticle is a narrower subset of the canonical
+// GeneratedArticle in ./types.ts (which adds scene_description + IB MYP fields).
+// generateReadingContent returns the canonical type from ./types to expose
+// all IB MYP fields.
 // ---------------------------------------------------------------------------
 
-export interface GeneratedArticle {
+interface LocalGeneratedArticle {
   title: string;
   content: string;
   summary: string;
@@ -19,7 +27,7 @@ export interface GeneratedArticle {
   difficulty: number; // 1-5
 }
 
-export interface GeneratedQuestion {
+interface LocalGeneratedQuestion {
   question_text: string;
   question_type: "main_idea" | "detail" | "inference" | "vocabulary" | "sequence";
   options: { label: string; text: string }[];
@@ -53,7 +61,7 @@ export interface GenerateReadingOptions {
   previousTopicSummary?: string; // narrative continuity hint when packOrder>1
 }
 
-export interface GeneratedIllustration {
+export interface LocalGeneratedIllustration {
   paragraph_index: number;
   scene_description: string;
 }
@@ -118,7 +126,8 @@ const LANGUAGE_LOCK_ZH =
 export function buildEnglishPrompt(options: GenerateReadingOptions): string {
   // Behavior A: effective grade drives wordLimit / questionCount / focusAreas.
   const effectiveGrade = deriveEffectiveGrade(options);
-  const wordLimit = effectiveGrade <= 4 ? "300-450 words" : "500-800 words";
+  const enRange = getWordCountRange('en', effectiveGrade);
+  const wordLimit = `${enRange.min}-${enRange.max} words`;
   const questionCount = effectiveGrade <= 4 ? 5 : 8;
   const focusAreas = effectiveGrade <= 4
     ? "Detail and vocabulary questions (easier)"
@@ -146,7 +155,34 @@ Difficulty scale: 1 (easiest) to 5 (hardest).
 
 In addition, provide:
 - scene_description: a single vivid sentence describing a key scene from the article (used for cover image generation)
-- illustrations: an array of 1-2 objects, each with { paragraph_index, scene_description } for in-article images${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}
+- illustrations: an array of 1-2 objects, each with { paragraph_index, scene_description } for in-article images
+
+--- IB MYP English Requirements ---
+1. GENRE: This article MUST be one of the following types. Include the exact type name in the "genre" field:
+   - "narrative" = story with characters, setting, plot, conflict, resolution (for: news, history, biography)
+   - "informative" = explains facts, processes, or concepts with clear structure (for: science, nature)
+   - "opinion" = presents a viewpoint with supporting reasons (for: culture)
+   - "literary" = expressive, creative prose with literary devices (for: culture)
+
+2. AUTHOR'S PURPOSE: The "author_purpose" field MUST be one of: "to inform" | "to entertain" | "to persuade" | "to explain"
+
+3. CRITICAL THINKING QUESTIONS: At least 30% of questions MUST be inference (inference type). Do NOT over-rely on detail questions. Include vocabulary and main_idea types as appropriate.
+
+4. FIGURATIVE LANGUAGE: For Grade 4+, include at least one of: metaphor, simile, personification, or idiom in the article content.
+
+自检清单完成后才能输出 JSON（GENERATION CHECKLIST）：
+□ 文体自检：本文内容结构与声明的 genre "${options.category}" 一致
+  - narrative：时间/地点/人物/事件/意义五要素全部存在
+  - informative：定义段落 + 特征/例子段落全部存在
+□ 批判思维：inference 类问题数量 ≥ 总题数 × 30%（例：8题中≥3题 inference）
+□ 修辞手法（G4+）：内容中包含至少一种修辞手法（metaphor/simile/personification/idiom）
+□ classical_quote：原文在 content 中逐字出现（非意译替代）
+□ 改编忠实度（Tier 1/2：当提供了 Original passage 时）：
+  请在 "factual_accuracy" 字段中声明 source_text 中的哪些关键事实在改编版中保留，
+  格式：{ "source_facts_declared": ["事实1", "事实2", ...], "facts_preserved_count": N }
+□ 如有任何一项不满足，请先修改内容，再填写 JSON 字段。
+
+${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}
 
 Return STRICT JSON (no markdown, no code fences):
 {
@@ -157,6 +193,12 @@ Return STRICT JSON (no markdown, no code fences):
   "estimated_minutes": number,
   "difficulty": number (1-5),
   "scene_description": "A single vivid sentence describing a key scene...",
+  "genre": "narrative|informative|opinion|literary",
+  "factual_accuracy": {
+    "source_facts_declared": ["fact 1", "fact 2"],
+    "facts_preserved_count": 2
+  },
+  "author_purpose": "to inform|to entertain|to persuade|to explain",
   "illustrations": [
     { "paragraph_index": 0, "scene_description": "..." }
   ],
@@ -175,15 +217,8 @@ Return STRICT JSON (no markdown, no code fences):
 export function buildChinesePrompt(options: GenerateReadingOptions): string {
   // Behavior A: effective grade drives charLimit / questionCount / focusAreas.
   const effectiveGrade = deriveEffectiveGrade(options);
-  const charLimit = effectiveGrade <= 3
-    ? "150-220"
-    : effectiveGrade === 4
-      ? "180-280"
-      : effectiveGrade === 5
-        ? "220-350"
-        : effectiveGrade === 6
-          ? "280-420"
-          : "350-500";
+  const zhRange = getWordCountRange('zh', effectiveGrade);
+  const charLimit = `${zhRange.min}-${zhRange.max}`;
   const questionCount = effectiveGrade <= 4 ? 5 : 8;
   const focusAreas = effectiveGrade <= 4
     ? "Detail and vocabulary questions (easier)"
@@ -219,7 +254,35 @@ ${sourcePassageBlock}
 此外，请提供：
 - scene_description：一句话描述文章中的关键场景（用于封面图生成）
 - classical_quote：包含 { original, pinyin, translation } 的对象
-- illustrations：1-2个插图对象数组，每个包含 { paragraph_index, scene_description }${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
+- illustrations：1-2个插图对象数组，每个包含 { paragraph_index, scene_description }
+
+--- IB MYP 中文阅读要求 ---
+1. 文体（GENDER）：本文必须是以下文体之一，并在 "genre" 字段中填入准确的文体名称：
+   - "记叙文" = 有时间/地点/人物/事件/意义五要素的故事
+   - "说明文" = 解释事物特征、原理或过程，结构清晰（定义+特征+例子）
+   - "议论文" = 提出观点并提供论据支持
+   - "文学散文" = 富有文学性，包含比喻、拟人等修辞手法
+
+2. 文化关联（CULTURAL CONNECTION）："cultural_connection" 字段必须填入一句话，说明本文涉及的文化关联点（如传统节日、历史典故、民间故事等）
+
+3. 批判思维题目：至少 30% 的题目为 inference（推理）类型。不要过度依赖 detail（细节）题。可包含 vocabulary、main_idea 等题型。
+
+4. 修辞手法：4年级以上文章，必须在内容中包含至少一种修辞手法：比喻、拟人、排比或成语引用。
+
+自检清单（完成前不得输出 JSON）：
+□ 文体自检：本文内容结构与声明的 genre "${options.category}" 一致
+  - 记叙文：时间/地点/人物/事件/意义五要素全部存在
+  - 说明文：定义段落 + 特征/例子段落全部存在
+□ 批判思维：inference 类问题 ≥ 总题数 × 30%（例：8题中≥3题 inference）
+□ 修辞手法（4年级以上）：内容中包含至少一种修辞手法（比喻/拟人/排比/成语）
+□ 古诗词引用：classical_quote.original 在 content 中逐字出现
+□ 文化联结：cultural_connection 描述的内容在文章中实际出现
+□ 改编忠实度（Tier 2：当提供了原文参考时）：
+  请在 "factual_accuracy" 字段中声明原文中的哪些关键事实在改编版中保留，
+  格式：{ "source_facts_declared": ["事实1", "事实2", ...], "facts_preserved_count": N }
+□ 如有任何一项不满足，请先修改内容，再填写 JSON 字段。
+
+${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
 
 返回严格的JSON格式（不要markdown，不要代码块）：
 {
@@ -230,10 +293,16 @@ ${sourcePassageBlock}
   "estimated_minutes": number,
   "difficulty": number (1-5),
   "scene_description": "一句话描述关键场景...",
+  "genre": "记叙文|说明文|议论文|文学散文",
+  "cultural_connection": "一句话描述本文的文化关联点...",
   "classical_quote": {
     "original": "原文",
     "pinyin": "拼音",
     "translation": "译文"
+  },
+  "factual_accuracy": {
+    "source_facts_declared": ["事实1", "事实2"],
+    "facts_preserved_count": 2
   },
   "illustrations": [
     { "paragraph_index": 0, "scene_description": "..." }
@@ -255,7 +324,8 @@ ${sourcePassageBlock}
 // ---------------------------------------------------------------------------
 
 function buildGenerationPrompt(options: GenerateArticleOptions): string {
-  const wordLimit = options.gradeLevel <= 4 ? "300-450 words" : "500-800 words";
+  const enRange = getWordCountRange('en', options.gradeLevel);
+  const wordLimit = `${enRange.min}-${enRange.max} words`;
   const questionCount = options.gradeLevel <= 4 ? 5 : 8;
   const focusAreas = options.gradeLevel <= 4
     ? "Detail and vocabulary questions (easier)"
@@ -300,7 +370,7 @@ Return STRICT JSON (no markdown, no code fences):
 
 export async function generateArticleContent(
   options: GenerateArticleOptions
-): Promise<{ article: GeneratedArticle; questions: GeneratedQuestion[] }> {
+): Promise<{ article: LocalGeneratedArticle; questions: LocalGeneratedQuestion[] }> {
   const prompt = buildGenerationPrompt(options);
 
   const completion = await openai.chat.completions.create({
@@ -320,11 +390,9 @@ export async function generateArticleContent(
 
   const rawText = completion.choices[0]?.message?.content || "{}";
   // Strip <think>...</think> blocks (MiniMax reasoning models) and markdown fences
-  const text = rawText
-    .replace(/<think[\s\S]*?<\/think>/gi, "")
-    .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
-    .trim() || "{}";
-  const result = JSON.parse(text);
+  const text = rawText.trim() || "{}";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = parseJsonWithRecovery(text) as any;
 
   return {
     article: {
@@ -334,10 +402,10 @@ export async function generateArticleContent(
       word_count: result.word_count || 0,
       estimated_minutes: result.estimated_minutes || 5,
       difficulty: result.difficulty || 3,
-    },
+    } satisfies LocalGeneratedArticle,
     questions: (result.questions || []).map((q: Record<string, unknown>, i: number) => ({
       question_text: q.question_text || "",
-      question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
+      question_type: (q.question_type as LocalGeneratedQuestion["question_type"]) || "detail",
       options: (q.options as { label: string; text: string }[]) || [],
       correct_answer: (q.correct_answer as string) || "A",
       difficulty: (q.difficulty as number) || 3,
@@ -352,9 +420,9 @@ export async function generateArticleContent(
 export async function generateReadingContent(
   opts: GenerateReadingOptions
 ): Promise<{
-  article: GeneratedArticle & { scene_description: string; classical_quote?: { original: string; pinyin: string; translation: string } };
+  article: GeneratedArticle;
   questions: GeneratedQuestion[];
-  illustrations: GeneratedIllustration[];
+  illustrations: LocalGeneratedIllustration[];
 }> {
   const prompt = opts.language === "zh" ? buildChinesePrompt(opts) : buildEnglishPrompt(opts);
 
@@ -390,8 +458,14 @@ export async function generateReadingContent(
       estimated_minutes: result.estimated_minutes || 5,
       difficulty: result.difficulty || 3,
       scene_description: result.scene_description || "",
+      // IB MYP fields — populate from LLM result or fall back to safe defaults
+      genre: result.genre || (opts.language === "zh" ? "记叙文" : "informative"),
+      author_purpose: result.author_purpose || "to inform",
+      cultural_connection: result.cultural_connection || undefined,
       classical_quote: result.classical_quote || undefined,
-    },
+      // Factual accuracy fallback — when no sourceText provided or LLM omits field
+      factual_accuracy: result.factual_accuracy || undefined,
+    } satisfies GeneratedArticle,
     questions: (result.questions || []).map((q: Record<string, unknown>) => ({
       question_text: q.question_text || "",
       question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
@@ -399,9 +473,11 @@ export async function generateReadingContent(
       correct_answer: (q.correct_answer as string) || "A",
       difficulty: (q.difficulty as number) || 3,
     })),
-    illustrations: (result.illustrations || []).map((ill: Record<string, unknown>) => ({
-      paragraph_index: (ill.paragraph_index as number) || 0,
-      scene_description: (ill.scene_description as string) || "",
-    })),
+    illustrations: (result.illustrations || []).map((ill: Record<string, unknown>) => {
+      return {
+        paragraph_index: (ill.paragraph_index as number) || 0,
+        scene_description: (ill.scene_description as string) || "",
+      } satisfies LocalGeneratedIllustration;
+    }),
   };
 }

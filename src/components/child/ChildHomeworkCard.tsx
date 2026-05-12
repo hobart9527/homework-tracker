@@ -159,45 +159,63 @@ export function ChildHomeworkCard({
           isOverdue && !isCompleted ? "border-2 border-coral-500" : ""
         }`}
       >
-        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 w-full flex-1 gap-4 sm:w-auto">            <span className="text-4xl leading-none">{homework.type_icon}</span>
-            <div className="min-w-0 flex-1 text-center sm:text-left">
+        {/* 主布局：移动端垂直排列，桌面端水平排列 */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5">
+          {/* 左侧：图标 + 内容 */}
+          <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
+            {/* 图标 */}
+            <span className="text-3xl sm:text-4xl leading-none shrink-0">{homework.type_icon}</span>
+
+            {/* 文字内容 */}
+            <div className="min-w-0 flex-1">
+              {/* 标题行：标题 + 状态徽章 */}
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="truncate font-semibold text-forest-700">{homework.title}</h3>
                 {isOverdue && !isCompleted ? (
-                  <span className="rounded-full bg-coral-50 px-2.5 py-0.5 text-xs font-medium text-coral-500">
+                  <span className="rounded-full bg-coral-50 px-2.5 py-0.5 text-xs font-medium text-coral-500 shadow-elevation-raised shrink-0">
                     已超时
                   </span>
                 ) : !isCompleted ? (
-                  <span className="rounded-full bg-cream-100 px-2.5 py-0.5 text-xs font-medium text-forest-600">
+                  <span className="rounded-full bg-cream-100/80 px-2.5 py-0.5 text-xs font-medium text-forest-600 shadow-elevation-raised shrink-0">
                     待完成
                   </span>
                 ) : null}
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink-500">
+
+              {/* Meta 行：时间 + 积分 */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-ink-500">
                 {homework.estimated_minutes != null ? (
-                  <span className="rounded-full bg-cream-50 px-3 py-1">
+                  <span className="rounded-full bg-cream-100/80 px-2.5 py-0.5 shadow-elevation-raised shrink-0">
                     ⏱️ {homework.estimated_minutes}分钟
                   </span>
                 ) : null}
-                <span className="rounded-full bg-cream-50 px-3 py-1">⭐ {homework.point_value}积分</span>
+                <span className="rounded-full bg-cream-100/80 px-2.5 py-0.5 shadow-elevation-raised shrink-0">
+                  ⭐ {homework.point_value}积分
+                </span>
               </div>
+
+              {/* 截止时间 & 附件提示 */}
               {homework.daily_cutoff_time && (
-                <p className="mt-2 text-xs text-ink-400">📍 截止 {homework.daily_cutoff_time}</p>
+                <p className="mt-1.5 text-xs text-ink-400">📍 截止 {homework.daily_cutoff_time}</p>
               )}
               {homework.required_checkpoint_type && attachments.length === 0 && (
-                <p className="mt-1 text-xs text-ink-400">需要{proofLabel[homework.required_checkpoint_type as "photo" | "audio"]}</p>
+                <p className="mt-0.5 text-xs text-ink-400">
+                  需要 {homework.required_checkpoint_type === "photo" ? "照片" : "录音"}
+                </p>
               )}
+
+              {/* 查看附件按钮 */}
               {shouldShowAttachmentEntry && (
                 <button
                   type="button"
                   onClick={() => void handleViewAttachments()}
-                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary shadow-elevation-raised transition hover:bg-primary/15"
+                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary shadow-elevation-raised transition hover:bg-primary/15"
                 >
-                  <span aria-hidden="true">📎</span>
-                  查看已提交附件
+                  📎 查看已提交附件
                 </button>
               )}
+
+              {/* 上传进度条 */}
               {attachmentUploadStatus && attachmentUploadStatus.state !== "uploaded" ? (
                 <div className="mt-3 rounded-radius-lg bg-cream-50 p-3">
                   <div className="flex items-center justify-between gap-3 text-xs font-medium">
@@ -217,7 +235,7 @@ export function ChildHomeworkCard({
                       {Math.round(attachmentUploadStatus.progress)}%
                     </span>
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-cream-50">
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
                     <div
                       className={`h-full rounded-full transition-all ${
                         attachmentUploadStatus.state === "failed"
@@ -225,31 +243,41 @@ export function ChildHomeworkCard({
                           : "bg-primary"
                       }`}
                       style={{
-                        width: `${Math.max(
-                          0,
-                          Math.min(100, attachmentUploadStatus.progress)
-                        )}%`,
+                        width: `${Math.max(0, Math.min(100, attachmentUploadStatus.progress))}%`,
                       }}
                     />
                   </div>
                 </div>
               ) : null}
+
+              {/* 状态文字 */}
               {shouldShowStatusText && (
                 <p className="mt-1 text-xs font-medium text-ink-500">{statusText}</p>
               )}
             </div>
           </div>
-          <div className="flex flex-col items-center sm:pt-1 sm:items-start">
+
+          {/* 右侧：操作按钮 / 完成状态 */}
+          <div className="shrink-0 w-full sm:w-auto flex items-center justify-end">
             {isCompleted ? (
-              <div className="rounded-xl bg-primary/10 px-4 py-2 text-center text-lg font-bold text-primary">
+              <div className="rounded-xl bg-primary/10 px-4 py-2 text-center text-base font-bold text-primary shadow-elevation-raised">
                 ✓ 完成
               </div>
             ) : isOverdue ? (
-              <Button variant="accent" onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}>
-                补打卡
+              <Button
+                variant="accent"
+                size="md"
+                onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}
+                className="min-h-[44px] w-full sm:w-auto"
+              >
+                {homework.type_icon === "📚" ? "去阅读" : "补打卡"}
               </Button>
             ) : (
-              <Button onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}>
+              <Button
+                size="md"
+                onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}
+                className="min-h-[44px] w-full sm:w-auto"
+              >
                 {homework.type_icon === "📚" ? "去阅读" : "完成"}
               </Button>
             )}

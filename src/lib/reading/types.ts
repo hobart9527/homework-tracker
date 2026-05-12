@@ -79,19 +79,33 @@ export type ReadingQuestionRow = Database["public"]["Tables"]["reading_questions
 export type ReadingAssignmentRow = Database["public"]["Tables"]["reading_assignments"]["Row"];
 export type ReadingQuizAttemptRow = Database["public"]["Tables"]["reading_quiz_attempts"]["Row"];
 
-// Content generation types (used by quality-gate.ts)
+// Content generation types (used by content-generator.ts, quality-gate.ts,
+// ib-criteria-gate.ts, factual-gate.ts)
 export interface GeneratedArticle {
   title: string;
   content: string;
   summary: string;
   word_count: number;
   estimated_minutes: number;
-  difficulty: number;
-  scene_description: string;
+  difficulty: number; // 1-5, LLM self-rating; cross-checked by quality-gate
+  scene_description: string; // single sentence, used for cover image generation
+  // IB MYP — language-agnostic fields (Phase 1: populated by content-generator prompts)
+  genre?: "narrative" | "informative" | "opinion" | "literary" | "记叙文" | "说明文" | "议论文" | "文学散文";
+  // English-only IB fields
+  author_purpose?: "to inform" | "to entertain" | "to persuade" | "to explain";
+  // Chinese-only IB fields
+  cultural_connection?: string; // one-sentence description of cultural relevance point
+  // Chinese-only: classical quote (成语/古诗词/名言)
   classical_quote?: {
     original: string;
     pinyin: string;
     translation: string;
+  };
+  // Factual accuracy — populated when sourceText is provided (Tier 1/2)
+  // LLM declares which key facts from sourceText are preserved in the article
+  factual_accuracy?: {
+    source_facts_declared: string[]; // key facts extracted from sourceText
+    facts_preserved_count: number;    // how many appear in article.content
   };
 }
 
