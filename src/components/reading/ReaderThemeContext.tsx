@@ -37,8 +37,8 @@ const STORAGE_KEY = "hw-reader-settings-v1";
 
 const DEFAULT_SETTINGS: ReaderSettings = {
   theme: "sepia",
-  fontSize: "large",
-  lineHeight: "loose",
+  fontSize: "medium",
+  lineHeight: "standard",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────

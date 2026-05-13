@@ -17,6 +17,7 @@
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { StealthScraper } from "../../../src/lib/reading/stealth-scraper";
+import { extractImages } from "../../../src/lib/reading/source-image-extractor";
 
 config({ path: ".env.local" });
 
@@ -54,6 +55,56 @@ function parseArgs(): CliArgs {
 }
 
 // ---------------------------------------------------------------------------
+// Hardcoded fallback articles (used when category auto-discovery fails)
+// ---------------------------------------------------------------------------
+
+const DOGO_ARTICLES: DogoArticle[] = [
+  { url: "https://www.dogonews.com/2026/5/8/robot-outruns-humans-in-beijing-half-marathon", category: "时事" },
+  { url: "https://www.dogonews.com/2026/5/7/georgia-battles-large-wildfires-amid-drought-conditions", category: "时事" },
+  { url: "https://www.dogonews.com/2026/5/5/african-elephants-may-be-using-farm-crops-as-medicine", category: "自然" },
+  { url: "https://www.dogonews.com/2026/4/29/emperor-penguins-face-risk-of-extinction-as-sea-ice-melts", category: "自然" },
+  { url: "https://www.dogonews.com/2026/4/23/nasas-dart-spacecraft-changed-an-asteroids-orbit-around-the-sun", category: "科学" },
+  { url: "https://www.dogonews.com/2026/4/21/giant-tortoises-return-to-galapagos-island-after-centuries", category: "自然" },
+  { url: "https://www.dogonews.com/2026/4/20/how-the-netherlands-became-the-worlds-tulip-capital", category: "文化" },
+  { url: "https://www.dogonews.com/2026/4/17/ai-helping-scientists-discover-new-antibiotics", category: "科学" },
+  { url: "https://www.dogonews.com/2026/4/15/solar-panels-in-space-could-solve-earths-energy-needs", category: "科学" },
+  { url: "https://www.dogonews.com/2026/4/10/the-worlds-oldest-person-celebrates-116th-birthday", category: "人物" },
+];
+
+async function discoverDogoArticles(scraper: StealthScraper): Promise<DogoArticle[]> {
+  const categories = [
+    { url: "https://www.dogonews.com/category/news", category: "时事" },
+    { url: "https://www.dogonews.com/category/science", category: "科学" },
+    { url: "https://www.dogonews.com/category/nature", category: "自然" },
+    { url: "https://www.dogonews.com/category/people", category: "人物" },
+    { url: "https://www.dogonews.com/category/culture", category: "文化" },
+  ];
+
+  const articles: DogoArticle[] = [];
+  for (const cat of categories) {
+    try {
+      const result = await scraper.scrape(cat.url, { timeoutMs: 20000 });
+      // Match article links: /YYYY/MM/DD/slug
+      const linkPattern = /href="(\/20\d{2}\/\d{1,2}\/\d{1,2}\/[\w-]+\/?)"/gi;
+      const seen = new Set(articles.map(a => a.url));
+      let match;
+      while ((match = linkPattern.exec(result.text)) !== null) {
+        const url = "https://www.dogonews.com" + match[1].replace(/\/$/, "");
+        if (!seen.has(url)) {
+          seen.add(url);
+          articles.push({ url, category: cat.category });
+          if (articles.filter(a => a.category === cat.category).length >= 5) break;
+        }
+      }
+      console.log(`[dogo] ${cat.category}: found ${articles.filter(a => a.category === cat.category).length} articles`);
+    } catch (err) {
+      console.warn(`[dogo] category page failed: ${cat.url} — ${(err as Error).message}`);
+    }
+  }
+  return articles.length > 0 ? articles : DOGO_ARTICLES; // fallback to hardcoded list
+}
+
+// ---------------------------------------------------------------------------
 // Main scraper
 // ---------------------------------------------------------------------------
 
@@ -69,21 +120,9 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
   const sb = createClient(supabaseUrl, supabaseKey);
   const scraper = new StealthScraper();
 
-  // Predefined article URLs with categories (can be extended)
-  const DOGO_ARTICLES: DogoArticle[] = [
-    { url: "https://www.dogonews.com/2026/5/8/robot-outruns-humans-in-beijing-half-marathon", category: "时事" },
-    { url: "https://www.dogonews.com/2026/5/7/georgia-battles-large-wildfires-amid-drought-conditions", category: "时事" },
-    { url: "https://www.dogonews.com/2026/5/5/african-elephants-may-be-using-farm-crops-as-medicine", category: "自然" },
-    { url: "https://www.dogonews.com/2026/4/29/emperor-penguins-face-risk-of-extinction-as-sea-ice-melts", category: "自然" },
-    { url: "https://www.dogonews.com/2026/4/23/nasas-dart-spacecraft-changed-an-asteroids-orbit-around-the-sun", category: "科学" },
-    { url: "https://www.dogonews.com/2026/4/21/giant-tortoises-return-to-galapagos-island-after-centuries", category: "自然" },
-    { url: "https://www.dogonews.com/2026/4/20/how-the-netherlands-became-the-worlds-tulip-capital", category: "文化" },
-    { url: "https://www.dogonews.com/2026/4/17/ai-helping-scientists-discover-new-antibiotics", category: "科学" },
-    { url: "https://www.dogonews.com/2026/4/15/solar-panels-in-space-could-solve-earths-energy-needs", category: "科学" },
-    { url: "https://www.dogonews.com/2026/4/10/the-worlds-oldest-person-celebrates-116th-birthday", category: "人物" },
-  ];
-
-  const articles = DOGO_ARTICLES.slice(0, args.limit);
+  console.log("[dogo-scraper] Discovering articles from category pages...");
+  const discoveredArticles = await discoverDogoArticles(scraper);
+  const articles = discoveredArticles.slice(0, args.limit);
   let success = 0;
   let skipped = 0;
   let failed = 0;
@@ -125,13 +164,31 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
       console.log(`  Fetch failed: ${(err as Error).message}`);
     }
 
+    // Extract cover image from page HTML (best-effort)
+    let source_image_url: string | null = null;
+    try {
+      const pageHtml = await fetch(article.url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+          Accept: "text/html",
+        },
+        signal: AbortSignal.timeout(15000),
+      }).then((r) => r.text());
+      const images = extractImages(pageHtml);
+      source_image_url = images.cover;
+    } catch {
+      // best-effort — leave null
+    }
+
     // Insert
     const { error } = await sb.from("reading_topics").insert({
       topic_key: topicKey,
       language: "en",
       category: article.category,
+      source: "dogo",
       source_url: article.url,
       source_text: sourceText || null,
+      source_image_url,
       status: "active",
       target_grades: [3, 6],
     });

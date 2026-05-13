@@ -17,6 +17,7 @@
 
 import { chromium, type Browser, type Page } from "playwright";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { extractImages } from "../../../src/lib/reading/source-image-extractor";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +30,7 @@ interface BookInfo {
   ageRange: string | null; // e.g., "4-8"
   language: "zh" | "en";
   sourceUrl: string;
+  sourceImageUrl: string | null;
 }
 
 interface UpsertResult {
@@ -276,6 +278,15 @@ async function scrapeBook(page: Page, bookUrl: string, language: "zh" | "en"): P
     ageRange = `${ageMatch[1]}-${ageMatch[2]}`;
   }
 
+  // Extract cover image from page HTML (best-effort)
+  let sourceImageUrl: string | null = null;
+  try {
+    const images = extractImages(pageText);
+    sourceImageUrl = images.cover;
+  } catch {
+    // best-effort — leave null
+  }
+
   // Extract book key from URL
   const bookKeyMatch = bookUrl.match(/\/book\/([^\/\?]+)/);
   const bookKey = bookKeyMatch ? bookKeyMatch[1] : new URL(bookUrl).pathname.replace(/\//g, "-");
@@ -287,6 +298,7 @@ async function scrapeBook(page: Page, bookUrl: string, language: "zh" | "en"): P
     ageRange,
     language,
     sourceUrl: bookUrl,
+    sourceImageUrl,
   };
 }
 
@@ -362,6 +374,7 @@ async function upsertBooks(books: BookInfo[], dryRun: boolean): Promise<UpsertRe
           title: book.title,
           source_text: book.description,
           source_url: book.sourceUrl,
+          source_image_url: book.sourceImageUrl,
           category,
           grade_level: grades[0],
           target_grades: grades,

@@ -21,6 +21,7 @@
 
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { extractImages } from "../../../src/lib/reading/source-image-extractor";
 
 config({ path: ".env.local" });
 
@@ -50,6 +51,7 @@ interface TopicUpsertData {
   source: string;
   source_url: string;
   source_text: string | null;
+  source_image_url: string | null;
   grade_level: number;
   target_grades: number[];
   status: string;
@@ -416,11 +418,12 @@ function decodeHtmlEntities(text: string): string {
  */
 async function fetchTextDetails(
   text: CommonLitText
-): Promise<Partial<CommonLitText>> {
-  const result: Partial<CommonLitText> = { ...text };
+): Promise<Partial<CommonLitText & { html?: string }>> {
+  const result: Partial<CommonLitText & { html?: string }> = { ...text };
 
   try {
     const html = await fetchWithDelay(text.url);
+    result.html = html;
 
     // Try to extract full text content
     // CommonLit may store text in various locations
@@ -498,6 +501,7 @@ async function upsertTopic(
       source: data.source,
       source_url: data.source_url,
       source_text: data.source_text,
+      source_image_url: data.source_image_url,
       grade_level: data.grade_level,
       target_grades: data.target_grades,
       status: data.status,
@@ -590,11 +594,16 @@ async function processText(
 
   // Get details if public (for full content)
   let enrichedText: CommonLitText | Partial<CommonLitText> = text;
+  let detailsHtml: string | undefined;
   if (text.isPublic) {
     const details = await fetchTextDetails(text);
     enrichedText = { ...text, ...details };
+    detailsHtml = details.html;
     await delay(REQUEST_DELAY_MS);
   }
+
+  // Extract cover image (best-effort)
+  const images = detailsHtml ? extractImages(detailsHtml) : { cover: null, inline: [] };
 
   // Prepare source_text
   const sourceText = (enrichedText as CommonLitText).fullText || (enrichedText as CommonLitText).excerpt || null;
@@ -619,6 +628,7 @@ async function processText(
     source: "commonlit",
     source_url: textData.url || "",
     source_text: sourceText,
+    source_image_url: images.cover,
     grade_level: textData.gradesMin || 6,
     target_grades: [textData.gradesMin || 6, textData.gradesMax || 12],
     status: textData.isPublic !== false ? "active" : "pending",

@@ -43,7 +43,7 @@ export default function ParentLoginPage() {
         data: { session },
         error: sessionError,
       } = await supabase.auth.signInWithPassword({
-        email: `${parent.id}@parent.local`,
+        email: parent.auth_user_email || `${parent.id}@parent.local`,
         password: passcode,
       });
 

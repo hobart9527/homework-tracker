@@ -8,6 +8,7 @@ import {
   validateIBCriteria,
   validateFactualAccuracy,
 } from "@/lib/reading";
+import { decideRoute } from "@/lib/reading/route-analyzer";
 
 // ---------------------------------------------------------------------------
 // Topic source-of-truth: reading_topics table ( migrated from CURATED_NEWS )
@@ -22,8 +23,10 @@ interface TopicRow {
   topic_key: string;
   category: string;
   language: "zh" | "en";
+  source: string | null;
   source_text: string | null;
   source_url: string | null;
+  source_image_url: string | null;
   target_grades: number[];
 }
 
@@ -69,7 +72,7 @@ async function fetchTopics(
 ): Promise<TopicRow[]> {
   const { data, error } = await supabase
     .from("reading_topics")
-    .select("topic_key, category, language, source_text, source_url, target_grades")
+    .select("topic_key, category, language, source, source_text, source_url, source_image_url, target_grades")
     .eq("language", language)
     .eq("status", "active");
 
@@ -169,6 +172,14 @@ async function runPipeline(
   const sourceText = topic.source_text || "";
   const sourceUrl = topic.source_url;
 
+  const routeDecision = decideRoute({
+    topic_key: topic.topic_key,
+    language: topic.language,
+    source: topic.source ?? null,
+    source_text: sourceText,
+    target_grades: topic.target_grades,
+  });
+
   // 1. Generate article + questions + illustration scenes
   const { article, questions, illustrations: generatedIllustrations } =
     await generateReadingContent({
@@ -177,6 +188,7 @@ async function runPipeline(
       category,
       gradeLevel: grade,
       sourceText,
+      route: routeDecision.route,
     });
 
   // 2. Quality gates
@@ -199,7 +211,9 @@ async function runPipeline(
     gradeLevel: grade,
   });
 
-  const articleStatus = gate.pass && ibCriteria.pass && factualCriteria.pass ? "published" : "draft";
+  const effectiveFactualPass = routeDecision.route === "A" ? true : factualCriteria.pass;
+
+  const articleStatus = gate.pass && ibCriteria.pass && effectiveFactualPass ? "published" : "draft";
 
   // 3. Upsert article
   const { data: articleData, error: articleError } = await supabase
@@ -211,6 +225,7 @@ async function runPipeline(
         content: article.content,
         source: "news_api",
         source_url: sourceUrl || null,
+        content_source: routeDecision.route === "A" ? "original" : routeDecision.route === "B" ? "adapted" : "llm",
         category,
         grade_level: grade,
         word_count: article.word_count,
@@ -235,7 +250,7 @@ async function runPipeline(
 
   // 4. Cover image (non-blocking)
   let coverUrl: string | null = null;
-  let coverSource: "minimax" | "pollinations" | null = null;
+  let coverSource: "minimax" | "pollinations" | "source-website" | null = null;
   let coverSourceUrl: string | null = null;
 
   if (!skipImages) {
@@ -246,6 +261,7 @@ async function runPipeline(
         category,
         scene: article.scene_description || article.title,
         title: article.title,
+        sourceImageUrl: topic.source_image_url ?? undefined,
       });
       coverUrl = cover.url;
       coverSource = cover.source;

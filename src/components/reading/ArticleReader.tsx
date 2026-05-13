@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo, forwardRef, useImper
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useReaderTheme, resolveTheme, type FontSize } from "./ReaderThemeContext";
+import { GestureOverlay } from "./GestureOverlay";
 
 export interface ArticleReaderArticle {
   id: string;
@@ -355,21 +356,50 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       : article.content;
 
   const paragraphs = useMemo(() => {
-    // First split by newlines
-    let rawParagraphs = displayContent.split(/\n+/).map((p) => p.trim()).filter((p) => p.length > 0);
-    
-    // For English articles with long paragraphs (no newlines), try to split by sentences
-    // This ensures pagination works for English content
-    if (article.language === "en" && rawParagraphs.length <= 3 && displayContent.length > 500) {
-      // Split by period followed by space or common delimiters
-      rawParagraphs = displayContent
-        .split(/(?<=[.!?])\s+/)
-        .map((p) => p.trim())
-        .filter((p) => p.length > 30) // Only keep meaningful sentences
-        .slice(0, 20); // Limit to 20 chunks max
+    let rawParagraphs: string[] = [];
+
+    if (article.language === "zh") {
+      const lines = displayContent.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
+      for (const line of lines) {
+        // Split by Chinese sentence delimiters only
+        const sentences = line.split(/(?<=[。！？；])\s*/);
+        let current = '';
+        for (const s of sentences) {
+          if (!s.trim()) continue;
+          // ~150 char chunks = roughly 3-4 visual lines at default font
+          if (current.length + s.length > 250 && current.length > 0) {
+            rawParagraphs.push(current.trim());
+            current = s;
+          } else {
+            current += s;
+          }
+        }
+        if (current.trim()) rawParagraphs.push(current.trim());
+      }
+    } else if (article.language === "en") {
+      const lines = displayContent.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
+      for (const line of lines) {
+        // Split by sentence punctuation
+        const sentences = line.split(/(?<=[.!?])\s+/);
+        let current = '';
+        for (const s of sentences) {
+          const clean = s.trim();
+          if (!clean) continue;
+          // ~200 char chunks = roughly 3-4 visual lines
+          if (current.length + clean.length > 200 && current.length > 0) {
+            rawParagraphs.push(current.trim());
+            current = clean;
+          } else {
+            current += (current ? ' ' : '') + clean;
+          }
+        }
+        if (current.trim()) rawParagraphs.push(current.trim());
+      }
+    } else {
+      rawParagraphs = displayContent.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
     }
-    
-    return rawParagraphs;
+
+    return rawParagraphs.filter(p => p.length > 5);
   }, [displayContent, article.language]);
 
   const illustrationMap = useMemo(() => {
@@ -392,16 +422,18 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
   const [paragraphHeights, setParagraphHeights] = useState<number[]>([]);
   const [measured, setMeasured] = useState(false);
   const measureRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [contentContainerHeight, setContentContainerHeight] = useState<number>(0);
 
   // Measure actual paragraph heights once after render
   useEffect(() => {
     if (!measureRef.current || paragraphs.length === 0) return;
 
-    const paraElements = measureRef.current.querySelectorAll('[data-measure-para]');
-    if (paraElements.length !== paragraphs.length) return;
+    const blocks = measureRef.current.querySelectorAll('[data-measure-block]');
+    if (blocks.length !== paragraphs.length) return;
 
     const heights: number[] = [];
-    paraElements.forEach((el) => {
+    blocks.forEach((el) => {
       heights.push(el.getBoundingClientRect().height);
     });
 
@@ -409,36 +441,49 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     setMeasured(true);
   }, [paragraphs, fontSizePx, lineHeightValue, displayContent]);
 
-  // Calculate page breaks from measured heights
+  // Measure actual content container height for pagination
+  useEffect(() => {
+    const measureContainer = () => {
+      if (containerRef.current) {
+        const h = containerRef.current.getBoundingClientRect().height;
+        setContentContainerHeight(h);
+      }
+    };
+    measureContainer();
+    window.addEventListener('resize', measureContainer);
+    return () => window.removeEventListener('resize', measureContainer);
+  }, [measured]);
+
   const pageBreaks = useMemo(() => {
     if (!measured || paragraphHeights.length === 0) return [0];
 
-    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-    const topBarHeight = 44;
-    const bottomBarHeight = 56;
-    const contentPadding = 48;
-    const availableHeight = viewportHeight - topBarHeight - bottomBarHeight - contentPadding;
+    const innerPadding = 48;
+    const availableHeight = contentContainerHeight > 0
+      ? contentContainerHeight - innerPadding
+      : 600;
+    const titleOverhead = 100;
+    const firstPageAvailableHeight = availableHeight - titleOverhead;
 
     const breaks: number[] = [0];
     let currentPageHeight = 0;
-    const titleHeight = 180;
+    let isFirstPage = true;
 
     for (let i = 0; i < paragraphHeights.length; i++) {
       const paraHeight = paragraphHeights[i];
-      const isFirstPage = breaks.length === 1;
-      const pageLimit = isFirstPage ? availableHeight - titleHeight : availableHeight;
-      const sectionBreakHeight = (i > 0 && breaks[breaks.length - 1] === i - 1) ? 0 : 48;
+      const gap = currentPageHeight > 0 ? 6 : 0;
+      const pageCapacity = isFirstPage ? firstPageAvailableHeight : availableHeight;
 
-      if (currentPageHeight + paraHeight + sectionBreakHeight > pageLimit && currentPageHeight > 0) {
+      if (currentPageHeight + gap + paraHeight > pageCapacity && currentPageHeight > 0) {
         breaks.push(i);
         currentPageHeight = paraHeight;
+        isFirstPage = false;
       } else {
-        currentPageHeight += paraHeight + sectionBreakHeight;
+        currentPageHeight += gap + paraHeight;
       }
     }
 
     return breaks;
-  }, [measured, paragraphHeights]);
+  }, [measured, paragraphHeights, contentContainerHeight]);
 
   const totalPages = pageBreaks.length;
 
@@ -449,14 +494,24 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     }
   }, [totalPages, currentPage]);
 
+  const hasReadAll = currentPage >= totalPages - 1;
+
   const goToPage = useCallback((page: number) => {
     if (page < 0 || page >= totalPages) return;
+    // Stop TTS when changing pages
+    if (window.speechSynthesis && ttsPlaying) {
+      window.speechSynthesis.cancel();
+      setTtsPlaying(false);
+      setTtsPaused(false);
+      setActiveCharRange(null);
+      setActiveParagraphIndex(null);
+    }
     setIsTransitioning(true);
     setTimeout(() => {
       setCurrentPage(page);
       setIsTransitioning(false);
     }, 150);
-  }, [totalPages]);
+  }, [totalPages, ttsPlaying]);
 
   // Page paragraphs for current page
   const pageParagraphs = useMemo(() => {
@@ -600,7 +655,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
     // Calculate estimated duration based on character count and rate
     // Chinese needs faster estimation to match actual TTS
-    const charsPerSecond = article.language === "zh" ? 5 * ttsRate : 15 * ttsRate;
+    const charsPerSecond = article.language === "zh" ? 4.5 * ttsRate : 15 * ttsRate;
     const estimatedDurationMs = Math.max(2000, (totalChars / charsPerSecond) * 1000);
 
     // Time-based tracking for Chinese (more reliable than onboundary)
@@ -608,6 +663,8 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     let pausedAt = 0;
     let totalPausedMs = 0;
     let progressInterval: ReturnType<typeof setInterval> | null = null;
+    // Use ref for startTime so polling intervals see the actual value
+    const startTimeRef = { current: 0 };
 
     const updateHighlight = () => {
       // Don't update highlight if TTS is paused
@@ -647,6 +704,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
     utterance.onstart = () => {
       startTime = Date.now();
+      startTimeRef.current = startTime;
       totalPausedMs = 0;
       const intervalMs = 100; // Faster updates for smoother cursor
       progressInterval = setInterval(updateHighlight, intervalMs);
@@ -658,7 +716,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     (utterance as any)._recordResume = () => { totalPausedMs += Date.now() - pausedAt; };
 
     utterance.onboundary = (event) => {
-      // Use onboundary for English (reliable), time-based for Chinese
+      // Use onboundary for word-level highlight when available
       if (article.language !== "zh") {
         for (let p = 0; p < paraOffsets.length; p++) {
           const { start, end } = paraOffsets[p];
@@ -676,8 +734,34 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       }
     };
 
+    // Time-based polling for English (onboundary can be unreliable)
+    if (article.language !== "zh") {
+      const englishPollInterval = setInterval(() => {
+        if (!window.speechSynthesis?.speaking || window.speechSynthesis?.paused) return;
+        const elapsed = Date.now() - startTimeRef.current - ((utterance as any)._getPauseInfo?.()?.totalPausedMs || 0);
+        const progress = Math.min(elapsed / estimatedDurationMs, 1);
+        const currentCharIndex = Math.floor(progress * totalChars);
+
+        for (let p = 0; p < paraOffsets.length; p++) {
+          const { start, end } = paraOffsets[p];
+          if (currentCharIndex >= start && currentCharIndex < end) {
+            setActiveParagraphIndex(p);
+            for (let i = 0; i < words.length; i++) {
+              if (currentCharIndex >= words[i].start && currentCharIndex < words[i].end) {
+                setActiveCharRange([words[i].start - start, words[i].end - start]);
+                return;
+              }
+            }
+            return;
+          }
+        }
+      }, 150);
+      (utterance as any)._englishPollInterval = englishPollInterval;
+    }
+
     const cleanup = () => {
       if (progressInterval) clearInterval(progressInterval);
+      if ((utterance as any)._englishPollInterval) clearInterval((utterance as any)._englishPollInterval);
       setActiveCharRange(null);
       setActiveParagraphIndex(null);
     };
@@ -789,25 +873,23 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           </span>
         );
       }
-      return parts.length > 0 ? parts : text;
+      return parts.length > 0 ? parts : <>{text}</>;
     }
 
     // For English or Chinese without pinyin, render with word highlighting
     if (activeParagraphIndex === paragraphIndex && activeCharRange) {
       const paraText = text;
-      const paraStartInContent = paragraphs.slice(0, paragraphIndex).reduce((acc, p) => acc + p.length + 1, 0);
-      const wordStartInPara = activeCharRange[0] - paraStartInContent;
-      const wordEndInPara = activeCharRange[1] - paraStartInContent;
+      const wordStart = activeCharRange[0];
+      const wordEnd = activeCharRange[1];
 
-      if (wordStartInPara >= 0 && wordEndInPara <= paraText.length) {
-        const before = paraText.slice(0, wordStartInPara);
-        const active = paraText.slice(wordStartInPara, wordEndInPara);
-        const after = paraText.slice(wordEndInPara);
+      if (wordStart >= 0 && wordEnd <= paraText.length && wordStart < wordEnd) {
         return (
           <>
-            <span onClick={handleTextClick}>{before}</span>
-            <mark className="bg-amber-200/70 rounded-sm" style={{ boxShadow: '0 0 0 1px rgba(251, 191, 36, 0.5)' }} onClick={handleTextClick}>{active}</mark>
-            <span onClick={handleTextClick}>{after}</span>
+            <span onClick={handleTextClick}>{paraText.slice(0, wordStart)}</span>
+            <mark className="bg-amber-200/70 rounded-sm" style={{ boxShadow: '0 0 0 1px rgba(251, 191, 36, 0.5)' }} onClick={handleTextClick}>
+              {paraText.slice(wordStart, wordEnd)}
+            </mark>
+            <span onClick={handleTextClick}>{paraText.slice(wordEnd)}</span>
           </>
         );
       }
@@ -855,11 +937,8 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             transition: opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
           }
           .reader-paragraph {
-            margin-bottom: 1.2em;
             text-indent: 2em;
-            letter-spacing: 0.06em;
             word-spacing: 0.08em;
-            line-height: 2.2;
           }
           .reader-paragraph + .reader-paragraph {
             margin-top: 0;
@@ -868,6 +947,8 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             background-color: transparent;
             color: inherit;
           }
+          .hide-scrollbar::-webkit-scrollbar { display: none; }
+          .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         `
       }} />
 
@@ -961,6 +1042,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
       {/* Content area - single page pagination */}
       <div className="flex-1 overflow-hidden relative">
+        <GestureOverlay
+          onSwipeLeft={() => goToPage(currentPage + 1)}
+          onSwipeRight={() => goToPage(currentPage - 1)}
+        >
         {/* Hidden measurement container — measures actual paragraph heights */}
         {!measured && (
           <div
@@ -977,13 +1062,24 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
             }}
           >
-            <div className="max-w-3xl mx-auto space-y-4">
-              {paragraphs.map((para, i) => (
-                <p key={i} data-measure-para className="reader-paragraph" style={{ color: 'transparent' }}>
-                  {para}
-                </p>
-              ))}
-            </div>
+            <div className="max-w-3xl mx-auto space-y-1.5">
+              {paragraphs.map((para, i) => {
+                const hasIll = illustrationMap.has(i);
+                const ill = illustrationMap.get(i);
+                return (
+                  <div key={i} data-measure-block>
+                    <p className="reader-paragraph" style={{ color: 'transparent' }}>{para}</p>
+                    {hasIll && ill && (
+                      <div style={{ marginTop: '16px', marginBottom: '24px' }}>
+                        <div style={{ width: '100%', height: '192px' }} />
+                        {ill.scene_description && (
+                          <div style={{ fontSize: '12px', marginTop: '8px', height: '16px' }} />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         )}
         {/* Page turn zones - left and right edges, wider for easier touch */}
@@ -1008,11 +1104,11 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
         {/* Page content with transition */}
         <div
-          ref={contentRef}
-          className={`h-[calc(100vh-44px-56px)] overflow-hidden px-8 py-6 ${isTransitioning ? 'page-transition' : 'page-transition-enter'}`}
+          ref={containerRef}
+          className={`h-[calc(100vh-44px-56px)] overflow-y-auto hide-scrollbar px-8 py-6 ${isTransitioning ? 'page-transition' : 'page-transition-enter'}`}
         >
           <div
-            className="max-w-3xl mx-auto space-y-4"
+            className="max-w-3xl mx-auto space-y-1.5"
             style={{
               color: "var(--reader-text)",
               fontSize: `${fontSizePx}px`,
@@ -1084,6 +1180,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             )}
           </div>
         </div>
+        </GestureOverlay>
       </div>
 
       {/* Bottom simplified toolbar */}
@@ -1175,8 +1272,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
           {/* Quiz button */}
           <button
-            onClick={onStartQuiz}
-            className="flex items-center gap-2 px-5 py-3 rounded-full text-base font-semibold text-white transition-all active:scale-95"
+            onClick={hasReadAll ? onStartQuiz : undefined}
+            disabled={!hasReadAll}
+            title={!hasReadAll ? "请先读完所有页面" : ""}
+            className={`flex items-center gap-2 px-5 py-3 rounded-full text-base font-semibold text-white transition-all active:scale-95 ${!hasReadAll ? 'opacity-40 cursor-not-allowed' : ''}`}
             style={{ backgroundColor: "var(--reader-accent)" }}
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

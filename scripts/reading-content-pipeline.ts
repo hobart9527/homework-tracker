@@ -12,8 +12,8 @@
  *   NEXT_PUBLIC_SUPABASE_URL  (required)
  *   SUPABASE_SERVICE_ROLE_KEY (required)
  *   OPENAI_API_KEY            (required)
- *   OPENAI_BASE_URL           (optional, default: https://api.openai.com/v1)
- *   OPENAI_READING_MODEL      (optional, default: gpt-4o-mini)
+ *   OPENAI_BASE_URL           (optional, default: https://api.minimaxi.com/v1)
+ *   OPENAI_READING_MODEL      (optional, default: MiniMax-M2.7)
  *   PIPELINE_GRADES           (optional, default: "3,6")
  *   PIPELINE_TOPIC_LIMIT      (optional, default: 0 = all topics)
  *   MINIMAX_DAILY_QUOTA       (optional, default: 50)
@@ -31,6 +31,7 @@
 import { config } from "dotenv";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCorpusEntry } from "./reading/classic-corpus";
+import { decideRoute } from "@/lib/reading/route-analyzer";
 import scrapeAllSources from "./reading/scrape-all-sources";
 
 config({ path: ".env.local" });
@@ -60,8 +61,10 @@ const withRetry = concurrencyMod.withRetry;
 interface ReadingTopicRow {
   topic_key: string;
   category: string;
+  source: string | null;
   source_text: string | null;
   source_url: string | null;
+  source_image_url: string | null;
   target_grades: number[] | null;
   key_facts: string[] | null;
 }
@@ -190,6 +193,7 @@ interface UpsertArticleData {
   sceneDescription: string;
   summary: string;
   status: "draft" | "published";
+  contentSource: string;
   coverImageUrl: string | null;
   coverSource: string | null;
   coverSourceUrl: string | null;
@@ -210,6 +214,7 @@ async function upsertArticle(
         content: articleData.content,
         source: "curated_news",
         source_url: articleData.sourceUrl,
+        content_source: articleData.contentSource,
         category: articleData.category,
         word_count: articleData.wordCount,
         estimated_minutes: articleData.estimatedMinutes,
@@ -334,7 +339,7 @@ async function loadTopics(
 ): Promise<ReadingTopicRow[]> {
   let query = supabase
     .from("reading_topics")
-    .select("topic_key, category, source_text, source_url, target_grades")
+    .select("topic_key, category, source, source_text, source_url, source_image_url, target_grades")
     .eq("language", "en")
     .eq("status", "active");
 
@@ -380,8 +385,8 @@ async function main(): Promise<void> {
   }
 
   console.log(`Grades:     ${grades.join(", ")}`);
-  console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "gpt-4o-mini"}`);
-  console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"}`);
+  console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M2.7"}`);
+  console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1"}`);
   console.log("");
 
   const supabase = await getSupabaseClient();
@@ -464,11 +469,17 @@ async function processWorkItem(
   );
 
   try {
+    // Determine route (A/B/C) based on source text quality
+    const routeDecision = decideRoute({
+      topic_key: topic.topic_key,
+      language: "en",
+      source: topic.source ?? null,
+      source_text: topic.source_text ?? null,
+      target_grades: topic.target_grades,
+    });
+
     // Determine which grades to process for this topic
-    const targetGrades =
-      topic.target_grades && topic.target_grades.length > 0
-        ? topic.target_grades.filter((g) => grades.includes(g))
-        : [grade];
+    const targetGrades = routeDecision.expandedGrades.filter((g) => grades.includes(g));
 
     // If this grade is not in the topic's target_grades, skip it
     if (topic.target_grades && topic.target_grades.length > 0 && !targetGrades.includes(grade)) {
@@ -501,6 +512,7 @@ async function processWorkItem(
           category: topic.category,
           gradeLevel: grade,
           sourceText,
+          route: routeDecision.route,
         })
       )
     );
@@ -535,7 +547,9 @@ async function processWorkItem(
       ...factualGate.issues.map(i => ({ ...i, source: "factual" as const })),
     ];
 
-    const status: "draft" | "published" = gate.pass && ibGate.pass && factualGate.pass ? "published" : "draft";
+    // Route A: skip factual gate (original text is the ground truth)
+    const effectiveFactualPass = routeDecision.route === "A" ? true : factualGate.pass;
+    const status: "draft" | "published" = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
 
     // Step 4: Generate cover image (concurrent, with retry)
     let coverResult: { url: string; source: string; source_url: string } | null = null;
@@ -548,6 +562,7 @@ async function processWorkItem(
             category: topic.category,
             scene: article.scene_description,
             title: article.title,
+            sourceImageUrl: topic.source_image_url ?? undefined,
           })
         )
       );
@@ -569,6 +584,7 @@ async function processWorkItem(
               paragraphIndex: ill.paragraph_index,
               sceneDescription: ill.scene_description,
             })),
+            sourceImageUrls: topic.source_image_url ? [topic.source_image_url] : undefined,
           })
         )
       );
@@ -591,6 +607,7 @@ async function processWorkItem(
       sceneDescription: article.scene_description,
       summary: article.summary,
       status,
+      contentSource: routeDecision.route === "A" ? "original" : routeDecision.route === "B" ? "adapted" : "llm",
       coverImageUrl: coverResult?.url ?? null,
       coverSource: coverResult?.source ?? null,
       coverSourceUrl: coverResult?.source_url ?? null,
@@ -615,9 +632,9 @@ async function processWorkItem(
       }))
     );
 
-    const gateLabel = gate.pass && ibGate.pass && factualGate.pass ? "published" : "draft";
+    const gateLabel = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
     console.log(
-      `OK — "${article.title}" (${questions.length} questions, ${illustrationResults.length} illustrations, quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${factualGate.pass ? "pass" : "fail"}, ${gateLabel})`
+      `OK — "${article.title}" route=${routeDecision.route} (${questions.length} questions, ${illustrationResults.length} illustrations, quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
     );
     return { status: "succeeded" };
   } catch (err) {

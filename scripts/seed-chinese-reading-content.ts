@@ -9,6 +9,7 @@
 
 import { config } from "dotenv";
 import { getCorpusEntry } from "./reading/classic-corpus";
+import { decideRoute, type RouteDecision } from "@/lib/reading/route-analyzer";
 import scrapeAllSources from "./reading/scrape-all-sources";
 config({ path: ".env.local" });
 
@@ -18,9 +19,14 @@ interface TaskEntry {
     category: string;
     target_grades: number[] | null;
     key_facts: string[] | null;
+    source: string | null;
+    source_image_url: string | null;
+    content_completeness: string | null;
   };
   grade: number;
   topicKey: string;
+  sourceText: string | undefined;
+  routeDecision: RouteDecision;
 }
 
 interface GenerationResult {
@@ -70,7 +76,7 @@ async function main() {
 
   const { data: topics, error: topicsError } = await supabase
     .from("reading_topics")
-    .select("topic_key, category, target_grades, key_facts")
+    .select("topic_key, category, target_grades, key_facts, source, source_image_url, content_completeness")
     .eq("language", "zh")
     .eq("status", "active");
 
@@ -103,14 +109,23 @@ async function main() {
   const allTasks: TaskEntry[] = [];
 
   for (const topic of topics) {
-    const grades: number[] =
-      topic.target_grades && topic.target_grades.length > 0
-        ? topic.target_grades
-        : [3, 5];
+    // Resolve source text from corpus (needed before route decision)
+    const sourceText = getCorpusEntry(topic.topic_key, "zh")?.content ?? undefined;
+
+    // Determine route based on source text quality
+    const routeDecision = decideRoute({
+      topic_key: topic.topic_key,
+      language: "zh",
+      source: topic.source,
+      source_text: sourceText ?? null,
+      target_grades: topic.target_grades,
+    });
+
+    const grades = routeDecision.expandedGrades;
 
     for (const grade of grades) {
       const topicKey = `${topic.topic_key}-G${grade}`;
-      allTasks.push({ topic, grade, topicKey });
+      allTasks.push({ topic, grade, topicKey, sourceText, routeDecision });
     }
   }
 
@@ -146,10 +161,6 @@ async function main() {
         console.log(`生成中: ${task.topic.topic_key} G${task.grade}...`);
 
         try {
-          // 0. Lookup sourceText from classic corpus if not provided
-          const corpusEntry = getCorpusEntry(task.topic.topic_key, "zh");
-          const sourceText = corpusEntry?.content ?? undefined;
-
           // 1. Generate content via unified pipeline (with retry)
           const { article, questions, illustrations: generatedIllustrations } =
             await withRetry(() =>
@@ -158,7 +169,8 @@ async function main() {
                 language: "zh",
                 category: task.topic.category,
                 gradeLevel: task.grade,
-                sourceText,
+                sourceText: task.sourceText,
+                route: task.routeDecision.route,
               })
             );
 
@@ -180,7 +192,7 @@ async function main() {
           });
           const factualGate = validateFactualAccuracy({
             article,
-            sourceText,
+            sourceText: task.sourceText,
             keyFacts: task.topic.key_facts || undefined,
             language: "zh",
             gradeLevel: task.grade,
@@ -193,7 +205,9 @@ async function main() {
             ...factualGate.issues.map(i => ({ ...i, source: "factual" as const })),
           ];
 
-          const status = gate.pass && ibGate.pass && factualGate.pass ? "published" : "draft";
+          // Route A: skip factual gate (original text is trusted)
+          const effectiveFactualPass = task.routeDecision.route === "A" ? true : factualGate.pass;
+          const status = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
 
           // 4. Generate cover (non-blocking failure)
           let coverResult: Awaited<ReturnType<typeof generateCover>> | null = null;
@@ -206,6 +220,7 @@ async function main() {
                   category: task.topic.category,
                   scene: article.scene_description,
                   title: article.title,
+                  sourceImageUrl: task.topic.source_image_url ?? undefined,
                 })
               )
             );
@@ -253,9 +268,9 @@ async function main() {
     }
 
     const gen = result.value;
-    const topic = tasksToProcess.find(
+    const taskEntry = tasksToProcess.find(
       (t) => t.topicKey === gen.topicKey
-    )?.topic!;
+    )!;
 
     try {
       // Insert article
@@ -268,6 +283,7 @@ async function main() {
           language: "zh",
           pinyin_content: gen.pinyinContent,
           source: "ai_generated",
+          content_source: taskEntry.routeDecision.route === "A" ? "original" : taskEntry.routeDecision.route === "B" ? "adapted" : "llm",
           category: gen.category,
           grade_level: gen.grade,
           word_count: gen.article.word_count,

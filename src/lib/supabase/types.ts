@@ -1414,6 +1414,7 @@ export type Database = {
           quiet_hours_end: string
           quiet_hours_start: string
           reminder_cutoff_time: string
+          auth_user_email: string
         }[]
       }
       increment_minimax_quota: {

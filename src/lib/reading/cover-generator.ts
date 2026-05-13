@@ -24,6 +24,7 @@
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { downloadAndUploadFromUrl } from "@/lib/reading/storage-uploader";
 import { buildCoverPrompt } from "@/lib/reading/cover-style-presets";
+import { generateCoverFromSource } from "@/lib/reading/cover-source-extractor";
 
 export interface GenerateCoverOptions {
   articleId: string;
@@ -32,12 +33,15 @@ export interface GenerateCoverOptions {
   /** Single-sentence visual description from `article.scene_description`. */
   scene: string;
   title: string;
+  /** Optional source website image URL. If provided, the pipeline tries
+   *  to use it as the cover before falling back to AI generation. */
+  sourceImageUrl?: string;
 }
 
 export interface CoverResult {
   /** Supabase Storage public URL. */
   url: string;
-  source: "minimax" | "pollinations";
+  source: "minimax" | "pollinations" | "source-website";
   /** External CDN URL retained for traceability/audit. */
   source_url: string;
   bytes: number;
@@ -271,6 +275,16 @@ async function generateViaPollinations(opts: {
 export async function generateCover(
   opts: GenerateCoverOptions
 ): Promise<CoverResult> {
+  // Source-image-first path: try the source website image before AI generation.
+  if (opts.sourceImageUrl) {
+    const sourceCover = await generateCoverFromSource(
+      opts.sourceImageUrl,
+      opts.articleId
+    );
+    if (sourceCover) return sourceCover;
+    // fall through to AI generation
+  }
+
   const { positive, negative } = buildCoverPrompt(opts.category, opts.scene);
 
   const quotaOk = await checkAndConsumeQuota();

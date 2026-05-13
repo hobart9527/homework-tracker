@@ -458,7 +458,7 @@ function getOpenAI() {
   if (!_openai) {
     _openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY || "",
-      baseURL: process.env.OPENAI_BASE_URL || undefined,
+      baseURL: process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1",
     });
   }
   return _openai;
@@ -526,7 +526,7 @@ async function generateArticle(topicKey, category, gradeLevel, sourceText) {
   });
 
   const completion = await getOpenAI().chat.completions.create({
-    model: process.env.OPENAI_READING_MODEL || "gpt-4o-mini",
+    model: process.env.OPENAI_READING_MODEL || "MiniMax-M2.7",
     messages: [
       {
         role: "system",

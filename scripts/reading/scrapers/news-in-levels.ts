@@ -15,6 +15,7 @@
  */
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { extractImages } from "../../../src/lib/reading/source-image-extractor";
 
 // Types
 interface ArticleLevel {
@@ -28,6 +29,7 @@ interface Article {
   slug: string;
   category: string;
   levels: ArticleLevel[];
+  images?: { cover: string | null; inline: string[] };
 }
 
 // Configuration
@@ -227,6 +229,9 @@ async function scrapeArticle(url: string, category: string): Promise<Article | n
     const title = extractTitle(html);
     const levels = extractArticleContent(html);
 
+    // Extract images (best-effort)
+    const images = extractImages(html);
+
     if (levels.length === 0) {
       console.warn(`  Warning: No level content found for ${url}`);
       return null;
@@ -237,6 +242,7 @@ async function scrapeArticle(url: string, category: string): Promise<Article | n
       slug,
       category,
       levels,
+      images,
     };
   } catch (error) {
     console.error(`  Error scraping ${url}:`, error instanceof Error ? error.message : error);
@@ -296,6 +302,7 @@ async function upsertArticle(
     target_grades: targetGrades,
     status: "active",
     title: levelData.title,
+    source_image_url: article.images?.cover ?? null,
   };
 
   if (DRY_RUN) {

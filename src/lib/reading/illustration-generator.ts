@@ -16,7 +16,7 @@
  * contract — each file inlines its own copy and they MUST NOT cross-import.
  */
 
-import { downloadAndUploadFromUrl } from "@/lib/reading/storage-uploader";
+import { downloadAndUploadFromUrl, uploadToReadingMedia } from "@/lib/reading/storage-uploader";
 import { buildCoverPrompt } from "@/lib/reading/cover-style-presets";
 
 export interface GenerateIllustrationsOptions {
@@ -24,13 +24,17 @@ export interface GenerateIllustrationsOptions {
   language: "zh" | "en";
   category: string;
   scenes: { paragraphIndex: number; sceneDescription: string }[];
+  /** Optional source website image URLs keyed by paragraph index.
+   *  When provided, the pipeline tries the corresponding source image
+   *  before falling back to Pollinations AI generation. */
+  sourceImageUrls?: string[];
 }
 
 export type IllustrationResult = {
   paragraph_index: number;
   url: string; // Supabase Storage URL
   source_url: string;
-  source: "pollinations";
+  source: "pollinations" | "source-website";
   bytes: number;
 }[];
 
@@ -128,9 +132,63 @@ function pollinationsRetryOptions(): RetryOptions {
 }
 
 /**
+ * Try to download and upload a source image for one paragraph index.
+ * Returns the result on success, null on any failure. Never throws.
+ */
+async function trySourceImage(
+  imageUrl: string,
+  articleId: string,
+  paragraphIndex: number
+): Promise<IllustrationResult[number] | null> {
+  try {
+    const response = await fetch(imageUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; HomeworkTracker/1.0)",
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) return null;
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.startsWith("image/")) return null;
+
+    const arrayBuffer = await response.arrayBuffer();
+    if (arrayBuffer.byteLength < 1024) return null;
+
+    const lower = contentType.toLowerCase();
+    const ext = lower.includes("png") ? "png"
+      : lower.includes("webp") ? "webp"
+      : lower.includes("gif") ? "gif"
+      : "jpg";
+    const path = `illustrations/${articleId}/${paragraphIndex}.${ext}`;
+
+    const upload = await uploadToReadingMedia({
+      path,
+      bytes: arrayBuffer,
+      contentType,
+      upsert: true,
+    });
+
+    return {
+      paragraph_index: paragraphIndex,
+      url: upload.url,
+      source_url: imageUrl,
+      source: "source-website",
+      bytes: upload.bytes,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Generate paragraph illustrations for a reading article.
  *
- * Only Pollinations is used (no MiniMax quota consumption).
+ * Source-image-first: when `opts.sourceImageUrls` is provided, each paragraph
+ * tries its corresponding source image (by array index) before falling back
+ * to Pollinations AI generation.
+ *
  * Each scene's download/upload is wrapped with exponential-backoff retry to
  * absorb transient 429/5xx; if retries are exhausted the scene is skipped
  * and a warning is logged. Failures are non-blocking; the function never
@@ -147,6 +205,27 @@ export async function generateIllustrations(
   const retryOpts = pollinationsRetryOptions();
 
   for (const scene of opts.scenes) {
+    const idx = scene.paragraphIndex;
+
+    // Source-image-first path
+    const sourceUrl = opts.sourceImageUrls?.[idx];
+    if (sourceUrl) {
+      try {
+        const sourceResult = await trySourceImage(
+          sourceUrl,
+          opts.articleId,
+          idx
+        );
+        if (sourceResult) {
+          results.push(sourceResult);
+          continue;
+        }
+        // fall through to AI generation
+      } catch {
+        // fall through to AI generation
+      }
+    }
+
     try {
       const { positive } = buildCoverPrompt(
         opts.category,
@@ -162,13 +241,13 @@ export async function generateIllustrations(
         () =>
           downloadAndUploadFromUrl({
             externalUrl,
-            path: `illustrations/${opts.articleId}/${scene.paragraphIndex}.webp`,
+            path: `illustrations/${opts.articleId}/${idx}.webp`,
           }),
         retryOpts
       );
 
       results.push({
-        paragraph_index: scene.paragraphIndex,
+        paragraph_index: idx,
         url: upload.url,
         source_url: externalUrl,
         source: "pollinations",
@@ -177,7 +256,7 @@ export async function generateIllustrations(
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[illustration-generator] scene ${scene.paragraphIndex} failed, skipping: ${reason}`
+        `[illustration-generator] scene ${idx} failed, skipping: ${reason}`
       );
       // continue to next scene — non-blocking
     }
