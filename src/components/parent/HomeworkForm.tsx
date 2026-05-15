@@ -696,6 +696,7 @@ export function HomeworkForm({
           </div>
           <button
             type="button"
+            aria-label="需要拍照证明"
             onClick={() => {
               setFormData((prev) => {
                 const newVal =
@@ -734,6 +735,7 @@ export function HomeworkForm({
           </div>
           <button
             type="button"
+            aria-label="开启录音打卡"
             onClick={() => {
               setFormData((prev) => ({
                 ...prev,

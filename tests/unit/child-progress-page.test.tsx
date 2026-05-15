@@ -283,7 +283,7 @@ describe("Child progress page", () => {
     });
 
     await act(async () => {
-      screen.getByRole("button", { name: "上个月" }).click();
+      screen.getByText("◀").click();
       await Promise.resolve();
     });
 
@@ -295,10 +295,10 @@ describe("Child progress page", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText("月度打卡分析")).toBeInTheDocument();
+    expect(screen.getByText("月完成率")).toBeInTheDocument();
     expect(screen.getByText("2026年3月")).toBeInTheDocument();
     expect(screen.getByLabelText("2026-03-12 完成 2/2")).toBeInTheDocument();
-    expect(screen.getByText("打卡高峰时段")).toBeInTheDocument();
+    expect(screen.getByText("⏰ 打卡时段分布")).toBeInTheDocument();
     expect(screen.getByText("高峰")).toBeInTheDocument();
     expect(mockedCreateClient).toHaveBeenCalledTimes(1);
   });
@@ -318,7 +318,7 @@ describe("Child progress page", () => {
     });
 
     await act(async () => {
-      screen.getByRole("button", { name: "上个月" }).click();
+      screen.getByText("◀").click();
       await Promise.resolve();
     });
 

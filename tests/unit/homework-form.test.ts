@@ -34,7 +34,7 @@ const selectSourceHomework = vi.fn(() =>
       type_name: "钢琴",
       type_icon: "🎹",
       title: "钢琴加练",
-      description: "每天 30 分钟",
+      description: "__hw_meta__:{\"enable_recording\":true}\n每天 30 分钟",
       repeat_type: "weekly",
       repeat_days: [1, 3, 5],
       repeat_interval: null,
@@ -389,25 +389,18 @@ describe("HomeworkForm workbench", () => {
     });
 
     expect(screen.getByText("重复规则")).toBeInTheDocument();
-    expect(screen.getByText("快捷类型（可选）")).toBeInTheDocument();
-    expect(screen.queryByText("作业类型")).not.toBeInTheDocument();
-    expect(screen.queryByText("自定义")).not.toBeInTheDocument();
+    expect(screen.getByText("作业类型")).toBeInTheDocument();
+    expect(screen.getByText("自定义")).toBeInTheDocument();
   });
 
   it("keeps a lightweight type aid that can autofill the title", async () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByRole("combobox", { name: "快捷类型（可选）" })).toBeInTheDocument();
+      expect(screen.getByLabelText("作业标题")).toBeInTheDocument();
     });
 
-    expect(
-      screen.queryByRole("button", { name: "新建类型" })
-    ).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByRole("combobox", { name: "快捷类型（可选）" }), {
-      target: { value: "钢琴" },
-    });
+    fireEvent.click(screen.getByText("钢琴"));
 
     expect(screen.getByDisplayValue("钢琴练习")).toBeInTheDocument();
   });
@@ -416,16 +409,18 @@ describe("HomeworkForm workbench", () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("combobox", { name: "快捷类型（可选）" })
-      ).toBeInTheDocument();
+      expect(screen.getByLabelText("作业标题")).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByRole("combobox", { name: "快捷类型（可选）" }), {
-      target: { value: "IXL" },
-    });
+    fireEvent.click(screen.getByText("IXL"));
 
-    expect(screen.getByRole("combobox", { name: "来源平台" })).toHaveValue("ixl");
+    // 高级设置 is collapsed by default — expand it
+    fireEvent.click(screen.getByText("高级设置"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("来源平台")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("来源平台")).toHaveValue("ixl");
     expect(screen.getByText(/已匹配 ixl 账号：ivy-ixl/i)).toBeInTheDocument();
   });
 
@@ -433,12 +428,23 @@ describe("HomeworkForm workbench", () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("作业提交群")).toBeInTheDocument();
+      expect(screen.getByLabelText("作业标题")).toBeInTheDocument();
+    });
+
+    // Toggle recording ON to make WeChat section visible
+    fireEvent.click(screen.getByRole("button", { name: "开启录音打卡" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("提交完成后自动发到微信群")).toBeInTheDocument();
     });
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })
+      screen.getByText("提交完成后自动发到微信群")
     );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("提交到哪个微信群")).toBeInTheDocument();
+    });
     fireEvent.change(screen.getByLabelText("提交到哪个微信群"), {
       target: { value: "group-reading" },
     });
@@ -450,11 +456,17 @@ describe("HomeworkForm workbench", () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("作业提交群")).toBeInTheDocument();
+      expect(screen.getByLabelText("作业标题")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "开启录音打卡" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("提交完成后自动发到微信群")).toBeInTheDocument();
     });
 
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })
+      screen.getByText("提交完成后自动发到微信群")
     );
 
     expect(screen.getByText(/当前会继承/)).toBeInTheDocument();
@@ -465,10 +477,10 @@ describe("HomeworkForm workbench", () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("照片")).toBeInTheDocument();
+      expect(screen.getByLabelText("作业标题")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("照片"));
+    fireEvent.click(screen.getByRole("button", { name: "需要拍照证明" }));
 
     expect(
       screen.getByText(/可以拍照或上传已有图片/)
@@ -477,6 +489,12 @@ describe("HomeworkForm workbench", () => {
 
   it("treats estimated minutes as optional for new homework", async () => {
     render(createElement(HomeworkForm));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("作业标题")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("高级设置"));
 
     await waitFor(() => {
       expect(screen.getByLabelText("预计时长（分钟）")).toBeInTheDocument();
@@ -493,9 +511,11 @@ describe("HomeworkForm workbench", () => {
     });
 
     expect(screen.getByDisplayValue("每天 30 分钟")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "来源平台" })).toHaveValue(
-      "khan-academy"
-    );
+    fireEvent.click(screen.getByText("高级设置"));
+    await waitFor(() => {
+      expect(screen.getByLabelText("来源平台")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("来源平台")).toHaveValue("khan-academy");
     expect(screen.getByDisplayValue("lesson-123")).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })

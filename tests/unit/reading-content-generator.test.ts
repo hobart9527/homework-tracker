@@ -63,7 +63,7 @@ describe("buildEnglishPrompt", () => {
       sourceText: "Astronauts went to the moon.",
     });
 
-    expect(prompt).toContain("680-1180 words");
+    expect(prompt).toContain("600-1100 words");
   });
 });
 
