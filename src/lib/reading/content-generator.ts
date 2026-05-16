@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { calculateObjectiveDifficulty } from "./difficulty";
 import { getWordCountRange } from "./standards";
+import { parseJsonWithRecovery } from "./json-recovery";
 import type { GeneratedArticle, GeneratedQuestion } from "./types";
 
 const openai = new OpenAI({
@@ -123,49 +124,6 @@ const LANGUAGE_LOCK_EN =
   "\n\nLANGUAGE LOCK: Produce ONLY English. Do NOT include parallel Chinese translations, glossary entries, or summaries in another language.";
 const LANGUAGE_LOCK_ZH =
   "\n\n语言锁定：仅输出中文。请勿夹带英文翻译、术语对照表或其他语言的摘要。注：classical_quote 字段中的 pinyin 和 translation 子字段是允许保留的例外。";
-
-function repairJson(raw: string): string {
-  let text = raw.trim();
-
-  // 1. Strip reasoning blocks (MiniMax)
-  text = text.replace(/<think[\s\S]*?<\/think>/gi, "");
-  // 2. Strip markdown fences
-  text = text.replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1").trim();
-
-  // 3. Try direct parse first
-  try { JSON.parse(text); return text; } catch {}
-
-  // 4. Remove trailing commas before ] or }
-  text = text.replace(/,(\s*[}\]])/g, "$1");
-  try { JSON.parse(text); return text; } catch {}
-
-  // 5. Remove non-JSON trailing content after the last structural brace
-  const lastBrace = Math.max(text.lastIndexOf('}'), text.lastIndexOf(']'));
-  if (lastBrace > 0) {
-    const truncated = text.slice(0, lastBrace + 1);
-    try { JSON.parse(truncated); return truncated; } catch {}
-  }
-
-  // 6. Count braces and close unbalanced ones
-  let braceCount = 0;
-  let bracketCount = 0;
-  let inString = false;
-  let escaped = false;
-  for (const ch of text) {
-    if (escaped) { escaped = false; continue; }
-    if (ch === '\\') { escaped = true; continue; }
-    if (ch === '"') { inString = !inString; continue; }
-    if (inString) continue;
-    if (ch === '{') braceCount++;
-    if (ch === '}') braceCount--;
-    if (ch === '[') bracketCount++;
-    if (ch === ']') bracketCount--;
-  }
-  const fixed = text + ']'.repeat(Math.max(0, bracketCount)) + '}'.repeat(Math.max(0, braceCount));
-  try { JSON.parse(fixed); return fixed; } catch {}
-
-  throw new Error(`Unable to repair JSON. Original starts with: ${text.slice(0, 200)}`);
-}
 
 function repairJsonToError(raw: string): string {
   const truncated = raw.slice(0, 300);
@@ -632,8 +590,7 @@ export async function generateArticleContent(
   });
 
   const rawText = completion.choices[0]?.message?.content || "{}";
-  const text = repairJson(rawText);
-  const result = JSON.parse(text);
+  const result = parseJsonWithRecovery(rawText) as Record<string, any>;
 
   return {
     article: {
@@ -695,10 +652,9 @@ export async function generateReadingContent(
   });
 
   const rawText = completion.choices?.[0]?.message?.content || "{}";
-  const text = repairJson(rawText);
   let result: Record<string, unknown>;
   try {
-    result = JSON.parse(text) as Record<string, unknown>;
+    result = parseJsonWithRecovery(rawText) as Record<string, unknown>;
   } catch {
     throw new Error(repairJsonToError(rawText));
   }

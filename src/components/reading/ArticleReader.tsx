@@ -1080,6 +1080,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                   </div>
                 );
               })}
+            </div>
           </div>
         )}
         {/* Page turn zones - left and right edges, wider for easier touch */}
