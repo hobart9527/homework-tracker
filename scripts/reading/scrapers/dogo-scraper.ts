@@ -105,6 +105,133 @@ async function discoverDogoArticles(scraper: StealthScraper): Promise<DogoArticl
 }
 
 // ---------------------------------------------------------------------------
+// HTML body extraction (regex-based, no extra deps)
+// ---------------------------------------------------------------------------
+
+function stripBlock(html: string, tag: string): string {
+  const re = new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}>`, "gi");
+  return html.replace(re, "");
+}
+
+function stripComments(html: string): string {
+  return html.replace(/<!--[\s\S]*?-->/g, "");
+}
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&");
+}
+
+function htmlToText(html: string): string {
+  let s = html;
+  s = stripBlock(s, "script");
+  s = stripBlock(s, "style");
+  s = stripBlock(s, "noscript");
+  s = stripBlock(s, "svg");
+  s = stripComments(s);
+
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<\/(p|div|li|h[1-6])\s*>/gi, "\n\n");
+  s = s.replace(/<[^>]+>/g, "");
+  s = decodeEntities(s);
+
+  s = s
+    .split("\n")
+    .map((line) => line.replace(/[ \t\r\f\v]+$/g, ""))
+    .join("\n");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s.trim();
+}
+
+function findFirstBlock(html: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const m = html.match(re);
+  return m ? m[1] : null;
+}
+
+function findContentDiv(html: string): string | null {
+  const openRe = /<div\b([^>]*)>/gi;
+  let openMatch: RegExpExecArray | null;
+  while ((openMatch = openRe.exec(html)) !== null) {
+    const attrs = openMatch[1];
+    const classMatch = attrs.match(/\bclass\s*=\s*("([^"]*)"|'([^']*)')/i);
+    if (!classMatch) continue;
+    const classValue = (classMatch[2] ?? classMatch[3] ?? "").toLowerCase();
+    const classTokens = classValue.split(/\s+/).filter(Boolean);
+    const hits = classTokens.some(
+      (t) => t === "content" || t === "article-body" || t === "article"
+    );
+    if (!hits) continue;
+
+    const start = openRe.lastIndex;
+    const tail = html.slice(start);
+    const tagRe = /<(\/?)div\b[^>]*>/gi;
+    let depth = 1;
+    let m: RegExpExecArray | null;
+    while ((m = tagRe.exec(tail)) !== null) {
+      if (m[1] === "/") {
+        depth -= 1;
+        if (depth === 0) {
+          return tail.slice(0, m.index);
+        }
+      } else {
+        depth += 1;
+      }
+    }
+    return tail;
+  }
+  return null;
+}
+
+function extractBody(html: string): { text: string; strategy: string } {
+  const articleHtml = findFirstBlock(html, "article");
+  if (articleHtml !== null) {
+    return { text: htmlToText(articleHtml), strategy: "article" };
+  }
+
+  const divHtml = findContentDiv(html);
+  if (divHtml !== null) {
+    return { text: htmlToText(divHtml), strategy: "div-content" };
+  }
+
+  const bodyHtml = findFirstBlock(html, "body");
+  if (bodyHtml !== null) {
+    return { text: htmlToText(bodyHtml), strategy: "body" };
+  }
+
+  return { text: htmlToText(html), strategy: "body" };
+}
+
+function contentCompleteness(text: string): "full" | "partial" | "excerpt" {
+  if (text.length > 1000) return "full";
+  if (text.length > 200) return "partial";
+  return "excerpt";
+}
+
+// ---------------------------------------------------------------------------
+// Concurrency helper
+// ---------------------------------------------------------------------------
+
+async function runInBatches<T, R>(
+  items: T[],
+  batchSize: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.all(batch.map(fn));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Main scraper
 // ---------------------------------------------------------------------------
 
@@ -123,25 +250,30 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
   console.log("[dogo-scraper] Discovering articles from category pages...");
   const discoveredArticles = await discoverDogoArticles(scraper);
   const articles = discoveredArticles.slice(0, args.limit);
+
+  console.log(`[dogo-scraper] Starting scrape (${articles.length} articles, concurrency=3)...`);
+
+  // Pre-check existence for all articles (lightweight, serial is fine)
+  const existingUrls = new Set<string>();
+  for (const article of articles) {
+    const { data: existing } = await sb
+      .from("reading_topics")
+      .select("source_url")
+      .eq("source_url", article.url)
+      .maybeSingle();
+    if (existing) existingUrls.add(article.url);
+  }
+
   let success = 0;
   let skipped = 0;
   let failed = 0;
 
-  console.log(`[dogo-scraper] Starting scrape (${articles.length} articles)...`);
-
+  // Dry-run skip counting
   for (const article of articles) {
-    // Derive topic_key from URL slug
     const slug = article.url.split("/").pop() || "";
     const topicKey = "dogo-" + slug.replace(/-/g, "_");
 
-    // Check if already exists
-    const { data: existing } = await sb
-      .from("reading_topics")
-      .select("topic_key")
-      .eq("source_url", article.url)
-      .maybeSingle();
-
-    if (existing) {
+    if (existingUrls.has(article.url)) {
       console.log(`SKIP (exists): ${article.url}`);
       skipped++;
       continue;
@@ -152,33 +284,61 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
       skipped++;
       continue;
     }
+  }
 
-    // Fetch article to extract source_text
+  // Only non-dry-run, non-existing articles go to parallel fetch
+  const toFetch = articles.filter(
+    (a) => !existingUrls.has(a.url) && !args.dryRun
+  );
+
+  await runInBatches(toFetch, 3, async (article) => {
+    const slug = article.url.split("/").pop() || "";
+    const topicKey = "dogo-" + slug.replace(/-/g, "_");
+
     console.log(`Fetching: ${article.url}`);
+
+    // Fetch article HTML
     let sourceText = "";
+    let pageHtml = "";
     try {
       const result = await scraper.scrape(article.url, { timeoutMs: 30000 });
-      sourceText = result.text;
-      console.log(`  Got ${sourceText.length} chars`);
+      pageHtml = result.text; // StealthScraper returns text; we need raw HTML for extraction
+      // Re-fetch raw HTML for structured extraction (StealthScraper may not expose raw HTML)
+      // Fallback: use fetch for raw HTML, scraper for JS-rendered fallback
     } catch (err) {
-      console.log(`  Fetch failed: ${(err as Error).message}`);
+      console.log(`  Stealth fetch failed: ${(err as Error).message}`);
     }
 
-    // Extract cover image from page HTML (best-effort)
-    let source_image_url: string | null = null;
+    // Try raw HTML fetch for better extraction
     try {
-      const pageHtml = await fetch(article.url, {
+      const rawRes = await fetch(article.url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
           Accept: "text/html",
         },
         signal: AbortSignal.timeout(15000),
-      }).then((r) => r.text());
+      });
+      pageHtml = await rawRes.text();
+    } catch (err) {
+      console.log(`  Raw fetch failed: ${(err as Error).message}`);
+    }
+
+    if (pageHtml) {
+      const extracted = extractBody(pageHtml);
+      sourceText = extracted.text;
+      console.log(`  Extracted (${extracted.strategy}): ${sourceText.length} chars`);
+    }
+
+    // Extract cover image from page HTML (best-effort)
+    let source_image_url: string | null = null;
+    try {
       const images = extractImages(pageHtml);
       source_image_url = images.cover;
     } catch {
       // best-effort — leave null
     }
+
+    const completeness = contentCompleteness(sourceText);
 
     // Insert
     const { error } = await sb.from("reading_topics").insert({
@@ -189,6 +349,7 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
       source_url: article.url,
       source_text: sourceText || null,
       source_image_url,
+      content_completeness: completeness,
       status: "active",
       target_grades: [3, 6],
     });
@@ -197,13 +358,10 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
       console.log(`  Insert failed: ${error.message}`);
       failed++;
     } else {
-      console.log(`  Added: ${topicKey}`);
+      console.log(`  Added: ${topicKey} (${completeness})`);
       success++;
     }
-
-    // Rate limit
-    await new Promise((r) => setTimeout(r, 2000));
-  }
+  });
 
   await scraper.close();
 
