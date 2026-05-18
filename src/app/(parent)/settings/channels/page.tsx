@@ -49,8 +49,8 @@ export default function SettingsChannelsPage() {
 
   if (loading || !parent) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-2xl">加载中...</div>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-ui-lg">加载中...</div>
       </div>
     );
   }
@@ -67,7 +67,7 @@ export default function SettingsChannelsPage() {
             <h2 className="font-bold text-forest-700">微信群管理</h2>
             <p className="mt-1 text-ui-sm text-forest-500">
               微信群的管理（添加、编辑、删除、设置孩子默认群）已迁移至
-              <a href="/settings/integrations" className="mx-1 text-primary underline">孩子集成页</a>，
+              <a href="/settings/integrations" className="mx-1 text-forest-500 underline">孩子集成页</a>，
               在那里你可以为每个孩子配置专属的微信群。
             </p>
           </div>
@@ -83,7 +83,7 @@ export default function SettingsChannelsPage() {
             </p>
           </div>
 
-          <div className="rounded-radius-lg border border-amber-200 bg-amber-50 px-space-4 py-space-3 text-ui-sm text-amber-900">
+          <div className="rounded-radius-lg border border-honey-200 bg-honey-50 px-space-4 py-space-3 text-ui-sm text-honey-900">
             <p className="font-medium">企业微信设置步骤</p>
             <ol className="mt-2 list-decimal space-y-1 pl-5">
               <li>注册
@@ -93,15 +93,15 @@ export default function SettingsChannelsPage() {
                 （免费），创建企业
               </li>
               <li>在「应用管理」中创建自建应用，获取 CorpID、CorpSecret 和 AgentID</li>
-              <li>在环境变量中配置 <code className="rounded bg-amber-100 px-1">WECOM_CORPID</code>、
-                <code className="rounded bg-amber-100 px-1">WECOM_CORPSECRET</code>、
-                <code className="rounded bg-amber-100 px-1">WECOM_AGENTID</code>
+              <li>在环境变量中配置 <code className="rounded bg-honey-100 px-1">WECOM_CORPID</code>、
+                <code className="rounded bg-honey-100 px-1">WECOM_CORPSECRET</code>、
+                <code className="rounded bg-honey-100 px-1">WECOM_AGENTID</code>
               </li>
               <li>创建群聊并将应用加入群中，获取 chatid</li>
               <li>在孩子集成页添加群，填写群聊 ID（chatid）和显示名称</li>
             </ol>
 
-            <p className="mt-2 text-ui-sm text-amber-800">配置完成后，作业录音将自动通过企业微信官方 API 发送，无需额外启动服务。</p>
+            <p className="mt-2 text-ui-sm text-honey-800">配置完成后，作业录音将自动通过企业微信官方 API 发送，无需额外启动服务。</p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -150,7 +150,7 @@ export default function SettingsChannelsPage() {
               <p
                 className={`text-ui-sm ${
                   wecomStatusTone === "success"
-                    ? "text-emerald-700"
+                    ? "text-forest-700"
                     : wecomStatusTone === "danger"
                       ? "text-coral-600"
                       : "text-forest-600"

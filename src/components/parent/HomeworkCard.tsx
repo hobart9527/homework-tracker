@@ -52,7 +52,7 @@ export function HomeworkCard({
 
   return (
     <Card
-      className={`${displayCompleted ? "opacity-75" : ""} ${isOverdue && !hasDetailMeta ? "border-2 border-accent" : ""}`}
+      className={`${displayCompleted ? "opacity-75" : ""} ${isOverdue && !hasDetailMeta ? "border-2 border-coral-500" : ""}`}
     >
       <div className="flex items-start gap-3">
         <span className="text-3xl">{homework.type_icon}</span>
@@ -62,17 +62,17 @@ export function HomeworkCard({
               {homework.title}
             </h3>
             {isOverdue && !hasDetailMeta && (
-              <span className="px-2 py-0.5 text-xs bg-accent text-white rounded-full">
+              <span className="px-2 py-0.5 text-ui-xs bg-coral-500 text-white rounded-full">
                 逾期
               </span>
             )}
           </div>
           {homework.description && (
-            <p className="text-sm text-forest-500 mt-1 line-clamp-2">
+            <p className="text-ui-sm text-ink-500 mt-space-1 line-clamp-2">
               {homework.description}
             </p>
           )}
-          <div className="flex items-center gap-3 mt-2 text-xs text-forest-400">
+          <div className="flex items-center gap-3 mt-2 text-ui-xs text-ink-400">
             {homework.estimated_minutes != null ? (
               <span>⏱️ {homework.estimated_minutes} 分钟</span>
             ) : null}
@@ -82,23 +82,23 @@ export function HomeworkCard({
             )}
           </div>
           {hasDetailMeta && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mt-space-3 flex flex-wrap items-center gap-2 text-ui-xs">
               {detailProofLabel && (
-                <span className="rounded-full bg-forest-100 px-2 py-1 text-forest-600">
+                <span className="rounded-full bg-ink-100 px-2 py-1 text-ink-600">
                   {detailProofLabel}
                 </span>
               )}
               {statusText && (
-                <span className="rounded-full bg-primary/10 px-2 py-1 text-primary">
+                <span className="rounded-full bg-forest-500/10 px-2 py-1 text-forest-600">
                   {statusText}
                 </span>
               )}
               {scored ? (
-                <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">
+                <span className="rounded-full bg-success-100 px-2 py-1 text-success-700">
                   +{awardedPoints ?? 0} 分
                 </span>
               ) : awardedPoints != null ? (
-                <span className="rounded-full bg-forest-100 px-2 py-1 text-forest-500">
+                <span className="rounded-full bg-ink-100 px-2 py-1 text-ink-500">
                   {awardedPoints} 分
                 </span>
               ) : null}
@@ -107,9 +107,9 @@ export function HomeworkCard({
         </div>
         <div className="flex flex-col gap-2 items-end">
           {hasDetailMeta ? actionButtons : isCompleted ? (
-            <div className="flex items-center gap-1 text-primary">
+            <div className="flex items-center gap-1 text-forest-600">
               <span>✓</span>
-              <span className="text-sm">已完成</span>
+              <span className="text-ui-sm">已完成</span>
             </div>
           ) : isChildView ? (
             <Button size="sm" onClick={onComplete}>

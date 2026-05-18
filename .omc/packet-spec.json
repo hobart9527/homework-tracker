@@ -1,0 +1,48 @@
+{
+  "schema_version": "2.1",
+  "task_id": "fix-parent-ui-wave-1",
+  "risk_mode": "Light",
+  "goal": "Fix parent UI styles across all pages: color tokens, layout, fonts, spacing",
+  "tasks": [
+    {
+      "task_id": "p1-config",
+      "goal": "Add semantic color aliases to tailwind.config.ts and LXGW WenKai font to globals.css",
+      "write_scope": ["tailwind.config.ts", "src/styles/globals.css"],
+      "read_scope": ["tailwind.config.ts", "src/styles/globals.css"],
+      "acceptance": ["success/info/danger colors added to tailwind config", "LXGW WenKai font imported in globals.css"],
+      "verification": ["diff shows added colors and font import"]
+    },
+    {
+      "task_id": "p2-settings",
+      "goal": "Fix SettingsShell nested layout and replace non-token colors in settings pages",
+      "write_scope": ["src/components/parent/SettingsShell.tsx", "src/app/(parent)/settings/channels/page.tsx", "src/app/(parent)/settings/integrations/page.tsx"],
+      "read_scope": ["src/components/parent/SettingsShell.tsx", "src/app/(parent)/settings/channels/page.tsx", "src/app/(parent)/settings/integrations/page.tsx"],
+      "acceptance": ["SettingsShell no longer has min-h-screen bg-background", "amber/sky/emerald/primary replaced with honey/ink/forest tokens"],
+      "verification": ["diff shows layout fix and color replacements"]
+    },
+    {
+      "task_id": "p3-pages",
+      "goal": "Fix container layout and spacing tokens on homework and children pages",
+      "write_scope": ["src/app/(parent)/homework/page.tsx", "src/app/(parent)/children/page.tsx"],
+      "read_scope": ["src/app/(parent)/homework/page.tsx", "src/app/(parent)/children/page.tsx"],
+      "acceptance": ["Both pages have max-w-7xl mx-auto wrapper", "Raw spacing values replaced with token values"],
+      "verification": ["diff shows container and spacing fixes"]
+    },
+    {
+      "task_id": "p4-components",
+      "goal": "Fix font sizes and color tokens in ParentMonthCalendar and ParentCheckInHeatmap",
+      "write_scope": ["src/components/parent/ParentMonthCalendar.tsx", "src/components/parent/ParentCheckInHeatmap.tsx"],
+      "read_scope": ["src/components/parent/ParentMonthCalendar.tsx", "src/components/parent/ParentCheckInHeatmap.tsx"],
+      "acceptance": ["text-[10px]/[8px]/[11px] replaced with text-ui-xs", "ringColor hex values use token palette", "rounded-lg replaced with rounded-radius-lg"],
+      "verification": ["diff shows font size and token fixes"]
+    }
+  ],
+  "dependencies": {
+    "p1-config": [],
+    "p2-settings": [],
+    "p3-pages": [],
+    "p4-components": []
+  },
+  "shared_contracts": ["tailwind.config.ts"],
+  "resource_budget": "targeted"
+}

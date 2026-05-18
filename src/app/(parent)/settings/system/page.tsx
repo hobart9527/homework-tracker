@@ -202,7 +202,7 @@ export default function SettingsSystemPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex items-center justify-center py-12">
         <div className="text-2xl">加载中...</div>
       </div>
     );

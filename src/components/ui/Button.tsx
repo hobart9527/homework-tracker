@@ -24,9 +24,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     };
 
     const sizes = {
-      sm: "px-4 py-2.5 text-sm",
-      md: "px-5 py-3 text-base",
-      lg: "px-6 py-3 text-lg",
+      sm: "px-space-4 py-space-2.5 text-ui-sm",
+      md: "px-space-5 py-space-3 text-ui-base",
+      lg: "px-space-6 py-space-3 text-ui-lg",
     };
 
     return (

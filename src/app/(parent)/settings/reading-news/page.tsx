@@ -345,7 +345,7 @@ export default function ReadingNewsAdminPage() {
 
   if (authState === "anonymous" || authState === "non_parent") {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="bg-background">
         <header className="bg-forest-500 p-space-4 text-white">
           <div className="mx-auto flex max-w-3xl items-center gap-4">
             <Link href="/login">
@@ -384,7 +384,7 @@ export default function ReadingNewsAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       <header className="bg-forest-500 p-space-4 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-4">
           <Link href="/settings">

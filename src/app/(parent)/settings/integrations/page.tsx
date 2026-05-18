@@ -188,8 +188,8 @@ export default function SettingsIntegrationsPage() {
   );
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-2xl">加载中...</div>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-ui-lg">加载中...</div>
       </div>
     );
   }
@@ -577,7 +577,7 @@ export default function SettingsIntegrationsPage() {
                 }}
                 className={`rounded-radius-md px-space-4 py-space-2 text-ui-sm font-medium transition-colors ${
                   selectedChildId === child.id
-                    ? "bg-primary text-white"
+                    ? "bg-forest-500 text-white"
                     : "bg-forest-50 text-forest-600 hover:bg-forest-100"
                 }`}
               >
@@ -613,7 +613,7 @@ export default function SettingsIntegrationsPage() {
                 onChange={(e) =>
                   setBindingForm((prev) => ({ ...prev, platform: e.target.value as SupportedPlatform }))
                 }
-                className="w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-2 focus:border-primary focus:outline-none"
+                className="w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-2 focus:border-forest-500 focus:outline-none"
               >
                 <option value="ixl">IXL</option>
                 <option value="khan-academy">Khan Academy</option>
@@ -642,7 +642,7 @@ export default function SettingsIntegrationsPage() {
                 placeholder="平台登录密码"
               />
             ) : (
-              <div className="rounded-radius-lg border border-sky-200 bg-sky-50 px-space-4 py-space-3 text-ui-sm text-sky-900">
+              <div className="rounded-radius-lg border border-ink-200 bg-ink-50 px-space-4 py-space-3 text-ui-sm text-ink-700">
                 {getPlatformDisplayName(bindingForm.platform)} 暂不支持自动登录，保存后可
                 通过卡片上的「更新 Session」手动录入。
               </div>
@@ -893,7 +893,7 @@ export default function SettingsIntegrationsPage() {
                     onClick={() => setTakeoverMethod("auto")}
                     className={`flex-1 rounded-radius-sm px-2 py-space-2 text-ui-xs font-medium transition-colors ${
                       takeoverMethod === "auto"
-                        ? "bg-primary text-white"
+                        ? "bg-forest-500 text-white"
                         : "text-forest-600 hover:bg-forest-50"
                     }`}
                   >
@@ -904,7 +904,7 @@ export default function SettingsIntegrationsPage() {
                     onClick={() => setTakeoverMethod("script")}
                     className={`flex-1 rounded-radius-sm px-2 py-space-2 text-ui-xs font-medium transition-colors ${
                       takeoverMethod === "script"
-                        ? "bg-primary text-white"
+                        ? "bg-forest-500 text-white"
                         : "text-forest-600 hover:bg-forest-50"
                     }`}
                   >
@@ -915,7 +915,7 @@ export default function SettingsIntegrationsPage() {
                     onClick={() => setTakeoverMethod("manual")}
                     className={`flex-1 rounded-radius-sm px-2 py-space-2 text-ui-xs font-medium transition-colors ${
                       takeoverMethod === "manual"
-                        ? "bg-primary text-white"
+                        ? "bg-forest-500 text-white"
                         : "text-forest-600 hover:bg-forest-50"
                     }`}
                   >
@@ -925,7 +925,7 @@ export default function SettingsIntegrationsPage() {
 
                 {takeoverMethod === "auto" ? (
                   <div className="space-y-3">
-                    <div className="rounded-radius-md bg-emerald-50 px-space-3 py-2.5 text-ui-xs text-emerald-800">
+                    <div className="rounded-radius-md bg-forest-50 px-space-3 py-2.5 text-ui-xs text-forest-700">
                       <p className="font-medium mb-1">自动登录并抓取 Session</p>
                       <p>系统将使用存储的凭据自动登录平台，完成后自动保存 Session。</p>
                     </div>
@@ -940,7 +940,7 @@ export default function SettingsIntegrationsPage() {
                         开始自动登录
                       </Button>
                     ) : (
-                      <p className="text-ui-sm text-amber-700 bg-amber-50 rounded-radius-md px-space-3 py-space-2">
+                      <p className="text-ui-sm text-honey-700 bg-honey-50 rounded-radius-md px-space-3 py-space-2">
                         该账号未存储登录凭据，无法使用自动登录。请先通过「编辑账号」填入密码，或切换到「本地脚本」方式。
                       </p>
                     )}
@@ -1018,7 +1018,7 @@ export default function SettingsIntegrationsPage() {
                       href={getManualSessionLoginUrl(account.platform)}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex text-ui-sm font-medium text-primary underline"
+                      className="inline-flex text-ui-sm font-medium text-forest-500 underline"
                     >
                       打开 {getPlatformDisplayName(account.platform)} 登录页
                     </a>
@@ -1026,7 +1026,7 @@ export default function SettingsIntegrationsPage() {
                       value={takeoverPayload}
                       onChange={(e) => setTakeoverPayload(e.target.value)}
                       placeholder='{"cookies":[{"name":"PHPSESSID","value":"..."}]}'
-                      className="min-h-24 w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-3 text-ui-sm text-forest-800 focus:border-primary focus:outline-none"
+                      className="min-h-24 w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-3 text-ui-sm text-forest-800 focus:border-forest-500 focus:outline-none"
                     />
                     <div className="flex items-center gap-2">
                       <Button
@@ -1088,7 +1088,7 @@ export default function SettingsIntegrationsPage() {
                             [child.id]: e.target.value,
                           }))
                         }
-                        className="w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-2 focus:border-primary focus:outline-none"
+                        className="w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-2 focus:border-forest-500 focus:outline-none"
                       >
                         <option value="">暂不设置默认群</option>
                         {wechatGroups.map((group) => (
@@ -1158,7 +1158,7 @@ export default function SettingsIntegrationsPage() {
                           value={groupEditName}
                           onChange={(e) => setGroupEditName(e.target.value)}
                           placeholder="群显示名称"
-                          className="flex-1 rounded-radius-md border border-forest-200 px-space-3 py-space-2 text-ui-sm focus:border-primary focus:outline-none"
+                          className="flex-1 rounded-radius-md border border-forest-200 px-space-3 py-space-2 text-ui-sm focus:border-forest-500 focus:outline-none"
                           autoFocus
                         />
                         <Button

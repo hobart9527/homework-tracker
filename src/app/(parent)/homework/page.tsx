@@ -62,59 +62,34 @@ export default function HomeworkListPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-2xl">{t('common.loading')}</div>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-ui-lg">{t('common.loading')}</div>
       </div>
     );
   }
 
   return (
-    <>
-      <header className="bg-forest-500 text-white p-4 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <Link href="/dashboard">
-            <Button size="sm" variant="ghost" className="text-white hover:text-white/80">← 返回</Button>
-          </Link>
-          <h1 className="text-ui-xl font-ui-display font-bold">{t('parent.homework.title')}</h1>
-          <div className="flex items-center gap-2">
-            <Link href="/settings">
-              <Button size="sm" variant="ghost">
-                设置
-              </Button>
-            </Link>
-            <Link href={buildNewHomeworkHref({ selectedChildId })}>
-              <Button size="sm" variant="secondary">
-                + {t('common.add')}
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-space-4">
-        <div className="mb-4 rounded-radius-xl bg-white/80 px-space-4 py-space-3 text-ui-sm text-forest-600">
-          {t('parent.homework.createFirst')}
-        </div>
-        {homeworks.length === 0 ? (
+    <div className="max-w-7xl mx-auto space-y-space-6">
+      {homeworks.length === 0 ? (
           <div className="text-center py-12">
             <span className="text-6xl">📝</span>
-            <h2 className="text-ui-xl font-ui-display font-bold text-forest-700 mt-4">
+            <h2 className="text-ui-xl font-ui-display font-bold text-forest-700 mt-space-4">
               {t('parent.homework.noHomework')}
             </h2>
-            <p className="text-forest-500 mt-2">{t('parent.homework.createFirst')}</p>
+            <p className="text-ink-500 mt-space-2">{t('parent.homework.createFirst')}</p>
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <aside className="rounded-radius-xl border border-forest-200 bg-white p-4">
+          <div className="grid gap-space-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <aside className="rounded-radius-xl border border-ink-200 bg-white p-space-4">
               <h2 className="text-ui-sm font-ui-display font-semibold text-forest-700">{t('parent.childSelector.selectChild')}</h2>
-              <div className="mt-3 space-y-2">
+              <div className="mt-space-3 space-y-space-2">
                 <button
                   type="button"
                   onClick={() => setSelectedChildId("all")}
                   className={`w-full rounded-radius-xl px-4 py-3 text-left transition-all ${
                     selectedChildId === "all"
-                      ? "bg-primary/10 text-primary"
-                      : "bg-forest-50 text-forest-600 hover:bg-forest-100"
+                      ? "bg-forest-500/10 text-ink-600"
+                      : "bg-ink-50 text-ink-600 hover:bg-ink-100"
                   }`}
                 >
                   {t('parent.dashboard.allChildren')}
@@ -126,8 +101,8 @@ export default function HomeworkListPage() {
                     onClick={() => setSelectedChildId(child.id)}
                     className={`w-full rounded-radius-xl px-4 py-3 text-left transition-all ${
                       selectedChildId === child.id
-                        ? "bg-primary/10 text-primary"
-                        : "bg-forest-50 text-forest-600 hover:bg-forest-100"
+                        ? "bg-forest-500/10 text-ink-600"
+                        : "bg-ink-50 text-ink-600 hover:bg-ink-100"
                     }`}
                   >
                     {child.avatar} {child.name}
@@ -136,14 +111,14 @@ export default function HomeworkListPage() {
               </div>
             </aside>
 
-            <div className="space-y-6">
+            <div className="space-y-space-6">
               {listView.sections.map((section) => (
                 <section key={section.title} className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">
                       {section.title}
                     </h2>
-                    <span className="text-ui-sm text-forest-400">
+                    <span className="text-ui-sm text-ink-400">
                       {section.items.length} 项
                     </span>
                   </div>
@@ -152,29 +127,29 @@ export default function HomeworkListPage() {
                     {section.items.map((hw) => (
                       <Card key={hw.id}>
                         <div className="flex items-start gap-3">
-                          <span className="text-3xl">{hw.type_icon}</span>
+                          <span className="text-ui-3xl">{hw.type_icon}</span>
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-space-2">
                               <h3 className="font-semibold text-forest-700">
                                 {hw.title}
                               </h3>
-                              <span className="text-ui-xs text-forest-400">
+                              <span className="text-ui-xs text-ink-400">
                                 {getChildName(hw.child_id)}
                               </span>
                               <span
                                 className={`rounded-radius-sm px-2 py-0.5 text-ui-xs ${
                                   hw.isDueToday
-                                    ? "bg-primary/10 text-primary"
-                                    : "bg-forest-100 text-forest-500"
+                                    ? "bg-forest-500/10 text-ink-600"
+                                    : "bg-forest-100 text-ink-500"
                                 }`}
                               >
                                 {hw.isDueToday ? "今天会出现" : "其他作业"}
                               </span>
                             </div>
-                            <p className="mt-1 text-ui-sm text-forest-500">
+                            <p className="mt-space-1 text-ui-sm text-ink-500">
                               {hw.type_name} • {hw.point_value}积分
                             </p>
-                            <p className="mt-1 text-ui-xs text-forest-400">
+                            <p className="mt-space-1 text-ui-xs text-ink-400">
                               {{
                                 daily: "每日",
                                 weekly: `每周${(hw.repeat_days || []).map((d) => "日一二三四五六"[d]).join("")}`,
@@ -187,7 +162,7 @@ export default function HomeworkListPage() {
                                 : ""}
                             </p>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-space-2">
                             <Link href={`/homework/new?copyFrom=${hw.id}`}>
                               <Button size="sm" variant="ghost">
                                 复制
@@ -216,7 +191,6 @@ export default function HomeworkListPage() {
             </div>
           </div>
         )}
-      </main>
-    </>
+    </div>
   );
 }

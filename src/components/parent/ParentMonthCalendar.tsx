@@ -78,7 +78,7 @@ function getDayTone(day: ParentCalendarDay) {
 
     return {
       label: "已完成",
-      ringColor: "#10B981",
+      ringColor: "#56AB91",
       bgClass: "bg-success-50",
       textClass: "text-success-700",
       dotClass: "bg-success-500",
@@ -88,7 +88,7 @@ function getDayTone(day: ParentCalendarDay) {
   if (day.completedCount > 0) {
     return {
       label: "进行中",
-      ringColor: "#3B82F6",
+      ringColor: "#F5B41A",
       bgClass: "bg-info-50",
       textClass: "text-info-700",
       dotClass: "bg-info-500",
@@ -98,7 +98,7 @@ function getDayTone(day: ParentCalendarDay) {
   if (day.date < todayKey) {
     return {
       label: "未完成",
-      ringColor: "#F43F5E",
+      ringColor: "#F26033",
       bgClass: "bg-danger-50",
       textClass: "text-danger-700",
       dotClass: "bg-danger-500",
@@ -132,11 +132,11 @@ function StatChip({
   value: string | number;
 }) {
   return (
-    <div className="rounded-xl bg-forest-50 px-3 py-2">
+    <div className="rounded-radius-xl bg-ink-50 px-space-3 py-space-2">
       <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-ink-400">
         {label}
       </p>
-      <p className="mt-0.5 text-base font-bold text-forest-800">{value}</p>
+      <p className="mt-0.5 text-ui-base font-bold text-forest-800">{value}</p>
     </div>
   );
 }
@@ -161,21 +161,21 @@ export function ParentMonthCalendar({
   const todayKey = new Date().toISOString().slice(0, 10);
 
   return (
-    <section className="space-y-4 rounded-2xl border border-ink-200 bg-white p-4 shadow-elevation-raised">
+    <section className="space-y-4 rounded-radius-2xl border border-ink-200 bg-white p-space-4 shadow-elevation-raised">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary/80">
+          <p className="text-ui-xs font-semibold uppercase tracking-[0.16em] text-forest-600/80">
             {t('parent.monthCalendar.sectionLabel')}
           </p>
-          <h2 className="mt-1 text-lg font-bold text-forest-800">{t('parent.monthCalendar.title')}</h2>
+          <h2 className="mt-1 text-ui-lg font-bold text-forest-800">{t('parent.monthCalendar.title')}</h2>
         </div>
 
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="sm" onClick={onPreviousMonth}>
             {t('parent.monthCalendar.previousMonth')}
           </Button>
-          <div className="rounded-lg bg-forest-50 px-3 py-1.5 text-xs font-semibold text-forest-700">
+          <div className="rounded-radius-lg bg-ink-50 px-space-3 py-space-1.5 text-ui-xs font-semibold text-forest-700">
             {formatMonthLabel(selectedMonth)}
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={onNextMonth}>
@@ -185,7 +185,7 @@ export function ParentMonthCalendar({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-space-2 sm:grid-cols-4">
         <StatChip label="完成率" value={formatPercent(safeStats.completionRate)} />
         <StatChip label="准时率" value={formatPercent(safeStats.onTimeRate)} />
         <StatChip label="累计积分" value={safeStats.totalPoints} />
@@ -194,7 +194,7 @@ export function ParentMonthCalendar({
 
       {/* Calendar Grid */}
       <div>
-        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-medium text-ink-400">
+        <div className="grid grid-cols-7 gap-1 text-center text-ui-xs font-medium text-ink-400">
           {WEEKDAY_LABELS.map((label) => (
             <div key={label} className="py-1">
               周{label}
@@ -206,7 +206,7 @@ export function ParentMonthCalendar({
           {Array.from({ length: leadingEmptySlots }).map((_, index) => (
             <div
               key={`empty-${index}`}
-              className="h-11 min-w-[44px] rounded-lg"
+              className="h-11 min-w-[44px] rounded-radius-lg"
             />
           ))}
 
@@ -222,9 +222,9 @@ export function ParentMonthCalendar({
                 onClick={() => onSelectDate(day.date)}
                 aria-pressed={isSelected}
                 aria-label={getDayAriaLabel(day)}
-                className={`relative flex h-11 min-w-[44px] flex-col items-center justify-center rounded-lg transition-all ${tone.bgClass} ${
+                className={`relative flex h-11 min-w-[44px] flex-col items-center justify-center rounded-radius-lg transition-all ${tone.bgClass} ${
                   isSelected
-                    ? "ring-2 ring-primary ring-offset-1"
+                    ? "ring-2 ring-forest-500 ring-offset-1"
                     : "hover:ring-1 hover:ring-ink-200"
                 }`}
                 title={
@@ -239,7 +239,7 @@ export function ParentMonthCalendar({
                     {day.date.slice(-2)}
                   </span>
                   {isToday && (
-                    <span className="rounded bg-primary/20 px-1 py-0.5 text-[8px] font-medium text-primary">
+                    <span className="rounded bg-ink-200/60 px-1 py-0.5 text-ui-xs font-medium text-forest-600">
                       今
                     </span>
                   )}
@@ -261,7 +261,7 @@ export function ParentMonthCalendar({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-ink-100 pt-2 text-[10px] text-ink-400">
+      <div className="flex flex-wrap items-center justify-center gap-3 border-t border-ink-100 pt-2 text-ui-xs text-ink-400">
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-success-500" /> 已完成
         </span>
