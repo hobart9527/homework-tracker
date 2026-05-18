@@ -33,6 +33,8 @@ interface ArticleReaderProps {
   article: ArticleReaderArticle;
   onStartQuiz: () => void;
   assignmentId?: string | null;
+  pinyinEnabled?: boolean;
+  onTogglePinyin?: () => void;
 }
 
 export interface ArticleReaderRef {
@@ -43,7 +45,7 @@ export interface ArticleReaderRef {
 }
 
 export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(function ArticleReader(
-  { article, onStartQuiz, assignmentId },
+  { article, onStartQuiz, assignmentId, pinyinEnabled, onTogglePinyin },
   ref
 ) {
   const router = useRouter();
@@ -351,7 +353,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
   // Split content into paragraphs
   const displayContent =
-    article.language === "zh" && article.pinyinContent
+    article.language === "zh" && article.pinyinContent && pinyinEnabled
       ? article.pinyinContent
       : article.content;
 
@@ -622,7 +624,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
     // Build clean text (no pinyin markers) for each paragraph
     const cleanParagraphs: string[] = [];
-    if (article.language === "zh" && article.pinyinContent) {
+    if (article.language === "zh" && article.pinyinContent && pinyinEnabled) {
       for (const p of paragraphs) {
         cleanParagraphs.push(p.replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, ''));
       }
@@ -809,7 +811,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
   // Parse ruby-format pinyin into React elements with character highlighting
   const renderParagraph = (text: string, paragraphIndex: number) => {
     // For Chinese with pinyin, use existing ruby rendering
-    if (article.language === "zh" && article.pinyinContent) {
+    if (article.language === "zh" && article.pinyinContent && pinyinEnabled) {
       const parts: React.ReactNode[] = [];
       // Match one or more Chinese characters followed by pinyin in parentheses
       const regex = /([一-鿿]+)\(([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+)\)/g;
@@ -1029,7 +1031,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           <div className="text-3xl font-bold mb-1" style={{ color: "var(--reader-text)" }}>
             {dictLookup.word}
           </div>
-          {article.language === "zh" && article.pinyinContent && (
+          {article.language === "zh" && article.pinyinContent && pinyinEnabled && (
             <div className="text-sm font-medium mb-2" style={{ color: "var(--reader-accent)" }}>
               {getPinyinForChar(dictLookup.word)}
             </div>
@@ -1396,6 +1398,25 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 <span>快</span>
               </div>
             </div>
+
+            {/* Pinyin Toggle - only for Chinese articles */}
+            {article.language === "zh" && article.pinyinContent && (
+              <div>
+                <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>
+                  拼音注音
+                </label>
+                <button
+                  onClick={() => onTogglePinyin?.()}
+                  className={`w-full py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+                    pinyinEnabled
+                      ? 'bg-forest-500 text-white'
+                      : 'bg-gray-200 text-gray-600'
+                  }`}
+                >
+                  {pinyinEnabled ? '已开启' : '已关闭'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

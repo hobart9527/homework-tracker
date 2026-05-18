@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateArticleContent } from "@/lib/reading";
+import { generateArticleContent, convertToRubyPinyin } from "@/lib/reading";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -23,6 +23,10 @@ export async function POST(request: Request) {
       topicKey,
     });
 
+    // Detect Chinese content and compute pinyin
+    const isChinese = /[一-鿿]/.test(generated.content);
+    const pinyin_content = isChinese ? convertToRubyPinyin(generated.content) : null;
+
     // Insert article
     const { data: articleData, error: articleError } = await supabase
       .from("reading_articles")
@@ -38,6 +42,7 @@ export async function POST(request: Request) {
         estimated_minutes: generated.estimated_minutes,
         difficulty: generated.difficulty,
         status: "published",
+        pinyin_content,
       }, { onConflict: "topic_key,grade_level" })
       .select()
       .single();

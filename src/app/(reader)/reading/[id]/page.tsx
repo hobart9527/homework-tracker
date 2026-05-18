@@ -73,6 +73,7 @@ export default function ReadingArticlePage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"reading" | "quiz">("reading");
+  const [pinyinEnabled, setPinyinEnabled] = useState(false);
 
   const articleReaderRef = useRef<ArticleReaderRef>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
@@ -102,6 +103,14 @@ export default function ReadingArticlePage({
       }
 
       setChildId(session.user.id);
+
+      // Fetch child's pinyin preference
+      const { data: childProfile } = await supabase
+        .from("children")
+        .select("pinyin_enabled")
+        .eq("id", session.user.id)
+        .single();
+      setPinyinEnabled(childProfile?.pinyin_enabled ?? false);
 
       const response = await fetch(`/api/reading/articles/${params.id}`);
 
@@ -337,6 +346,15 @@ export default function ReadingArticlePage({
           <ArticleReader
             ref={articleReaderRef}
             article={article}
+            pinyinEnabled={pinyinEnabled}
+            onTogglePinyin={async () => {
+              const newVal = !pinyinEnabled;
+              await supabase
+                .from("children")
+                .update({ pinyin_enabled: newVal })
+                .eq("id", childId!);
+              setPinyinEnabled(newVal);
+            }}
             onStartQuiz={() => {
               setPhase("quiz");
             }}

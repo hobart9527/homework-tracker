@@ -7,6 +7,7 @@ import {
   validateContent,
   validateIBCriteria,
   validateFactualAccuracy,
+  convertToRubyPinyin,
 } from "@/lib/reading";
 import { decideRoute } from "@/lib/reading/route-analyzer";
 
@@ -216,6 +217,9 @@ async function runPipeline(
   const articleStatus = gate.pass && ibCriteria.pass && effectiveFactualPass ? "published" : "draft";
 
   // 3. Upsert article
+  const isChinese = /[一-鿿]/.test(article.content);
+  const pinyin_content = isChinese ? convertToRubyPinyin(article.content) : null;
+
   const { data: articleData, error: articleError } = await supabase
     .from("reading_articles")
     .upsert(
@@ -236,6 +240,7 @@ async function runPipeline(
         quality_issues: [...gate.issues, ...ibCriteria.issues, ...factualCriteria.issues].length > 0
           ? [...gate.issues, ...ibCriteria.issues, ...factualCriteria.issues]
           : null,
+        pinyin_content,
       },
       { onConflict: "topic_key,grade_level" }
     )

@@ -188,17 +188,17 @@ In addition, provide:
 
 4. FIGURATIVE LANGUAGE: For Grade 4+, include at least one of: metaphor, simile, personification, or idiom in the article content.
 
-自检清单完成后才能输出 JSON（GENERATION CHECKLIST）：
-□ 文体自检：本文内容结构与声明的 genre "${options.category}" 一致
-  - narrative：时间/地点/人物/事件/意义五要素全部存在
-  - informative：定义段落 + 特征/例子段落全部存在
-□ 批判思维：inference 类问题数量 ≥ 总题数 × 30%（例：8题中≥3题 inference）
-□ 修辞手法（G4+）：内容中包含至少一种修辞手法（metaphor/simile/personification/idiom）
-□ classical_quote：原文在 content 中逐字出现（非意译替代）
-□ 改编忠实度（Tier 1/2：当提供了 Original passage 时）：
-  请在 "factual_accuracy" 字段中声明 source_text 中的哪些关键事实在改编版中保留，
-  格式：{ "source_facts_declared": ["事实1", "事实2", ...], "facts_preserved_count": N }
-□ 如有任何一项不满足，请先修改内容，再填写 JSON 字段。
+GENERATION CHECKLIST (complete before outputting JSON):
+□ Genre check: content structure matches declared genre "${options.category}"
+  - narrative: all five elements present (time, place, characters, events, significance)
+  - informative: definition paragraph + feature/example paragraphs present
+□ Critical thinking: inference-type questions ≥ 30% of total (e.g., for 8 questions, ≥3 must be inference)
+□ Literary device (G4+): at least one metaphor, simile, personification, or idiom in content
+□ classical_quote: original text appears verbatim in content (not paraphrased)
+□ Adaptation fidelity (Tier 1/2: when Original passage provided):
+  Declare which key facts from source_text are preserved in "factual_accuracy" field,
+  format: { "source_facts_declared": ["fact 1", "fact 2", ...], "facts_preserved_count": N }
+□ If any item fails, revise content BEFORE filling in JSON fields.
 
 ${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}
 

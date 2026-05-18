@@ -24,7 +24,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { generateReadingContent, validateContent } from "@/lib/reading";
+import { generateReadingContent, validateContent, convertToRubyPinyin } from "@/lib/reading";
 import {
   fetchAndExtract,
   NewsFetchError,
@@ -317,6 +317,9 @@ export async function POST(request: Request) {
 
         const articleStatus = gate.pass ? "published" : "draft";
 
+        const isChinese = /[一-鿿]/.test(article.content);
+        const pinyin_content = isChinese ? convertToRubyPinyin(article.content) : null;
+
         const articleRow = {
           topic_key: topicKey,
           title: article.title,
@@ -333,6 +336,7 @@ export async function POST(request: Request) {
           status: articleStatus,
           scene_description: article.scene_description || null,
           quality_issues: gate.issues.length > 0 ? gate.issues : null,
+          pinyin_content,
         };
 
         const { data: articleData, error: articleErr } = await service
