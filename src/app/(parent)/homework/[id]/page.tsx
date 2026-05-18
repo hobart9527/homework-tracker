@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import PageShell from "@/components/ui/PageShell";
 import { HomeworkForm } from "@/components/parent/HomeworkForm";
 import type { Database } from "@/lib/supabase/types";
 
@@ -35,36 +34,19 @@ export default function EditHomeworkPage({ params }: { params: { id: string } })
     router.push("/homework");
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">加载中...</div>;
+  if (loading) return <div className="py-12 text-center text-ui-lg">加载中...</div>;
   if (!homework) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <h1 className="text-2xl font-bold text-forest-700">找不到该作业</h1>
-        <Link href="/homework" className="mt-4 text-forest-600 underline">返回作业列表</Link>
+      <div className="text-center py-12">
+        <h1 className="text-ui-lg font-bold text-forest-700">找不到该作业</h1>
+        <Link href="/homework" className="mt-4 block text-forest-600 underline">返回作业列表</Link>
       </div>
     );
   }
 
   return (
-    <PageShell skin="parent">
-      <header className="bg-forest-500 text-white p-4 lg:pt-6">
-        <div className="max-w-6xl mx-auto flex items-start justify-between gap-4">
-          <Link href="/homework"><span className="text-xl">←</span></Link>
-          <div className="flex-1">
-            <h1 className="text-ui-xl font-ui-display font-bold">编辑作业</h1>
-            <p className="mt-1 text-ui-sm text-white/80">
-              这里只会更新当前孩子的这份作业，不会影响其他孩子。
-            </p>
-          </div>
-          <button onClick={handleDelete} className="text-ui-sm text-coral-600 hover:text-coral-500">
-            删除
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-space-4">
-        <HomeworkForm homework={homework} onSuccess={() => router.push("/homework")} />
-      </main>
-    </PageShell>
+    <div className="space-y-space-6">
+      <HomeworkForm homework={homework} onSuccess={() => router.push("/homework")} />
+    </div>
   );
 }

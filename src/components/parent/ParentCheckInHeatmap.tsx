@@ -50,18 +50,18 @@ export function ParentCheckInHeatmap({
     <section className="space-y-3">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-forest-800">{title}</h3>
+          <h3 className="text-ui-lg font-ui-display font-semibold text-forest-800">{title}</h3>
           <p className="text-sm text-ink-500">{description}</p>
         </div>
         {peakBucket && peakBucket.count > 0 ? (
-          <span className="rounded-full bg-forest-50 px-3 py-1 text-xs font-medium text-ink-600">
+          <span className="rounded-full bg-ink-50 px-space-3 py-space-1 text-ui-xs font-medium text-ink-600">
             峰值 {peakBucket.hour.toString().padStart(2, "0")}:00
           </span>
         ) : null}
       </div>
 
       {populatedBuckets.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-ink-200 bg-forest-50 px-4 py-5 text-center text-sm text-ink-400">
+        <div className="rounded-radius-xl border border-dashed border-ink-200 bg-ink-50 px-space-4 py-space-5 text-center text-ui-sm text-ink-400">
           本月还没有打卡记录，热力图会在第一次完成作业后出现
         </div>
       ) : (
@@ -73,21 +73,21 @@ export function ParentCheckInHeatmap({
                 return (
                   <div key={bucket.hour} className="space-y-1 text-center">
                     <div
-                      className={`mx-auto aspect-square w-full min-w-[36px] max-w-[52px] rounded-xl shadow-elevation-raised ${getBucketClasses(intensity)}`}
+                      className={`mx-auto aspect-square w-full min-w-[36px] max-w-[52px] rounded-radius-xl shadow-elevation-raised ${getBucketClasses(intensity)}`}
                       aria-label={`${formatHour(bucket.hour)} ${bucket.count} 次`}
                       title={`${formatHour(bucket.hour)} · ${bucket.count} 次`}
                     />
-                    <p className="text-[11px] font-medium leading-4 text-ink-500">
+                    <p className="text-ui-xs font-medium leading-4 text-ink-500">
                       {formatHour(bucket.hour)}
                     </p>
-                    <p className="text-xs text-ink-400">{bucket.count} 次</p>
+                    <p className="text-ui-xs text-ink-400">{bucket.count} 次</p>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-ink-500">
+          <div className="flex flex-wrap items-center gap-2 text-ui-xs text-ink-500">
             <span className="rounded-full bg-ink-100 px-2.5 py-1 text-ink-500">
               较少
             </span>

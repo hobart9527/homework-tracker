@@ -1,3 +1,6 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import ParentShell from "@/components/ui/ParentShell";
 import {
   IconList,
@@ -14,5 +17,10 @@ const sidebarItems = [
 ];
 
 export default function ParentLayout({ children }: { children: React.ReactNode }) {
-  return <ParentShell sidebarItems={sidebarItems}>{children}</ParentShell>;
+  const pathname = usePathname();
+  return (
+    <ParentShell sidebarItems={sidebarItems} activePath={pathname}>
+      {children}
+    </ParentShell>
+  );
 }

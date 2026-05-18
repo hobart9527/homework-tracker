@@ -163,7 +163,7 @@ export default function ReadingStandardsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="bg-background">
         <header className="bg-forest-500 p-space-4 text-white">
           <div className="mx-auto flex max-w-3xl items-center gap-4">
             <Link href="/settings">
@@ -186,7 +186,7 @@ export default function ReadingStandardsPage() {
 
   if (!standards) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="bg-background">
         <header className="bg-forest-500 p-space-4 text-white">
           <div className="mx-auto flex max-w-3xl items-center gap-4">
             <Link href="/settings">
@@ -207,7 +207,7 @@ export default function ReadingStandardsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
       {/* Header */}
       <header className="bg-forest-500 p-space-4 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-4">

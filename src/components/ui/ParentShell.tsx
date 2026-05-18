@@ -70,7 +70,7 @@ export default function ParentShell({
         {/* Nav items */}
         <nav className="flex-1 px-3 py-4 space-y-1">
           {sidebarItems.map((item) => {
-            const isActive = activePath === item.href;
+            const isActive = activePath ? (activePath === item.href || activePath.startsWith(item.href + "/")) : false;
             return (
               <Link
                 key={item.href}
@@ -106,7 +106,7 @@ export default function ParentShell({
         {/* Horizontal nav items */}
         <div className="flex items-center justify-around px-2 pb-2">
           {sidebarItems.map((item) => {
-            const isActive = activePath === item.href;
+            const isActive = activePath ? (activePath === item.href || activePath.startsWith(item.href + "/")) : false;
             return (
               <Link
                 key={item.href}
@@ -127,7 +127,7 @@ export default function ParentShell({
       <main className="flex-1 lg:ml-60">
         {/* Mobile: offset for top nav */}
         <div className="lg:hidden h-[108px]" />
-        <div className="p-4 lg:p-6">{children}</div>
+        <div className="p-space-4 lg:p-space-6">{children}</div>
       </main>
     </div>
   );

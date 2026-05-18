@@ -456,8 +456,8 @@ export function HomeworkForm({
       </div>
 
       {/* Section 1: 基本信息 (always expanded) */}
-      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
-        <h2 className="text-lg font-semibold text-forest-700">基本信息</h2>
+      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">基本信息</h2>
 
         <HomeworkAssignmentPanel
           children={children}
@@ -470,24 +470,24 @@ export function HomeworkForm({
 
         {/* Type chip grid selector */}
         <div>
-          <label className="block text-sm font-medium text-forest-700 mb-1">
+          <label className="block text-ui-sm font-medium text-forest-700 mb-space-1">
             作业类型
           </label>
-          <p className="text-sm text-forest-500 mb-3">
+          <p className="text-ui-sm text-ink-500 mb-space-3">
             选择一个类型自动带入标题建议、图标和默认积分。
           </p>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
             <button
               type="button"
               onClick={handleClearType}
-              className={`rounded-xl border-2 px-2 py-2 text-center text-sm transition-all ${
+              className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
                 !formData.type_name
-                  ? "border-primary bg-primary/10 text-primary font-medium"
-                  : "border-forest-200 text-forest-600 hover:border-forest-300"
+                  ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
+                  : "border-ink-200 text-ink-600 hover:border-ink-300"
               }`}
             >
-              <div className="text-lg">📝</div>
-              <div className="text-xs mt-0.5">自定义</div>
+              <div className="text-ui-lg">📝</div>
+              <div className="text-ui-xs mt-0.5">自定义</div>
             </button>
             {allTypes.map((type) => {
               const isSelected = formData.type_name === type.name;
@@ -496,14 +496,14 @@ export function HomeworkForm({
                   key={type.id}
                   type="button"
                   onClick={() => handleTypeSelect(type)}
-                  className={`rounded-xl border-2 px-2 py-2 text-center text-sm transition-all ${
+                  className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
                     isSelected
-                      ? "border-primary bg-primary/10 text-primary font-medium"
-                      : "border-forest-200 text-forest-600 hover:border-forest-300"
+                      ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
+                      : "border-ink-200 text-ink-600 hover:border-ink-300"
                   }`}
                 >
-                  <div className="text-lg">{type.icon}</div>
-                  <div className="text-xs mt-0.5">{type.name}</div>
+                  <div className="text-ui-lg">{type.icon}</div>
+                  <div className="text-ui-xs mt-0.5">{type.name}</div>
                 </button>
               );
             })}
@@ -512,8 +512,8 @@ export function HomeworkForm({
       </section>
 
       {/* Section 2: 作业标题 (always visible) */}
-      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
-        <h2 className="text-lg font-semibold text-forest-700">作业标题</h2>
+      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">作业标题</h2>
 
         <Input
           label="标题"
@@ -529,7 +529,7 @@ export function HomeworkForm({
         />
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-forest-700">
+          <label className="mb-space-1 block text-ui-sm font-medium text-forest-700">
             描述（可选）
           </label>
           <textarea
@@ -539,18 +539,18 @@ export function HomeworkForm({
               setFormData((prev) => ({ ...prev, description: e.target.value }))
             }
             placeholder="详细说明..."
-            className="w-full rounded-xl border-2 border-forest-200 px-4 py-2 focus:border-primary focus:outline-none"
+            className="w-full rounded-radius-xl border-2 border-ink-200 px-space-4 py-space-2 focus:border-forest-500 focus:outline-none"
             rows={3}
           />
         </div>
       </section>
 
       {/* Section 3: 作业规则 (always expanded) */}
-      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
-        <h2 className="text-lg font-semibold text-forest-700">作业规则</h2>
+      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">作业规则</h2>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-forest-700">
+          <label className="mb-space-2 block text-ui-sm font-medium text-forest-700">
             重复规则
           </label>
           <div className="flex gap-2 flex-wrap">
@@ -561,10 +561,10 @@ export function HomeworkForm({
                 onClick={() =>
                   setFormData((prev) => ({ ...prev, repeat_type: type }))
                 }
-                className={`px-4 py-2 rounded-xl border-2 transition-all ${
+                className={`px-space-4 py-space-2 rounded-radius-xl border-2 transition-all ${
                   formData.repeat_type === type
-                    ? "border-primary bg-primary/10"
-                    : "border-forest-200"
+                    ? "border-forest-500 bg-forest-500/10"
+                    : "border-ink-200"
                 }`}
               >
                 {{
@@ -580,7 +580,7 @@ export function HomeworkForm({
 
         {formData.repeat_type === "weekly" && (
           <div>
-            <label className="mb-2 block text-sm font-medium text-forest-700">
+            <label className="mb-space-2 block text-ui-sm font-medium text-forest-700">
               选择星期
             </label>
             <div className="flex gap-2">
@@ -596,8 +596,8 @@ export function HomeworkForm({
                   }}
                   className={`w-10 h-10 rounded-full border-2 transition-all ${
                     formData.repeat_days.includes(index)
-                      ? "border-primary bg-primary text-white"
-                      : "border-forest-200"
+                      ? "border-forest-500 bg-forest-500 text-white"
+                      : "border-ink-200"
                   }`}
                 >
                   {day}
@@ -681,16 +681,16 @@ export function HomeworkForm({
       </section>
 
       {/* Section 4: 证明要求 (always expanded, simplified) */}
-      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5 space-y-4">
-        <h2 className="text-lg font-semibold text-forest-700">证明要求</h2>
+      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">证明要求</h2>
 
         {/* Photo toggle */}
         <div className="flex items-center justify-between py-2">
           <div>
-            <span className="text-sm font-medium text-forest-700">
+            <span className="text-ui-sm font-medium text-forest-700">
               需要拍照证明
             </span>
-            <p className="text-xs text-forest-500 mt-0.5">
+            <p className="text-ui-xs text-ink-500 mt-0.5">
               开启后孩子完成时需要提交照片
             </p>
           </div>
@@ -724,12 +724,12 @@ export function HomeworkForm({
         </div>
 
         {/* Recording toggle */}
-        <div className="flex items-center justify-between py-2 border-t border-forest-100">
+        <div className="flex items-center justify-between py-2 border-t border-ink-200">
           <div>
-            <span className="text-sm font-medium text-forest-700">
+            <span className="text-ui-sm font-medium text-forest-700">
               开启录音打卡
             </span>
-            <p className="text-xs text-forest-500 mt-0.5">
+            <p className="text-ui-xs text-ink-500 mt-0.5">
               开启后孩子完成作业时需要录音打卡
             </p>
           </div>
@@ -759,10 +759,10 @@ export function HomeworkForm({
 
         {/* WeChat push — inline, only when recording is ON */}
         {formData.enable_recording && (
-          <div className="border-t border-forest-100 pt-4 space-y-3">
+          <div className="border-t border-ink-200 pt-space-4 space-y-space-3">
             {canConfigurePlatformBinding ? (
               <>
-                <label className="flex items-center gap-3 text-sm text-forest-700">
+                <label className="flex items-center gap-3 text-ui-sm text-forest-700">
                   <input
                     type="checkbox"
                     checked={formData.send_to_wechat}
@@ -797,7 +797,7 @@ export function HomeworkForm({
                           wechat_group_id: e.target.value,
                         }))
                       }
-                      className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary"
+                      className="w-full rounded-xl border-2 border-ink-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-forest-500"
                     >
                       <option value="">继承孩子默认群</option>
                       {wechatGroups.map((group) => (
@@ -837,7 +837,7 @@ export function HomeworkForm({
                 )}
               </>
             ) : (
-              <p className="text-sm text-forest-500">
+              <p className="text-ui-sm text-ink-500">
                 当前是多人批量创建。作业级提交群只在单个孩子的作业上配置，避免把同一目标误绑给多个孩子。
               </p>
             )}
@@ -846,27 +846,27 @@ export function HomeworkForm({
       </section>
 
       {/* Section 5: 高级设置 (collapsible, collapsed by default) */}
-      <section className="rounded-3xl border border-forest-200 bg-white/90 p-5">
+      <section className="rounded-3xl border border-ink-200 bg-white/90 p-5">
         <button
           type="button"
           onClick={() => setShowAdvancedSettings((prev) => !prev)}
           className="flex w-full items-center justify-between text-left"
         >
-          <h2 className="text-lg font-semibold text-forest-700">高级设置</h2>
-          <span className="text-forest-500 text-sm transition-transform">
+          <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">高级设置</h2>
+          <span className="text-ink-500 text-ui-sm transition-transform">
             {showAdvancedSettings ? "收起 ▲" : "展开 ▼"}
           </span>
         </button>
 
         {showAdvancedSettings && (
-          <div className="mt-4 space-y-4 border-t border-forest-100 pt-4">
+          <div className="mt-space-4 space-y-space-4 border-t border-ink-200 pt-space-4">
             {/* Reading article binding — only for 阅读 or 英文阅读 */}
             {isReadingType && (
-              <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
-                <label className="block text-sm font-medium text-forest-700 mb-2">
+              <div className="rounded-radius-2xl border border-ink-200 bg-ink-50 p-space-4">
+                <label className="block text-ui-sm font-medium text-forest-700 mb-space-2">
                   绑定阅读文章（可选）
                 </label>
-                <p className="text-sm text-forest-500 mb-3">
+                <p className="text-ui-sm text-ink-500 mb-space-3">
                   留空则孩子可以从阅读库中自由选择
                 </p>
                 <select
@@ -877,7 +877,7 @@ export function HomeworkForm({
                       reading_article_id: e.target.value,
                     }))
                   }
-                  className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-3 text-sm"
+                  className="w-full rounded-radius-xl border-2 border-ink-200 bg-white px-space-4 py-space-3 text-ui-sm"
                 >
                   <option value="">不绑定，自由选择</option>
                   {readingArticles.map((a) => (
@@ -890,17 +890,17 @@ export function HomeworkForm({
             )}
 
             {/* Platform binding */}
-            <div className="rounded-2xl border border-forest-200 bg-forest-50/70 p-4">
+            <div className="rounded-radius-2xl border border-ink-200 bg-ink-50 p-space-4">
               <div>
                 <label className="block text-sm font-medium text-forest-700">
                   平台任务绑定
                 </label>
-                <p className="mt-1 text-sm text-forest-500">
+                <p className="mt-space-1 text-ui-sm text-ink-500">
                   绑定后，平台同步会优先把学习事件匹配到这条作业。适合单个孩子的精确任务；多人批量创建时先保持为空更稳妥。
                 </p>
               </div>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="mt-space-4 grid gap-4 sm:grid-cols-2">
                 <div>
                   <label
                     htmlFor="platform-binding-platform"
@@ -919,7 +919,7 @@ export function HomeworkForm({
                         platform_binding_platform: e.target.value,
                       }))
                     }
-                    className="w-full rounded-xl border-2 border-forest-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-primary disabled:cursor-not-allowed disabled:bg-forest-100"
+                    className="w-full rounded-radius-xl border-2 border-ink-200 bg-white px-space-4 py-space-2 text-ui-sm text-forest-700 outline-none transition-all focus:border-forest-500 disabled:cursor-not-allowed disabled:bg-ink-100"
                   >
                     <option value="">不绑定具体平台任务</option>
                     <option value="ixl">IXL</option>
@@ -943,19 +943,19 @@ export function HomeworkForm({
                 />
               </div>
 
-              <p className="mt-3 text-xs text-forest-500">
+              <p className="mt-space-3 text-ui-xs text-ink-500">
                 {canConfigurePlatformBinding
                   ? "如果平台端有明确的任务编号或课程编号，建议在这里填入，能明显减少误匹配。"
                   : "当前选择了多个孩子，已暂时禁用精确平台绑定，避免不同孩子共享同一个外部任务编号。"}
               </p>
 
               {canConfigurePlatformBinding && (
-                <div className="mt-3 rounded-xl border border-forest-100 bg-white px-3 py-3 text-sm text-forest-600">
+                <div className="mt-3 rounded-radius-xl border border-ink-200 bg-white px-space-3 py-space-3 text-ui-sm text-ink-600">
                   <p className="font-medium text-forest-700">
                     孩子平台账号自动匹配
                   </p>
                   {matchedPlatformAccount ? (
-                    <p className="mt-1">
+                    <p className="mt-space-1">
                       已匹配 {matchedPlatformAccount.platform} 账号：
                       {matchedPlatformAccount.external_account_ref}
                     </p>
@@ -965,7 +965,7 @@ export function HomeworkForm({
                       ，但这个孩子还没有绑定对应的平台账号。
                     </p>
                   ) : (
-                    <p className="mt-1">
+                    <p className="mt-space-1">
                       当作业类型是 IXL 或 Khan Academy
                       时，这里会自动带出对应平台，作业级只需要再补精确的 task source ref。
                     </p>

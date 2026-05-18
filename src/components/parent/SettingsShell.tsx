@@ -16,8 +16,8 @@ export function SettingsShell({
   children,
 }: SettingsShellProps) {
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-forest-500 p-space-4 text-white">
+    <div className="space-y-space-6">
+      <header className="rounded-radius-xl bg-forest-500 p-space-4 text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-4">
           <Link href={backHref}>
             <span className="text-xl">←</span>
@@ -31,7 +31,7 @@ export function SettingsShell({
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 p-space-4">{children}</main>
+      <main className="mx-auto max-w-3xl space-y-space-4">{children}</main>
     </div>
   );
 }

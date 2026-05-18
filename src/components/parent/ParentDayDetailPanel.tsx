@@ -35,7 +35,7 @@ function MetricCard({
       <p className="text-ui-xs font-medium uppercase tracking-[0.2em] text-ink-400">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-bold text-forest-800">{value}</p>
+      <p className="mt-2 text-ui-2xl font-bold text-forest-800">{value}</p>
     </div>
   );
 }
@@ -51,16 +51,16 @@ export function ParentDayDetailPanel({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div>
-            <p className="text-ui-sm font-semibold uppercase tracking-[0.18em] text-primary/80">
+            <p className="text-ui-sm font-semibold uppercase tracking-[0.18em] text-forest-600/80">
               当天任务
             </p>
-            <h2 className="mt-2 text-3xl font-bold text-forest-800">
+            <h2 className="mt-2 text-ui-3xl font-bold text-forest-800">
               {detail.summary.childName} 在这一天的安排
             </h2>
           </div>
 
           <div className="flex items-start gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-radius-xl bg-primary/10 text-3xl">
+            <div className="flex h-16 w-16 items-center justify-center rounded-radius-xl bg-forest-500/10 text-ui-3xl">
               {detail.summary.avatar || "🦊"}
             </div>
             <div>
@@ -76,7 +76,7 @@ export function ParentDayDetailPanel({
           <p className="text-ui-xs font-medium uppercase tracking-[0.18em] text-ink-400">
             今日完成率
           </p>
-          <p className="mt-2 text-4xl font-bold text-forest-800">
+          <p className="mt-2 text-ui-4xl font-bold text-forest-800">
             {formatPercent(detail.summary.completedCount, detail.summary.totalCount)}
           </p>
           <p className="mt-1 text-ui-sm text-ink-500">
