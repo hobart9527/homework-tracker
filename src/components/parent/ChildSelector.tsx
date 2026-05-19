@@ -52,7 +52,7 @@ export function ChildSelector({
   const allCards = [allSummary, ...cards];
 
   return (
-    <nav role="tablist" aria-label="选择孩子" className="flex gap-1 overflow-x-auto pb-1 border-b-2 border-ink-200">
+    <nav role="tablist" aria-label="选择孩子" className="flex gap-1 overflow-x-auto pb-1 border-b-2 border-ink-300">
       {allCards.map((summary) => {
         const isActive = summary.childId === selectedId;
         const hasProgress = summary.totalCount > 0;

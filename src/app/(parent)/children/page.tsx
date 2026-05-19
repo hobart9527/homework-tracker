@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -12,6 +12,7 @@ type Child = Database["public"]["Tables"]["children"]["Row"];
 
 export default function ChildrenListPage() {
   const { t } = useTranslation();
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,7 @@ export default function ChildrenListPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-space-6">
-        <Card className="mb-4 border border-ink-200 bg-ink-50">
+        <Card className="mb-space-4 border border-ink-300 bg-ink-50">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-bold text-forest-700">孩子相关集成</h2>
@@ -62,9 +63,7 @@ export default function ChildrenListPage() {
                 这里管理孩子自己的学习平台账号和默认消息目标。家庭级的通知通道配置仍然统一放在设置页。
               </p>
             </div>
-            <Link href="/settings">
-              <Button size="sm">前往家庭设置</Button>
-            </Link>
+            <Button size="sm" onClick={() => router.push("/settings")}>前往家庭设置</Button>
           </div>
         </Card>
 
@@ -92,20 +91,28 @@ export default function ChildrenListPage() {
                       ⭐ {child.points} 积分 • 🔥 {child.streak_days} 天连续
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Link
-                        href={`/settings/integrations?childId=${child.id}#platform-binding`}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          router.push(
+                            `/settings/integrations?childId=${child.id}#platform-binding`,
+                          )
+                        }
                       >
-                        <Button size="sm" variant="secondary">
-                          学习平台账号
-                        </Button>
-                      </Link>
-                      <Link
-                        href={`/settings/integrations?childId=${child.id}#message-routing`}
+                        学习平台账号
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          router.push(
+                            `/settings/integrations?childId=${child.id}#message-routing`,
+                          )
+                        }
                       >
-                        <Button size="sm" variant="ghost">
-                          默认消息路由
-                        </Button>
-                      </Link>
+                        默认消息路由
+                      </Button>
                     </div>
                   </div>
                   <div className="flex gap-2">

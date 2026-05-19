@@ -88,7 +88,7 @@ export default function ChildShell({
 
       {/* ── Bottom Fixed Nav Bar ───────────────────────────────────── */}
       {showNav && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-ink-200 z-50 safe-area-pb">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-ink-300 z-50 safe-area-pb">
           <div className="h-16 flex items-center justify-around max-w-5xl mx-auto px-4">
             {DEFAULT_TABS.map(({ href, label, icon }) => {
               const isActive =

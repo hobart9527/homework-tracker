@@ -13,8 +13,8 @@ interface SectionCardProps {
  * bg + ring + shadow + radius + padding combo for a given skin+level.
  *
  * Surface map (design-system.md §3):
- *   parent raised:   white, ring-ink-200,   shadow-none,              radius-md
- *   parent elevated: white, ring-ink-200,   shadow-elevation-floating, radius-lg
+ *   parent raised:   white, ring-ink-300,   shadow-none,              radius-md
+ *   parent elevated: white, ring-ink-300,   shadow-elevation-floating, radius-lg
  *   child raised:    white, ring-cream-200/40, shadow-none,              radius-lg
  *   child elevated:  white, ring-cream-200/60, shadow-elevation-floating, radius-xl
  *   child hero:      gradient cream-100→coral-50, shadow-elevation-floating, radius-2xl
@@ -42,11 +42,11 @@ export default function SectionCard({
   > = {
     parent: {
       raised:
-        "bg-white ring-1 ring-ink-200 shadow-none rounded-radius-md",
+        "bg-white ring-1 ring-ink-300 shadow-none rounded-radius-md",
       elevated:
-        "bg-white ring-1 ring-ink-200 shadow-elevation-floating rounded-radius-lg",
+        "bg-white ring-1 ring-ink-300 shadow-elevation-floating rounded-radius-lg",
       hero:
-        "bg-white ring-1 ring-ink-200 shadow-elevation-floating rounded-radius-xl",
+        "bg-white ring-1 ring-ink-300 shadow-elevation-floating rounded-radius-xl",
     },
     child: {
       raised:

@@ -47,7 +47,7 @@ export default function MetricBlock({
   if (skin === "parent") {
     return (
       <div
-        className={`inline-flex items-center gap-3 px-4 py-3 bg-white ring-1 ring-ink-200 rounded-radius-md ${className}`.trim()}
+        className={`inline-flex items-center gap-3 px-4 py-3 bg-white ring-1 ring-ink-300 rounded-radius-md ${className}`.trim()}
       >
         <div className="flex-1 min-w-0">
           <span className="block text-xs font-medium text-ink-500 tracking-wide uppercase">

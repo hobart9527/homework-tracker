@@ -55,7 +55,6 @@ interface FailedGrade {
 
 const CATEGORY = "current";
 const CATEGORY_V2 = "时事";
-const LANGUAGE = "en" as const;
 const SOURCE = "parent_news";
 const SOURCE_TEXT_MAX = 6000;
 const DEFAULT_FRESHNESS_DAYS = 30;
@@ -260,12 +259,16 @@ export async function POST(request: Request) {
     const recommendedLevels = gradeLevels.map((g) => `L${g}`);
     const freshnessUntil = nowPlusDaysIso(freshnessDays);
 
+    // Infer language from fetched text so Chinese articles are tagged correctly.
+    const isChineseSource = /[一-鿿]/.test(extracted.text);
+    const language = isChineseSource ? "zh" : "en";
+
     // reading_topics has v2 columns (category_v2, freshness_until,
     // recommended_levels) that may not exist in the generated Database
     // types. Cast through `unknown as never` per archive-stale-news pattern.
     const topicRow = {
       topic_key: topicKey,
-      language: LANGUAGE,
+      language,
       category: CATEGORY,
       category_v2: CATEGORY_V2,
       source_text: sourceText,
@@ -299,7 +302,7 @@ export async function POST(request: Request) {
       try {
         const { article, questions } = await generateReadingContent({
           topicKey,
-          language: LANGUAGE,
+          language,
           category: CATEGORY,
           gradeLevel,
           sourceText: extracted.text,
@@ -311,13 +314,14 @@ export async function POST(request: Request) {
         const gate = validateContent({
           article,
           questions,
-          language: LANGUAGE,
+          language,
           gradeLevel,
         });
 
         const articleStatus = gate.pass ? "published" : "draft";
 
         const isChinese = /[一-鿿]/.test(article.content);
+        const articleLanguage = isChinese ? "zh" : "en";
         const pinyin_content = isChinese ? convertToRubyPinyin(article.content) : null;
 
         const articleRow = {
@@ -329,7 +333,7 @@ export async function POST(request: Request) {
           source_url: extracted.url,
           category: CATEGORY,
           grade_level: gradeLevel,
-          language: LANGUAGE,
+          language: articleLanguage,
           word_count: article.word_count,
           estimated_minutes: article.estimated_minutes,
           difficulty: article.difficulty,

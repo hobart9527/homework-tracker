@@ -339,6 +339,13 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     };
   }, [recordingUrl]);
 
+  const isChineseArticle = useMemo(() => {
+    if (article.language === "zh") return true;
+    if (article.language === "en") return false;
+    // Fallback: infer from content
+    return /[一-龥]/.test(article.content);
+  }, [article.language, article.content]);
+
   // Detect current lock state on mount
   useEffect(() => {
     const checkLock = () => {
@@ -353,14 +360,25 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
   // Split content into paragraphs
   const displayContent =
-    article.language === "zh" && article.pinyinContent && pinyinEnabled
+    isChineseArticle && article.pinyinContent && pinyinEnabled
       ? article.pinyinContent
       : article.content;
 
   const paragraphs = useMemo(() => {
     let rawParagraphs: string[] = [];
 
-    if (article.language === "zh") {
+    // When pinyin is enabled, displayContent is ruby-format: 吃(chī)饭(fàn)
+    // Each character is ~5-7 raw chars but renders as 1 visual char-width.
+    // Count effective (visual) characters for chunk sizing, not raw string length.
+    const isRubyFormat = isChineseArticle && article.pinyinContent && pinyinEnabled;
+    const visualChars = (s: string): number => {
+      if (!isRubyFormat) return s.length;
+      return s.replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, '').length;
+    };
+
+    const CHINESE_CHUNK_THRESHOLD = 250; // effective chars, ~3-4 visual lines
+
+    if (isChineseArticle) {
       const lines = displayContent.split(/\n+/).map(p => p.trim()).filter(p => p.length > 0);
       for (const line of lines) {
         // Split by Chinese sentence delimiters only
@@ -368,8 +386,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         let current = '';
         for (const s of sentences) {
           if (!s.trim()) continue;
-          // ~150 char chunks = roughly 3-4 visual lines at default font
-          if (current.length + s.length > 250 && current.length > 0) {
+          if (visualChars(current) + visualChars(s) > CHINESE_CHUNK_THRESHOLD && current.length > 0) {
             rawParagraphs.push(current.trim());
             current = s;
           } else {
@@ -624,7 +641,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
     // Build clean text (no pinyin markers) for each paragraph
     const cleanParagraphs: string[] = [];
-    if (article.language === "zh" && article.pinyinContent && pinyinEnabled) {
+    if (isChineseArticle && article.pinyinContent && pinyinEnabled) {
       for (const p of paragraphs) {
         cleanParagraphs.push(p.replace(/\([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+\)/g, ''));
       }
@@ -657,7 +674,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
     // Calculate estimated duration based on character count and rate
     // Chinese needs faster estimation to match actual TTS
-    const charsPerSecond = article.language === "zh" ? 4.5 * ttsRate : 15 * ttsRate;
+    const charsPerSecond = isChineseArticle ? 4.5 * ttsRate : 15 * ttsRate;
     const estimatedDurationMs = Math.max(2000, (totalChars / charsPerSecond) * 1000);
 
     // Time-based tracking for Chinese (more reliable than onboundary)
@@ -685,7 +702,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           setActiveParagraphIndex(p);
           const charInPara = currentCharIndex - start;
           // For Chinese, highlight current character; for English, highlight current word
-          if (article.language === "zh") {
+          if (isChineseArticle) {
             setActiveCharRange([charInPara, charInPara + 1]);
           } else {
             for (let i = 0; i < words.length; i++) {
@@ -701,7 +718,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     };
 
     const utterance = new SpeechSynthesisUtterance(cleanContent);
-    utterance.lang = article.language === "zh" ? "zh-CN" : "en-US";
+    utterance.lang = isChineseArticle ? "zh-CN" : "en-US";
     utterance.rate = ttsRate;
 
     utterance.onstart = () => {
@@ -811,7 +828,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
   // Parse ruby-format pinyin into React elements with character highlighting
   const renderParagraph = (text: string, paragraphIndex: number) => {
     // For Chinese with pinyin, use existing ruby rendering
-    if (article.language === "zh" && article.pinyinContent && pinyinEnabled) {
+    if (isChineseArticle && article.pinyinContent && pinyinEnabled) {
       const parts: React.ReactNode[] = [];
       // Match one or more Chinese characters followed by pinyin in parentheses
       const regex = /([一-鿿]+)\(([a-zA-Zāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ\s]+)\)/g;
@@ -1031,7 +1048,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           <div className="text-3xl font-bold mb-1" style={{ color: "var(--reader-text)" }}>
             {dictLookup.word}
           </div>
-          {article.language === "zh" && article.pinyinContent && pinyinEnabled && (
+          {isChineseArticle && pinyinEnabled && (
             <div className="text-sm font-medium mb-2" style={{ color: "var(--reader-accent)" }}>
               {getPinyinForChar(dictLookup.word)}
             </div>
@@ -1059,7 +1076,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               zIndex: -1,
               fontSize: `${fontSizePx}px`,
               lineHeight: lineHeightValue,
-              fontFamily: article.language === "zh"
+              fontFamily: isChineseArticle
                 ? "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif"
                 : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
             }}
@@ -1116,7 +1133,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               color: "var(--reader-text)",
               fontSize: `${fontSizePx}px`,
               lineHeight: lineHeightValue,
-              fontFamily: article.language === "zh"
+              fontFamily: isChineseArticle
                 ? "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif"
                 : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
             }}
@@ -1400,7 +1417,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             </div>
 
             {/* Pinyin Toggle - only for Chinese articles */}
-            {article.language === "zh" && article.pinyinContent && (
+            {isChineseArticle && (
               <div>
                 <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>
                   拼音注音

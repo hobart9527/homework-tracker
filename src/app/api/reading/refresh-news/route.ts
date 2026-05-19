@@ -218,6 +218,7 @@ async function runPipeline(
 
   // 3. Upsert article
   const isChinese = /[一-鿿]/.test(article.content);
+  const language = isChinese ? "zh" : "en";
   const pinyin_content = isChinese ? convertToRubyPinyin(article.content) : null;
 
   const { data: articleData, error: articleError } = await supabase
@@ -232,6 +233,7 @@ async function runPipeline(
         content_source: routeDecision.route === "A" ? "original" : routeDecision.route === "B" ? "adapted" : "llm",
         category,
         grade_level: grade,
+        language,
         word_count: article.word_count,
         estimated_minutes: article.estimated_minutes,
         difficulty: article.difficulty,

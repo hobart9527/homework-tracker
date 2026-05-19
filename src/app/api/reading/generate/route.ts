@@ -25,6 +25,7 @@ export async function POST(request: Request) {
 
     // Detect Chinese content and compute pinyin
     const isChinese = /[一-鿿]/.test(generated.content);
+    const language = isChinese ? "zh" : "en";
     const pinyin_content = isChinese ? convertToRubyPinyin(generated.content) : null;
 
     // Insert article
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
         estimated_minutes: generated.estimated_minutes,
         difficulty: generated.difficulty,
         status: "published",
+        language,
         pinyin_content,
       }, { onConflict: "topic_key,grade_level" })
       .select()

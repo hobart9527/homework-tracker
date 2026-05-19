@@ -61,7 +61,7 @@ export function ParentCheckInHeatmap({
       </div>
 
       {populatedBuckets.length === 0 ? (
-        <div className="rounded-radius-xl border border-dashed border-ink-200 bg-ink-50 px-space-4 py-space-5 text-center text-ui-sm text-ink-400">
+        <div className="rounded-radius-xl border border-dashed border-ink-300 bg-ink-50 px-space-4 py-space-5 text-center text-ui-sm text-ink-400">
           本月还没有打卡记录，热力图会在第一次完成作业后出现
         </div>
       ) : (

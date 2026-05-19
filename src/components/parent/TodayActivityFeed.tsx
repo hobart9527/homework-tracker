@@ -39,7 +39,7 @@ export function TodayActivityFeed({ checkIns, compact }: TodayActivityFeedProps)
               compact ? (
                 <div
                   key={ci.checkInId}
-                  className="flex w-36 flex-shrink-0 flex-col gap-1 rounded-radius-lg border border-ink-200 bg-white p-space-2 shadow-elevation-raised"
+                  className="flex w-36 flex-shrink-0 flex-col gap-1 rounded-radius-lg border border-ink-300 bg-white p-space-2 shadow-elevation-raised"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-ui-xs text-ink-400">
@@ -73,7 +73,7 @@ export function TodayActivityFeed({ checkIns, compact }: TodayActivityFeedProps)
               ) : (
                 <div
                   key={ci.checkInId}
-                  className="flex w-48 flex-shrink-0 flex-col gap-2 rounded-radius-lg border border-ink-200 bg-white p-3 shadow-elevation-raised"
+                  className="flex w-48 flex-shrink-0 flex-col gap-2 rounded-radius-lg border border-ink-300 bg-white p-3 shadow-elevation-raised"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-ui-xs text-ink-400">

@@ -67,7 +67,7 @@ export default function NewChildPage() {
                   ${
                     formData.avatar === avatar
                       ? "border-forest-500 bg-forest-50"
-                      : "border-ink-200"
+                      : "border-ink-300"
                   }`}
               >
                 {avatar}
@@ -111,7 +111,7 @@ export default function NewChildPage() {
                   ${
                     formData.gender === gender
                       ? "border-forest-500 bg-forest-50"
-                      : "border-ink-200"
+                      : "border-ink-300"
                   }`}
               >
                 {gender === "male" ? "男孩" : "女孩"}

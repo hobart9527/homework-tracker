@@ -31,7 +31,7 @@ function MetricCard({
   value: string | number;
 }) {
   return (
-    <div className="rounded-radius-lg border border-ink-200 bg-white p-space-4 shadow-elevation-raised">
+    <div className="rounded-radius-lg border border-ink-300 bg-ink-50 p-space-4 shadow-elevation-raised">
       <p className="text-ui-xs font-medium uppercase tracking-[0.2em] text-ink-400">
         {label}
       </p>
@@ -47,7 +47,7 @@ export function ParentDayDetailPanel({
   onReminderStateChange,
 }: ParentDayDetailPanelProps) {
   return (
-    <section className="space-y-5 rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+    <section className="space-y-5 rounded-radius-xl border border-ink-300 bg-white p-space-5 shadow-elevation-raised">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div>
@@ -72,7 +72,7 @@ export function ParentDayDetailPanel({
           </div>
         </div>
 
-        <div className="rounded-radius-xl border border-ink-200 bg-forest-50 px-space-5 py-4 text-right">
+        <div className="rounded-radius-xl border border-ink-300 bg-forest-50 px-space-5 py-4 text-right">
           <p className="text-ui-xs font-medium uppercase tracking-[0.18em] text-ink-400">
             今日完成率
           </p>

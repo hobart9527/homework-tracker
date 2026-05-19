@@ -642,7 +642,7 @@ export default function SettingsIntegrationsPage() {
                 placeholder="平台登录密码"
               />
             ) : (
-              <div className="rounded-radius-lg border border-ink-200 bg-ink-50 px-space-4 py-space-3 text-ui-sm text-ink-700">
+              <div className="rounded-radius-lg border border-ink-300 bg-ink-50 px-space-4 py-space-3 text-ui-sm text-ink-700">
                 {getPlatformDisplayName(bindingForm.platform)} 暂不支持自动登录，保存后可
                 通过卡片上的「更新 Session」手动录入。
               </div>

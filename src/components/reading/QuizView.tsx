@@ -150,7 +150,7 @@ function OptionButton({
     containerClass += "border-primary bg-primary/10 ";
   } else {
     containerClass +=
-      "border-ink-200 bg-white hover:border-ink-300 ";
+      "border-ink-300 bg-white hover:border-ink-300 ";
   }
 
   let badgeClass =
@@ -430,7 +430,7 @@ export function QuizView({
           </div>
         ) : (
           <>
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-ink-200 border-t-primary" />
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-ink-300 border-t-primary" />
             <p className="text-ink-600">{"提交中..."}</p>
           </>
         )}

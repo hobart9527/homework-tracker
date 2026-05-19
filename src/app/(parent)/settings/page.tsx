@@ -90,7 +90,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-space-6">
+    <div className="max-w-7xl mx-auto space-y-space-6">
       <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">{t("parent.settings.title")}</h1>
 
       <Card>
@@ -102,32 +102,19 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Link href="/settings/channels">
-              <div className="rounded-radius-xl border border-ink-200 bg-white p-space-4 transition-colors hover:border-forest-400">
-                <h3 className="font-semibold text-forest-700">家庭通知通道</h3>
-                <p className="mt-1 text-ui-sm text-ink-500">
-                  Telegram、微信 bridge 与家庭级通知偏好
-                </p>
-              </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link href="/settings/channels" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
+              <h3 className="font-semibold text-forest-700">家庭通知通道</h3>
+              <p className="mt-1 text-ui-sm text-ink-500">
+                Telegram、微信 bridge 与家庭级通知偏好
+              </p>
             </Link>
 
-            <Link href="/settings/integrations">
-              <div className="rounded-radius-xl border border-ink-200 bg-white p-space-4 transition-colors hover:border-forest-400">
-                <h3 className="font-semibold text-forest-700">孩子集成</h3>
-                <p className="mt-1 text-ui-sm text-ink-500">
-                  学习平台账号与孩子默认消息路由
-                </p>
-              </div>
-            </Link>
-
-            <Link href="/settings/system">
-              <div className="rounded-radius-xl border border-ink-200 bg-white p-space-4 transition-colors hover:border-forest-400">
-                <h3 className="font-semibold text-forest-700">系统运行</h3>
-                <p className="mt-1 text-ui-sm text-ink-500">
-                  平台同步、语音桥接、失败重试与排障
-                </p>
-              </div>
+            <Link href="/settings/integrations" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
+              <h3 className="font-semibold text-forest-700">孩子集成</h3>
+              <p className="mt-1 text-ui-sm text-ink-500">
+                学习平台账号与孩子默认消息路由
+              </p>
             </Link>
           </div>
         </div>
@@ -157,7 +144,7 @@ export default function SettingsPage() {
                 onChange={(e) =>
                   handleUpdateReadingGrade(child.id, parseInt(e.target.value))
                 }
-                className="rounded-radius-md border border-ink-200 bg-white px-3 py-1.5 text-ui-sm text-forest-700 focus:border-forest-500 focus:outline-none"
+                className="rounded-radius-md border border-ink-300 bg-white px-3 py-1.5 text-ui-sm text-forest-700 focus:border-forest-500 focus:outline-none"
               >
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => (
                   <option key={g} value={g}>

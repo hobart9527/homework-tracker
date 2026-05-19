@@ -41,7 +41,7 @@ export function IncompleteHomeworkAlert({
           {items.map((item) => (
             <div
               key={`${item.homeworkId}-${item.childId}`}
-              className="flex items-center gap-3 rounded-radius-lg border border-ink-200 bg-white p-3 shadow-elevation-raised"
+              className="flex items-center gap-3 rounded-radius-lg border border-ink-300 bg-white p-3 shadow-elevation-raised"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-forest-50 text-base">
                 {item.childAvatar || "\u{1F98A}"}

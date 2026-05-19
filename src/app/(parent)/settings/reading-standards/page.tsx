@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { SettingsShell } from "@/components/parent/SettingsShell";
 
 type EnglishStandard = {
   razLevel: string;
@@ -163,67 +163,27 @@ export default function ReadingStandardsPage() {
 
   if (loading) {
     return (
-      <div className="bg-background">
-        <header className="bg-forest-500 p-space-4 text-white">
-          <div className="mx-auto flex max-w-3xl items-center gap-4">
-            <Link href="/settings">
-              <span className="text-xl">←</span>
-            </Link>
-            <div>
-              <h1 className="text-ui-xl font-ui-display font-bold">阅读标准</h1>
-              <p className="mt-1 text-ui-sm text-white/80">管理年级阅读能力标准</p>
-            </div>
-          </div>
-        </header>
-        <main className="mx-auto max-w-3xl p-space-4">
-          <div className="flex items-center justify-center py-20 text-forest-600">
-            加载中...
-          </div>
-        </main>
-      </div>
+      <SettingsShell title="阅读标准" description="管理年级阅读能力标准 · 字数范围与阅读速度" backHref="/settings">
+        <div className="flex items-center justify-center py-20 text-forest-600">
+          加载中...
+        </div>
+      </SettingsShell>
     );
   }
 
   if (!standards) {
     return (
-      <div className="bg-background">
-        <header className="bg-forest-500 p-space-4 text-white">
-          <div className="mx-auto flex max-w-3xl items-center gap-4">
-            <Link href="/settings">
-              <span className="text-xl">←</span>
-            </Link>
-            <div>
-              <h1 className="text-ui-xl font-ui-display font-bold">阅读标准</h1>
-            </div>
-          </div>
-        </header>
-        <main className="mx-auto max-w-3xl p-space-4">
-          <Card>
-            <p className="text-coral-600">加载失败，请检查配置。</p>
-          </Card>
-        </main>
-      </div>
+      <SettingsShell title="阅读标准" backHref="/settings">
+        <Card>
+          <p className="text-coral-600">加载失败，请检查配置。</p>
+        </Card>
+      </SettingsShell>
     );
   }
 
   return (
-    <div className="bg-background">
-      {/* Header */}
-      <header className="bg-forest-500 p-space-4 text-white">
-        <div className="mx-auto flex max-w-3xl items-center gap-4">
-          <Link href="/settings">
-            <span className="text-xl">←</span>
-          </Link>
-          <div>
-            <h1 className="text-ui-xl font-ui-display font-bold">阅读标准</h1>
-            <p className="mt-1 text-ui-sm text-white/80">
-              管理年级阅读能力标准 · 字数范围与阅读速度
-            </p>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-3xl space-y-4 p-space-4">
+    <SettingsShell title="阅读标准" description="管理年级阅读能力标准 · 字数范围与阅读速度" backHref="/settings">
+      <div className="space-y-4">
         {/* Meta info */}
         {standards._meta?.lastUpdated && (
           <p className="text-ui-xs text-ink-500">
@@ -439,7 +399,7 @@ export default function ReadingStandardsPage() {
             <p className="text-ui-sm font-medium">{toast.message}</p>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </SettingsShell>
   );
 }

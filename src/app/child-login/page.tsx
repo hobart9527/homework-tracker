@@ -78,7 +78,7 @@ export default function ChildLoginPage() {
               value={childName}
               onChange={(e) => setChildName(e.target.value)}
               placeholder="输入你的名字"
-              className="w-full px-6 py-3 text-center text-xl rounded-lg border-2 border-ink-200 focus:border-forest-500 focus:outline-none"
+              className="w-full px-6 py-3 text-center text-xl rounded-lg border-2 border-ink-300 focus:border-forest-500 focus:outline-none"
               autoFocus
             />
             <button

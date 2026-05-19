@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { buildHomeworkListView } from "@/lib/homework-list";
@@ -15,6 +15,7 @@ type Child = Database["public"]["Tables"]["children"]["Row"];
 
 export default function HomeworkListPage() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [children, setChildren] = useState<Child[]>([]);
@@ -47,7 +48,7 @@ export default function HomeworkListPage() {
   }, [supabase]);
 
   const getChildName = (childId: string) =>
-    children.find((c) => c.id === childId)?.name || "未知";
+    children.find((c) => c.id === childId)?.name || t('parent.homework.unknownChild');
 
   const listView = buildHomeworkListView(children, homeworks, {
     selectedChildId,
@@ -55,7 +56,7 @@ export default function HomeworkListPage() {
   });
 
   const handleDelete = async (id: string) => {
-    if (!confirm("确定要删除这个作业吗？")) return;
+    if (!confirm(t('parent.homework.deleteConfirm'))) return;
     await supabase.from("homeworks").delete().eq("id", id);
     setHomeworks((prev) => prev.filter((h) => h.id !== id));
   };
@@ -70,6 +71,13 @@ export default function HomeworkListPage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-space-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">{t('parent.homework.title')}</h1>
+        <Button size="sm" onClick={() => router.push('/homework/new')}>
+          {t('parent.homework.newHomework')}
+        </Button>
+      </div>
+
       {homeworks.length === 0 ? (
           <div className="text-center py-12">
             <span className="text-6xl">📝</span>
@@ -79,8 +87,8 @@ export default function HomeworkListPage() {
             <p className="text-ink-500 mt-space-2">{t('parent.homework.createFirst')}</p>
           </div>
         ) : (
-          <div className="grid gap-space-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <aside className="rounded-radius-xl border border-ink-200 bg-white p-space-4">
+          <div className="grid gap-space-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+            <aside className="rounded-radius-xl border border-ink-300 bg-white p-space-4">
               <h2 className="text-ui-sm font-ui-display font-semibold text-forest-700">{t('parent.childSelector.selectChild')}</h2>
               <div className="mt-space-3 space-y-space-2">
                 <button
@@ -92,7 +100,7 @@ export default function HomeworkListPage() {
                       : "bg-ink-50 text-ink-600 hover:bg-ink-100"
                   }`}
                 >
-                  {t('parent.dashboard.allChildren')}
+                  {t('parent.monthCalendar.allChildren')}
                 </button>
                 {children.map((child) => (
                   <button
@@ -119,7 +127,7 @@ export default function HomeworkListPage() {
                       {section.title}
                     </h2>
                     <span className="text-ui-sm text-ink-400">
-                      {section.items.length} 项
+                      {section.items.length} {t('parent.homework.items')}
                     </span>
                   </div>
 
@@ -143,36 +151,40 @@ export default function HomeworkListPage() {
                                     : "bg-forest-100 text-ink-500"
                                 }`}
                               >
-                                {hw.isDueToday ? "今天会出现" : "其他作业"}
+                                {hw.isDueToday ? t('parent.homework.todayTask') : t('parent.homework.otherTask')}
                               </span>
                             </div>
                             <p className="mt-space-1 text-ui-sm text-ink-500">
-                              {hw.type_name} • {hw.point_value}积分
+                              {hw.type_name} • {hw.point_value}{t('parent.homework.points')}
                             </p>
                             <p className="mt-space-1 text-ui-xs text-ink-400">
                               {{
-                                daily: "每日",
-                                weekly: `每周${(hw.repeat_days || []).map((d) => "日一二三四五六"[d]).join("")}`,
-                                interval: `每隔${hw.repeat_interval}天`,
-                                once: "单次",
+                                daily: t('parent.homework.daily'),
+                                weekly: t('parent.homework.weekly') + (hw.repeat_days || []).map((d) => "日一二三四五六"[d]).join(""),
+                                interval: t('parent.homework.interval') + `${hw.repeat_interval}`,
+                                once: t('parent.homework.once'),
                               }[hw.repeat_type]}
                               {hw.daily_cutoff_time ? ` • 截止 ${hw.daily_cutoff_time}` : ""}
                               {hw.required_checkpoint_type
-                                ? ` • 需要${hw.required_checkpoint_type === "photo" ? "照片" : "录音"}`
+                                ? ` • 需要${hw.required_checkpoint_type === "photo" ? t('parent.homework.photo') : t('parent.homework.audio')}`
                                 : ""}
                             </p>
                           </div>
                           <div className="flex gap-space-2">
-                            <Link href={`/homework/new?copyFrom=${hw.id}`}>
-                              <Button size="sm" variant="ghost">
-                                复制
-                              </Button>
-                            </Link>
-                            <Link href={`/homework/${hw.id}`}>
-                              <Button size="sm" variant="ghost">
-                                {t('common.edit')}
-                              </Button>
-                            </Link>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => router.push(`/homework/new?copyFrom=${hw.id}`)}
+                            >
+                              {t('parent.homework.copy')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => router.push(`/homework/${hw.id}`)}
+                            >
+                              {t('common.edit')}
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"

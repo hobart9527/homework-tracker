@@ -14,7 +14,7 @@ export function ParentMonthlyInsights({
   weakestTypes,
 }: ParentMonthlyInsightsProps) {
   return (
-    <section className="h-full rounded-radius-2xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+    <section className="h-full rounded-radius-2xl border border-ink-300 bg-white p-space-5 shadow-elevation-raised">
       <div>
         <h2 className="text-ui-xl font-bold text-forest-800">本月薄弱类型</h2>
         <p className="text-ui-sm text-ink-500">
@@ -23,7 +23,7 @@ export function ParentMonthlyInsights({
       </div>
 
       {weakestTypes.length === 0 ? (
-        <div className="mt-4 rounded-radius-xl border border-dashed border-ink-200 bg-ink-50 py-10 text-center text-ink-400">
+        <div className="mt-4 rounded-radius-xl border border-dashed border-ink-300 bg-ink-50 py-10 text-center text-ink-400">
           本月还没有作业类型数据
         </div>
       ) : (
@@ -31,7 +31,7 @@ export function ParentMonthlyInsights({
           {weakestTypes.map((item, index) => (
             <li
               key={item.typeName}
-              className="flex items-center justify-between gap-4 rounded-radius-xl border border-ink-200 bg-ink-50 px-space-4 py-space-3"
+              className="flex items-center justify-between gap-4 rounded-radius-xl border border-ink-300 bg-ink-50 px-space-4 py-space-3"
             >
               <div>
                 <p className="text-ui-sm text-ink-400">#{index + 1} 重点关注</p>

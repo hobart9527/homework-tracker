@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { SettingsShell } from "@/components/parent/SettingsShell";
 
 // ---------------------------------------------------------------------------
 // Parent-side admin: paste news URL → submit to /api/reading/news/submit
@@ -335,46 +336,6 @@ export default function ReadingNewsAdminPage() {
     });
   };
 
-  if (authState === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-2xl text-forest-600">加载中…</div>
-      </div>
-    );
-  }
-
-  if (authState === "anonymous" || authState === "non_parent") {
-    return (
-      <div className="bg-background">
-        <header className="bg-forest-500 p-space-4 text-white">
-          <div className="mx-auto flex max-w-3xl items-center gap-4">
-            <Link href="/login">
-              <span className="text-xl">←</span>
-            </Link>
-            <div>
-              <h1 className="text-ui-xl font-ui-display font-bold">新闻投稿</h1>
-            </div>
-          </div>
-        </header>
-        <main className="mx-auto max-w-3xl p-space-4">
-          <Card>
-            <h2 className="font-bold text-coral-600">无访问权限</h2>
-            <p className="mt-2 text-ui-sm text-forest-500">
-              {authState === "anonymous"
-                ? "请先登录家长账号。"
-                : "当前账号不是家长账号，无法访问新闻投稿管理页面。"}
-            </p>
-            <div className="mt-3">
-              <Link href="/login" className="text-forest-700 underline">
-                前往登录
-              </Link>
-            </div>
-          </Card>
-        </main>
-      </div>
-    );
-  }
-
   // Group articles by topic_key for the recent submissions card.
   const articlesByTopic = new Map<string, RecentArticleRow[]>();
   for (const a of recentArticles) {
@@ -384,33 +345,22 @@ export default function ReadingNewsAdminPage() {
   }
 
   return (
-    <div className="bg-background">
-      <header className="bg-forest-500 p-space-4 text-white">
-        <div className="mx-auto flex max-w-3xl items-center gap-4">
-          <Link href="/settings">
-            <span className="text-xl">←</span>
-          </Link>
+    <SettingsShell
+      title="新闻投稿"
+      description="粘贴新闻链接，自动改写为孩子可读的英文阅读文章。"
+      backHref="/settings"
+    >
+      <Card>
+        <div className="space-y-3">
           <div>
-            <h1 className="text-ui-xl font-ui-display font-bold">新闻投稿</h1>
-            <p className="mt-1 text-ui-sm text-white/80">
-              粘贴新闻链接，自动改写为孩子可读的英文阅读文章。
+            <h2 className="font-bold text-forest-700">提交新闻链接</h2>
+            <p className="mt-1 text-ui-sm text-forest-500">
+              输入要改写的新闻 URL，选择目标年级和新鲜度窗口。系统会调用
+              后端管线生成对应等级的英文阅读文章。
             </p>
           </div>
-        </div>
-      </header>
 
-      <main className="mx-auto max-w-3xl space-y-4 p-space-4">
-        <Card>
-          <div className="space-y-3">
-            <div>
-              <h2 className="font-bold text-forest-700">提交新闻链接</h2>
-              <p className="mt-1 text-ui-sm text-forest-500">
-                输入要改写的新闻 URL，选择目标年级和新鲜度窗口。系统会调用
-                后端管线生成对应等级的英文阅读文章。
-              </p>
-            </div>
-
-            <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-1">
                 <label
                   htmlFor="news-url"
@@ -674,7 +624,6 @@ export default function ReadingNewsAdminPage() {
             )}
           </div>
         </Card>
-      </main>
-    </div>
+    </SettingsShell>
   );
 }

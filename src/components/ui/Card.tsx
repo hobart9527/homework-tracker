@@ -13,8 +13,8 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
  * Renders the correct bg + ring + shadow + radius combo for a given skin+level.
  *
  * Surface map:
- *   parent raised:    white, ring-ink-200,   shadow-none,              radius-lg
- *   parent elevated:  white, ring-ink-200,   shadow-elevation-floating, radius-xl
+ *   parent raised:    white, ring-ink-300,   shadow-none,              radius-lg
+ *   parent elevated:  white, ring-ink-300,   shadow-elevation-floating, radius-xl
  *   child raised:     white, ring-cream-200/40, shadow-none,              radius-xl
  *   child elevated:   white, ring-cream-200/60, shadow-elevation-floating, radius-xl
  */
@@ -33,9 +33,9 @@ export function Card({
   > = {
     parent: {
       raised:
-        "bg-white ring-1 ring-ink-200 shadow-none rounded-radius-md",
+        "bg-white ring-1 ring-ink-300 shadow-none rounded-radius-md",
       elevated:
-        "bg-white ring-1 ring-ink-200 shadow-elevation-floating rounded-radius-xl",
+        "bg-white ring-1 ring-ink-300 shadow-elevation-floating rounded-radius-xl",
     },
     child: {
       raised:
@@ -51,7 +51,7 @@ export function Card({
 
   return (
     <div
-      className={`${surfaceMap[skin][level]} ${interactiveStyles} ${className}`.trim()}
+      className={`${surfaceMap[skin][level]} ${interactiveStyles} p-space-4 ${className}`.trim()}
       onClick={onClick}
       {...props}
     >

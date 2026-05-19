@@ -160,7 +160,7 @@ export function ChildHomeworkCard({
         }`}
       >
         {/* 主布局：移动端垂直排列，桌面端水平排列 */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           {/* 左侧：图标 + 内容 */}
           <div className="flex min-w-0 flex-1 gap-3 sm:gap-4">
             {/* 图标 */}

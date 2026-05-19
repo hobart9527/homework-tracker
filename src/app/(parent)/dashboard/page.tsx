@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { formatDateKey } from "@/lib/homework-utils";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -294,7 +293,7 @@ export default function ParentDashboardPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-space-6 py-space-6 space-y-space-8">
+      <div className="max-w-7xl mx-auto space-y-space-8">
         {/* Header skeleton */}
         <div className="flex items-center justify-between">
           <div className="animate-pulse h-8 w-40 rounded bg-ink-100" />
@@ -305,7 +304,7 @@ export default function ParentDashboardPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           {/* Left column: task list + heatmap */}
           <div className="space-y-space-6">
-            <div className="animate-pulse rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+            <div className="animate-pulse rounded-radius-xl border border-ink-300 bg-white p-space-5 shadow-elevation-raised">
               <div className="mb-3 h-5 w-32 rounded bg-ink-100" />
               <div className="space-y-3">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -316,18 +315,18 @@ export default function ParentDashboardPage() {
                 ))}
               </div>
             </div>
-            <div className="animate-pulse h-24 rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised" />
+            <div className="animate-pulse h-24 rounded-radius-xl border border-ink-300 bg-white p-space-5 shadow-elevation-raised" />
           </div>
           {/* Right column: calendar + insights */}
           <div className="space-y-space-6">
-            <div className="animate-pulse h-72 rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+            <div className="animate-pulse h-72 rounded-radius-xl border border-ink-300 bg-white p-space-5 shadow-elevation-raised">
               <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: 35 }).map((_, i) => (
                   <div key={i} className="mx-auto h-8 w-8 rounded-full bg-ink-100" />
                 ))}
               </div>
             </div>
-            <div className="animate-pulse h-32 rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised" />
+            <div className="animate-pulse h-32 rounded-radius-xl border border-ink-300 bg-white p-space-5 shadow-elevation-raised" />
           </div>
         </div>
       </div>
@@ -335,7 +334,14 @@ export default function ParentDashboardPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-space-6 py-space-6 space-y-space-6">
+    <div className="max-w-7xl mx-auto space-y-space-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">{t('parent.dashboard.title')}</h1>
+        <Button variant="ghost" size="sm" onClick={handleLogout}>
+          {t('common.logout')}
+        </Button>
+      </div>
+
       {dashboard.summaries.length === 0 ? (
         <div className="py-12 text-center">
           <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-honey-50 to-orange-100 shadow-elevation-floating ring-1 ring-honey-200/40">
@@ -347,19 +353,9 @@ export default function ParentDashboardPage() {
           <p className="mt-2 text-ink-500">
             {t('parent.dashboard.noChildrenHint')}
           </p>
-          <Link href="/children">
-            <Button className="mt-5">{t('parent.dashboard.addChild')}</Button>
-          </Link>
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">{t('parent.dashboard.title')}</h1>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              {t('common.logout')}
-            </Button>
-          </div>
-
           <ChildSelector
             summaries={dashboard.summaries}
             selectedId={activeChildId}
@@ -378,7 +374,7 @@ export default function ParentDashboardPage() {
                   onReminderStateChange={handleReminderStateChange}
                 />
               ) : null}
-              <div className="rounded-radius-xl border border-ink-200 bg-white p-space-5 shadow-elevation-raised">
+              <div className="rounded-radius-xl border border-ink-300 bg-white p-space-5 shadow-elevation-raised">
                 <ParentCheckInHeatmap buckets={dashboard.checkInHeatmap ?? []} />
               </div>
             </div>

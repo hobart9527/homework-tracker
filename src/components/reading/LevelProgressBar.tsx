@@ -116,7 +116,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
 
   if (loading) {
     return (
-      <div className="mb-6 animate-pulse rounded-xl border border-ink-200 bg-cream-100/80 p-4">
+      <div className="mb-6 animate-pulse rounded-xl border border-ink-300 bg-cream-100/80 p-4">
         <div className="mb-3 h-5 w-32 rounded bg-ink-100" />
         <div className="mb-2 h-3 w-full rounded bg-ink-100" />
         <div className="h-3 w-3/4 rounded bg-ink-100" />
@@ -137,7 +137,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
 
   const color = LEVEL_COLORS[level] || "bg-ink-400";
   const textColor = LEVEL_TEXT_COLORS[level] || "text-ink-700";
-  const bgColor = LEVEL_BG_COLORS[level] || "bg-ink-50 border-ink-200";
+  const bgColor = LEVEL_BG_COLORS[level] || "bg-ink-50 border-ink-300";
   const description = LEVEL_DESCRIPTIONS[level] || "";
 
   return (
@@ -204,7 +204,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
       )}
 
       {/* Level range legend */}
-      <div className="mt-4 flex items-center gap-4 border-t border-ink-200/50 pt-3">
+      <div className="mt-4 flex items-center gap-4 border-t border-ink-300/50 pt-3">
         <div className="flex items-center gap-1.5">
           <div className="h-2 w-2 rounded-full bg-success" />
           <span className="text-xs text-ink-500">L1-L3</span>

@@ -148,7 +148,7 @@ export function ParentChildTaskList({
       </div>
 
       {tasks.length === 0 ? (
-        <div className="rounded-radius-xl border border-dashed border-ink-200 bg-white py-10 text-center text-ink-400">
+        <div className="rounded-radius-xl border border-dashed border-ink-300 bg-white py-10 text-center text-ink-400">
           <span className="text-4xl">🎉</span>
           <p className="mt-2">今天没有任务</p>
         </div>
@@ -215,15 +215,15 @@ export function ParentChildTaskList({
           </div>
 
           {previewLoading ? (
-            <div className="rounded-xl border border-dashed border-ink-200 bg-ink-50 py-10 text-center text-ink-400">
+            <div className="rounded-xl border border-dashed border-ink-300 bg-ink-50 py-10 text-center text-ink-400">
               正在加载附件...
             </div>
           ) : previewError ? (
-            <div className="rounded-xl border border-dashed border-ink-200 bg-ink-50 py-8 text-center text-ink-500">
+            <div className="rounded-xl border border-dashed border-ink-300 bg-ink-50 py-8 text-center text-ink-500">
               {previewError}
             </div>
           ) : previewAttachments.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-ink-200 bg-ink-50 py-8 text-center text-ink-400">
+            <div className="rounded-xl border border-dashed border-ink-300 bg-ink-50 py-8 text-center text-ink-400">
               暂时没有可预览的附件
             </div>
           ) : (
@@ -231,7 +231,7 @@ export function ParentChildTaskList({
               {previewAttachments.map((attachment, index) => (
                 <div
                   key={attachment.id}
-                  className="space-y-3 rounded-radius-xl border border-ink-200 bg-ink-50 p-space-3"
+                  className="space-y-3 rounded-radius-xl border border-ink-300 bg-ink-50 p-space-3"
                 >
                   <div className="flex items-center justify-between text-ui-sm text-ink-500">
                     <span>{attachment.type === "photo" ? "照片" : "音频"}</span>

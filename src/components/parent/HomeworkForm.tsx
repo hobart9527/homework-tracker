@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useTranslation } from "@/hooks/useTranslation";
 import { HomeworkAssignmentPanel } from "@/components/parent/HomeworkAssignmentPanel";
 import { HomeworkRulePreview } from "@/components/parent/HomeworkRulePreview";
 import {
@@ -67,6 +68,7 @@ export function HomeworkForm({
   prefilledChildId,
   onSuccess,
 }: HomeworkFormProps) {
+  const { t } = useTranslation();
   const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [children, setChildren] = useState<Child[]>([]);
@@ -493,15 +495,13 @@ export function HomeworkForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
-      {/* Compact Rule Preview Card (sticky summary) */}
-      <div className="sticky top-0 z-10">
-        <HomeworkRulePreview preview={preview} />
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl mx-auto">
+      {/* Compact Rule Preview */}
+      <HomeworkRulePreview preview={preview} />
 
-      {/* Section 1: 基本信息 (always expanded) */}
-      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
-        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">基本信息</h2>
+      {/* Section 1: Basic Info (always expanded) */}
+      <section className="rounded-radius-xl border border-ink-300 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">{t('parent.homework.basicInfo')}</h2>
 
         <HomeworkAssignmentPanel
           children={children}
@@ -515,10 +515,10 @@ export function HomeworkForm({
         {/* Primary category selector */}
         <div>
           <label className="block text-ui-sm font-medium text-forest-700 mb-space-1">
-            一级分类
+            {t('parent.homework.groupLabel')}
           </label>
           <p className="text-ui-sm text-ink-500 mb-space-3">
-            先选择大类，再选择具体类型。
+            {t('parent.homework.groupHint')}
           </p>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
             <button
@@ -527,11 +527,11 @@ export function HomeworkForm({
               className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
                 !formData.type_group_id
                   ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
-                  : "border-ink-200 text-ink-600 hover:border-ink-300"
+                  : "border-ink-300 text-ink-600 hover:border-ink-300"
               }`}
             >
               <div className="text-ui-lg">📝</div>
-              <div className="text-ui-xs mt-0.5">全部</div>
+              <div className="text-ui-xs mt-0.5">{t('parent.homework.allGroups')}</div>
             </button>
             {effectiveTypeGroups.map((group) => {
               const isSelected = formData.type_group_id === group.id;
@@ -543,7 +543,7 @@ export function HomeworkForm({
                   className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
                     isSelected
                       ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
-                      : "border-ink-200 text-ink-600 hover:border-ink-300"
+                      : "border-ink-300 text-ink-600 hover:border-ink-300"
                   }`}
                 >
                   <div className="text-ui-lg">{group.icon}</div>
@@ -557,10 +557,10 @@ export function HomeworkForm({
         {/* Secondary type selector */}
         <div>
           <label className="block text-ui-sm font-medium text-forest-700 mb-space-1">
-            作业类型
+            {t('parent.homework.typeLabel')}
           </label>
           <p className="text-ui-sm text-ink-500 mb-space-3">
-            选择一个类型自动带入标题建议、图标和默认积分。
+            {t('parent.homework.typeHint')}
           </p>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
             <button
@@ -569,11 +569,11 @@ export function HomeworkForm({
               className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
                 !formData.type_name
                   ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
-                  : "border-ink-200 text-ink-600 hover:border-ink-300"
+                  : "border-ink-300 text-ink-600 hover:border-ink-300"
               }`}
             >
               <div className="text-ui-lg">📝</div>
-              <div className="text-ui-xs mt-0.5">自定义</div>
+              <div className="text-ui-xs mt-0.5">{t('parent.homework.custom')}</div>
             </button>
             {filteredTypes.map((type) => {
               const isSelected = formData.type_name === type.name;
@@ -585,7 +585,7 @@ export function HomeworkForm({
                   className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
                     isSelected
                       ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
-                      : "border-ink-200 text-ink-600 hover:border-ink-300"
+                      : "border-ink-300 text-ink-600 hover:border-ink-300"
                   }`}
                 >
                   <div className="text-ui-lg">{type.icon}</div>
@@ -597,47 +597,47 @@ export function HomeworkForm({
         </div>
       </section>
 
-      {/* Section 2: 作业标题 (always visible) */}
-      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
-        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">作业标题</h2>
+      {/* Section 2: Homework Title (always visible) */}
+      <section className="rounded-radius-xl border border-ink-300 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">{t('parent.homework.homeworkTitle')}</h2>
 
         <Input
-          label="标题"
-          aria-label="作业标题"
+          label={t('parent.homework.titleLabel')}
+          aria-label={t('parent.homework.homeworkTitle')}
           value={formData.title}
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, title: e.target.value }))
           }
           placeholder={
-            formData.type_name ? `${formData.type_name}练习` : "如：Khan Math Unit 3"
+            formData.type_name ? `${formData.type_name}练习` : t('parent.homework.titlePlaceholder')
           }
           required
         />
 
         <div>
           <label className="mb-space-1 block text-ui-sm font-medium text-forest-700">
-            描述（可选）
+            {t('parent.homework.description')}
           </label>
           <textarea
-            aria-label="描述（可选）"
+            aria-label={t('parent.homework.description')}
             value={formData.description}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, description: e.target.value }))
             }
-            placeholder="详细说明..."
-            className="w-full rounded-radius-xl border-2 border-ink-200 px-space-4 py-space-2 focus:border-forest-500 focus:outline-none"
+            placeholder={t('parent.homework.descriptionPlaceholder')}
+            className="w-full rounded-radius-xl border-2 border-ink-300 px-space-4 py-space-2 focus:border-forest-500 focus:outline-none"
             rows={3}
           />
         </div>
       </section>
 
-      {/* Section 3: 作业规则 (always expanded) */}
-      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
-        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">作业规则</h2>
+      {/* Section 3: Rules (always expanded) */}
+      <section className="rounded-radius-xl border border-ink-300 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">{t('parent.homework.rules')}</h2>
 
         <div>
           <label className="mb-space-2 block text-ui-sm font-medium text-forest-700">
-            重复规则
+            {t('parent.homework.repeatRule')}
           </label>
           <div className="flex gap-2 flex-wrap">
             {(["daily", "weekly", "interval", "once"] as const).map((type) => (
@@ -650,14 +650,14 @@ export function HomeworkForm({
                 className={`px-space-4 py-space-2 rounded-radius-xl border-2 transition-all ${
                   formData.repeat_type === type
                     ? "border-forest-500 bg-forest-500/10"
-                    : "border-ink-200"
+                    : "border-ink-300"
                 }`}
               >
                 {{
-                  daily: "每日",
-                  weekly: "每周",
-                  interval: "间隔",
-                  once: "单次",
+                  daily: t('parent.homework.daily'),
+                  weekly: t('parent.homework.weekly'),
+                  interval: t('parent.homework.interval'),
+                  once: t('parent.homework.once'),
                 }[type]}
               </button>
             ))}
@@ -667,7 +667,7 @@ export function HomeworkForm({
         {formData.repeat_type === "weekly" && (
           <div>
             <label className="mb-space-2 block text-ui-sm font-medium text-forest-700">
-              选择星期
+              {t('parent.homework.selectDays')}
             </label>
             <div className="flex gap-2">
               {["日", "一", "二", "三", "四", "五", "六"].map((day, index) => (
@@ -683,7 +683,7 @@ export function HomeworkForm({
                   className={`w-10 h-10 rounded-full border-2 transition-all ${
                     formData.repeat_days.includes(index)
                       ? "border-forest-500 bg-forest-500 text-white"
-                      : "border-ink-200"
+                      : "border-ink-300"
                   }`}
                 >
                   {day}
@@ -695,7 +695,7 @@ export function HomeworkForm({
 
         {formData.repeat_type === "interval" && (
           <Input
-            label="每隔几天"
+            label={t('parent.homework.intervalDays')}
             type="number"
             min={1}
             max={30}
@@ -711,7 +711,7 @@ export function HomeworkForm({
 
         {["interval", "once"].includes(formData.repeat_type) && (
           <Input
-            label={formData.repeat_type === "once" ? "作业日期" : "开始日期"}
+            label={formData.repeat_type === "once" ? t('parent.homework.homeworkDate') : t('parent.homework.startDate')}
             type="date"
             value={formData.repeat_start_date}
             onChange={(e) =>
@@ -725,7 +725,7 @@ export function HomeworkForm({
         )}
 
         <Input
-          label="每日截止时间"
+          label={t('parent.homework.cutoffTimeLabel')}
           type="time"
           value={formData.daily_cutoff_time}
           onChange={(e) =>
@@ -738,7 +738,7 @@ export function HomeworkForm({
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="积分奖励"
+            label={t('parent.homework.pointReward')}
             type="number"
             min={1}
             max={20}
@@ -751,7 +751,7 @@ export function HomeworkForm({
             }
           />
           <Input
-            label="积分扣减（当日未完成）"
+            label={t('parent.homework.pointDeduction')}
             type="number"
             min={0}
             max={20}
@@ -767,22 +767,22 @@ export function HomeworkForm({
       </section>
 
       {/* Section 4: 证明要求 (always expanded, simplified) */}
-      <section className="rounded-radius-xl border border-ink-200 bg-white p-space-5 space-y-space-4">
-        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">证明要求</h2>
+      <section className="rounded-radius-xl border border-ink-300 bg-white p-space-5 space-y-space-4">
+        <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">{t('parent.homework.proofRequired')}</h2>
 
         {/* Photo toggle */}
         <div className="flex items-center justify-between py-2">
           <div>
             <span className="text-ui-sm font-medium text-forest-700">
-              需要拍照证明
+              {t('parent.homework.needPhoto')}
             </span>
             <p className="text-ui-xs text-ink-500 mt-0.5">
-              开启后孩子完成时需要提交照片
+              {t('parent.homework.photoHint')}
             </p>
           </div>
           <button
             type="button"
-            aria-label="需要拍照证明"
+            aria-label={t('parent.homework.needPhoto')}
             onClick={() => {
               setFormData((prev) => {
                 const newVal =
@@ -810,18 +810,18 @@ export function HomeworkForm({
         </div>
 
         {/* Recording toggle */}
-        <div className="flex items-center justify-between py-2 border-t border-ink-200">
+        <div className="flex items-center justify-between py-2 border-t border-ink-300">
           <div>
             <span className="text-ui-sm font-medium text-forest-700">
-              开启录音打卡
+              {t('parent.homework.enableRecording')}
             </span>
             <p className="text-ui-xs text-ink-500 mt-0.5">
-              开启后孩子完成作业时需要录音打卡
+              {t('parent.homework.recordingHint')}
             </p>
           </div>
           <button
             type="button"
-            aria-label="开启录音打卡"
+            aria-label={t('parent.homework.enableRecording')}
             onClick={() => {
               setFormData((prev) => ({
                 ...prev,
@@ -845,7 +845,7 @@ export function HomeworkForm({
 
         {/* WeChat push — inline, only when recording is ON */}
         {formData.enable_recording && (
-          <div className="border-t border-ink-200 pt-space-4 space-y-space-3">
+          <div className="border-t border-ink-300 pt-space-4 space-y-space-3">
             {canConfigurePlatformBinding ? (
               <>
                 <label className="flex items-center gap-3 text-ui-sm text-forest-700">
@@ -862,7 +862,7 @@ export function HomeworkForm({
                       }))
                     }
                   />
-                  提交完成后自动发到微信群
+                  {t('parent.homework.autoSendWechat')}
                 </label>
 
                 {formData.send_to_wechat && (
@@ -871,11 +871,11 @@ export function HomeworkForm({
                       htmlFor="homework-wechat-group"
                       className="mb-1 block text-sm font-medium text-forest-700"
                     >
-                      提交到哪个微信群
+                      {t('parent.homework.selectWechatGroup')}
                     </label>
                     <select
                       id="homework-wechat-group"
-                      aria-label="提交到哪个微信群"
+                      aria-label={t('parent.homework.selectWechatGroup')}
                       value={formData.wechat_group_id}
                       onChange={(e) =>
                         setFormData((prev) => ({
@@ -883,9 +883,9 @@ export function HomeworkForm({
                           wechat_group_id: e.target.value,
                         }))
                       }
-                      className="w-full rounded-xl border-2 border-ink-200 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-forest-500"
+                      className="w-full rounded-xl border-2 border-ink-300 bg-white px-4 py-2 text-sm text-forest-700 outline-none transition-all focus:border-forest-500"
                     >
-                      <option value="">继承孩子默认群</option>
+                      <option value="">{t('parent.homework.inheritDefault')}</option>
                       {wechatGroups.map((group) => (
                         <option key={group.id} value={group.id}>
                           {group.display_name
@@ -924,36 +924,36 @@ export function HomeworkForm({
               </>
             ) : (
               <p className="text-ui-sm text-ink-500">
-                当前是多人批量创建。作业级提交群只在单个孩子的作业上配置，避免把同一目标误绑给多个孩子。
+                {t('parent.homework.batchCreateWarning')}
               </p>
             )}
           </div>
         )}
       </section>
 
-      {/* Section 5: 高级设置 (collapsible, collapsed by default) */}
-      <section className="rounded-3xl border border-ink-200 bg-white/90 p-5">
+      {/* Section 5: Advanced Settings (collapsible, collapsed by default) */}
+      <section className="rounded-3xl border border-ink-300 bg-white/90 p-5">
         <button
           type="button"
           onClick={() => setShowAdvancedSettings((prev) => !prev)}
           className="flex w-full items-center justify-between text-left"
         >
-          <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">高级设置</h2>
+          <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">{t('parent.homework.advancedSettings')}</h2>
           <span className="text-ink-500 text-ui-sm transition-transform">
-            {showAdvancedSettings ? "收起 ▲" : "展开 ▼"}
+            {showAdvancedSettings ? t('parent.homework.collapse') : t('parent.homework.expand')}
           </span>
         </button>
 
         {showAdvancedSettings && (
-          <div className="mt-space-4 space-y-space-4 border-t border-ink-200 pt-space-4">
+          <div className="mt-space-4 space-y-space-4 border-t border-ink-300 pt-space-4">
             {/* Reading article binding — only for 阅读 or 英文阅读 */}
             {isReadingType && (
-              <div className="rounded-radius-2xl border border-ink-200 bg-ink-50 p-space-4">
+              <div className="rounded-radius-2xl border border-ink-300 bg-ink-50 p-space-4">
                 <label className="block text-ui-sm font-medium text-forest-700 mb-space-2">
-                  绑定阅读文章（可选）
+                  {t('parent.homework.bindReadingArticle')}
                 </label>
                 <p className="text-ui-sm text-ink-500 mb-space-3">
-                  留空则孩子可以从阅读库中自由选择
+                  {t('parent.homework.bindReadingHint')}
                 </p>
                 <select
                   value={formData.reading_article_id}
@@ -963,9 +963,9 @@ export function HomeworkForm({
                       reading_article_id: e.target.value,
                     }))
                   }
-                  className="w-full rounded-radius-xl border-2 border-ink-200 bg-white px-space-4 py-space-3 text-ui-sm"
+                  className="w-full rounded-radius-xl border-2 border-ink-300 bg-white px-space-4 py-space-3 text-ui-sm"
                 >
-                  <option value="">不绑定，自由选择</option>
+                  <option value="">{t('parent.homework.freeChoice')}</option>
                   {readingArticles.map((a) => (
                     <option key={a.id} value={a.id}>
                       [{a.category}] {a.title} (G{a.grade_level})
@@ -976,13 +976,13 @@ export function HomeworkForm({
             )}
 
             {/* Platform binding */}
-            <div className="rounded-radius-2xl border border-ink-200 bg-ink-50 p-space-4">
+            <div className="rounded-radius-2xl border border-ink-300 bg-ink-50 p-space-4">
               <div>
                 <label className="block text-sm font-medium text-forest-700">
-                  平台任务绑定
+                  {t('parent.homework.platformBinding')}
                 </label>
                 <p className="mt-space-1 text-ui-sm text-ink-500">
-                  绑定后，平台同步会优先把学习事件匹配到这条作业。适合单个孩子的精确任务；多人批量创建时先保持为空更稳妥。
+                  {t('parent.homework.platformBindingHint')}
                 </p>
               </div>
 
@@ -992,11 +992,11 @@ export function HomeworkForm({
                     htmlFor="platform-binding-platform"
                     className="mb-1 block text-sm font-medium text-forest-700"
                   >
-                    来源平台
+                    {t('parent.homework.sourcePlatform')}
                   </label>
                   <select
                     id="platform-binding-platform"
-                    aria-label="来源平台"
+                    aria-label={t('parent.homework.sourcePlatform')}
                     disabled={!canConfigurePlatformBinding}
                     value={formData.platform_binding_platform}
                     onChange={(e) =>
@@ -1005,9 +1005,9 @@ export function HomeworkForm({
                         platform_binding_platform: e.target.value,
                       }))
                     }
-                    className="w-full rounded-radius-xl border-2 border-ink-200 bg-white px-space-4 py-space-2 text-ui-sm text-forest-700 outline-none transition-all focus:border-forest-500 disabled:cursor-not-allowed disabled:bg-ink-100"
+                    className="w-full rounded-radius-xl border-2 border-ink-300 bg-white px-space-4 py-space-2 text-ui-sm text-forest-700 outline-none transition-all focus:border-forest-500 disabled:cursor-not-allowed disabled:bg-ink-100"
                   >
-                    <option value="">不绑定具体平台任务</option>
+                    <option value="">{t('parent.homework.noBinding')}</option>
                     <option value="ixl">IXL</option>
                     <option value="khan-academy">Khan Academy</option>
                   </select>
@@ -1015,8 +1015,8 @@ export function HomeworkForm({
 
                 <Input
                   id="platform-binding-source-ref"
-                  label="平台任务 Source Ref"
-                  aria-label="平台任务 Source Ref"
+                  label={t('parent.homework.sourceRef')}
+                  aria-label={t('parent.homework.sourceRef')}
                   disabled={!canConfigurePlatformBinding}
                   value={formData.platform_binding_source_ref}
                   onChange={(e) =>
@@ -1025,20 +1025,20 @@ export function HomeworkForm({
                       platform_binding_source_ref: e.target.value,
                     }))
                   }
-                  placeholder="例如 lesson-123 / skill-a4"
+                  placeholder={t('parent.homework.sourceRefPlaceholder')}
                 />
               </div>
 
               <p className="mt-space-3 text-ui-xs text-ink-500">
                 {canConfigurePlatformBinding
-                  ? "如果平台端有明确的任务编号或课程编号，建议在这里填入，能明显减少误匹配。"
-                  : "当前选择了多个孩子，已暂时禁用精确平台绑定，避免不同孩子共享同一个外部任务编号。"}
+                  ? t('parent.homework.platformHint')
+                  : t('parent.homework.batchPlatformDisabled')}
               </p>
 
               {canConfigurePlatformBinding && (
-                <div className="mt-3 rounded-radius-xl border border-ink-200 bg-white px-space-3 py-space-3 text-ui-sm text-ink-600">
+                <div className="mt-3 rounded-radius-xl border border-ink-300 bg-white px-space-3 py-space-3 text-ui-sm text-ink-600">
                   <p className="font-medium text-forest-700">
-                    孩子平台账号自动匹配
+                    {t('parent.homework.autoMatchTitle')}
                   </p>
                   {matchedPlatformAccount ? (
                     <p className="mt-space-1">
@@ -1062,7 +1062,7 @@ export function HomeworkForm({
 
             {/* Estimated minutes */}
             <Input
-              label="预计时长（分钟）"
+              label={t('parent.homework.estimatedMinutesLabel')}
               type="number"
               min={5}
               max={180}
@@ -1084,7 +1084,7 @@ export function HomeworkForm({
       {/* Submit buttons */}
       <div className="flex gap-3">
         <Button type="button" variant="ghost" onClick={() => router.back()}>
-          取消
+          {t('common.cancel')}
         </Button>
         <Button
           type="submit"
@@ -1093,7 +1093,7 @@ export function HomeworkForm({
             loading || formData.child_ids.length === 0 || !formData.title
           }
         >
-          {loading ? "保存中..." : homework ? "更新作业" : "创建作业"}
+          {loading ? t('parent.homework.saving') : homework ? t('parent.homework.updateHomeworkBtn') : t('parent.homework.createHomeworkBtn')}
         </Button>
       </div>
     </form>

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslation } from "@/hooks/useTranslation";
+
 type ChildOption = {
   id: string;
   name: string;
@@ -23,14 +25,16 @@ export function HomeworkAssignmentPanel({
   independenceHint,
   onToggle,
 }: HomeworkAssignmentPanelProps) {
+  const { t } = useTranslation();
+
   return (
     <section className="space-y-4 rounded-3xl border border-forest-200 bg-white/90 p-5">
       <div>
-        <h2 className="text-lg font-semibold text-forest-700">分配给谁</h2>
+        <h2 className="text-lg font-semibold text-forest-700">{t('parent.homework.assignedTo')}</h2>
         <p className="mt-1 text-sm text-forest-500">
           {canBatchAssign
-            ? "可以一次选择多个孩子，系统会分别创建独立作业。"
-            : "编辑时保持当前孩子不变，避免误改其他孩子的作业。"}
+            ? t('parent.homework.batchHint')
+            : t('parent.homework.editHint')}
         </p>
       </div>
 
@@ -54,7 +58,7 @@ export function HomeworkAssignmentPanel({
                 {child.avatar} {child.name}
               </div>
               <div className="mt-1 text-xs text-forest-500">
-                {selected ? "已选中" : "点击加入这次分配"}
+                {selected ? t('parent.homework.selected') : t('parent.homework.clickToAdd')}
               </div>
             </button>
           );

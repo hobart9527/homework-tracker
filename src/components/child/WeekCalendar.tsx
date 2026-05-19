@@ -171,7 +171,7 @@ export function WeekCalendar({
       </div>
       <div className="mb-3 flex items-center gap-4 text-[10px] text-ink-400">
         <span className="flex items-center gap-1">
-          <span className="h-2 w-2 rounded-full ring-1 ring-ink-200" />
+          <span className="h-2 w-2 rounded-full ring-1 ring-ink-300" />
           {t("child.weekCalendar.notStarted")}
         </span>
         <span className="flex items-center gap-1">

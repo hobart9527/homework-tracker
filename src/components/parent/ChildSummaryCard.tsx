@@ -25,7 +25,7 @@ export function ChildSummaryCard({
         "bg-cream-50 shadow-elevation-raised hover:-translate-y-0.5 hover:shadow-elevation-floating",
         selected
           ? "border-primary ring-2 ring-primary/20"
-          : "border-ink-200 hover:border-ink-300",
+          : "border-ink-300 hover:border-ink-300",
       ].join(" ")}
     >
       <div className="flex items-start gap-3">

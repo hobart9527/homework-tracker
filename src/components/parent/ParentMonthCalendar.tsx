@@ -161,7 +161,7 @@ export function ParentMonthCalendar({
   const todayKey = new Date().toISOString().slice(0, 10);
 
   return (
-    <section className="space-y-4 rounded-radius-2xl border border-ink-200 bg-white p-space-4 shadow-elevation-raised">
+    <section className="space-y-4 rounded-radius-2xl border border-ink-300 bg-white p-space-4 shadow-elevation-raised">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -225,7 +225,7 @@ export function ParentMonthCalendar({
                 className={`relative flex h-11 min-w-[44px] flex-col items-center justify-center rounded-radius-lg transition-all ${tone.bgClass} ${
                   isSelected
                     ? "ring-2 ring-forest-500 ring-offset-1"
-                    : "hover:ring-1 hover:ring-ink-200"
+                    : "hover:ring-1 hover:ring-ink-300"
                 }`}
                 title={
                   day.tooltip

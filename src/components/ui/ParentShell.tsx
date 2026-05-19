@@ -45,7 +45,7 @@ const DEFAULT_SIDEBAR_ITEMS: SidebarItem[] = [
  * Tokens:
  *   - bg-forest-50  → page background
  *   - bg-white      → sidebar / nav background
- *   - border-ink-200 → dividers
+ *   - border-ink-300 → dividers
  */
 export default function ParentShell({
   children,
@@ -56,9 +56,9 @@ export default function ParentShell({
   return (
     <div className={`min-h-screen bg-forest-50 flex ${className || ""}`.trim()}>
       {/* ── Desktop Sidebar (iPad landscape >= 1024px) ─────────────── */}
-      <aside className="hidden lg:flex flex-col w-60 bg-white border-r border-ink-200 fixed inset-y-0 left-0 z-40">
+      <aside className="hidden lg:flex flex-col w-60 bg-white border-r border-ink-300 fixed inset-y-0 left-0 z-40">
         {/* Brand */}
-        <div className="flex items-center gap-3 px-5 py-5 border-b border-ink-200">
+        <div className="flex items-center gap-3 px-5 py-5 border-b border-ink-300">
           <div className="w-9 h-9 rounded-radius-md bg-forest-500 flex items-center justify-center text-white">
             <IconFox className="w-5 h-5" />
           </div>
@@ -90,7 +90,7 @@ export default function ParentShell({
       </aside>
 
       {/* ── Mobile Top Nav (iPad portrait < 1024px) ────────────────── */}
-      <nav className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-ink-200 z-40">
+      <nav className="lg:hidden fixed top-0 left-0 right-0 bg-white border-b border-ink-300 z-40">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Brand */}
           <div className="flex items-center gap-2">

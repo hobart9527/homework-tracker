@@ -1,4 +1,9 @@
+"use client";
+
+import { useRouter } from "next/navigation";
 import { HomeworkForm } from "@/components/parent/HomeworkForm";
+import { Button } from "@/components/ui/Button";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type NewHomeworkPageProps = {
   searchParams?: {
@@ -10,6 +15,8 @@ type NewHomeworkPageProps = {
 export default function NewHomeworkPage({
   searchParams,
 }: NewHomeworkPageProps) {
+  const { t } = useTranslation();
+  const router = useRouter();
   const copyFromParam = searchParams?.copyFrom;
   const copyFromHomeworkId =
     typeof copyFromParam === "string" ? copyFromParam : copyFromParam?.[0];
@@ -18,10 +25,15 @@ export default function NewHomeworkPage({
   const childId = typeof childIdParam === "string" ? childIdParam : childIdParam?.[0];
 
   return (
-    <div className="space-y-space-6">
-      <p className="text-ui-sm text-ink-500">
-        可以一次分配给多个孩子，系统会分别创建独立作业。
-      </p>
+    <div className="max-w-7xl mx-auto space-y-space-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">
+          {t('parent.homework.newHomework')}
+        </h1>
+        <Button variant="ghost" size="sm" onClick={() => router.push('/homework')}>
+          {t('common.back')}
+        </Button>
+      </div>
       <HomeworkForm copyFromHomeworkId={copyFromHomeworkId} prefilledChildId={childId} />
     </div>
   );
