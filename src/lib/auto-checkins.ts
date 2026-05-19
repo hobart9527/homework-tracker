@@ -148,15 +148,17 @@ export async function applyAutoCheckinMatches(input: {
 
 /**
  * Returns true when a reading homework qualifies for auto-completion:
- * type_name is "阅读" or "英文阅读" AND required_checkpoint_type is
- * empty-string or null (i.e. NOT "audio" recording mode).
+ * type_name is "阅读" AND required_checkpoint_type is empty-string or
+ * null (i.e. NOT "audio" recording mode).
+ *
+ * The caller is responsible for filtering by primary category (中文/英文)
+ * via the homework_type_groups join.
  */
 export function shouldAutoCompleteReading(homework: {
   type_name: string;
   required_checkpoint_type: string | null;
 }): boolean {
-  const isReadingType =
-    homework.type_name === "阅读" || homework.type_name === "英文阅读";
+  const isReadingType = homework.type_name === "阅读";
   const noRecordingRequired =
     homework.required_checkpoint_type === "" ||
     homework.required_checkpoint_type === null;
@@ -180,9 +182,11 @@ export async function createReadingAutoCheckin(input: {
   articleId: string;
   score: number;
   total: number;
+  articleLanguage?: "zh" | "en";
 }) {
-  const { supabase, childId, homework, articleId, score, total } = input;
-  const note = `阅读自动打卡 — 文章: ${articleId}, 得分: ${score}/${total}`;
+  const { supabase, childId, homework, articleId, score, total, articleLanguage } = input;
+  const langLabel = articleLanguage === "en" ? "英文" : "中文";
+  const note = `${langLabel}阅读自动打卡 — 文章: ${articleId}, 得分: ${score}/${total}`;
 
   try {
     const { data, error } = await supabase

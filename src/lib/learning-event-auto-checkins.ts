@@ -55,6 +55,7 @@ type CandidateHomework = Pick<
   | "repeat_start_date"
   | "repeat_end_date"
   | "is_active"
+  | "type_group_id"
 >;
 
 type ExistingCheckIn = Pick<
@@ -129,7 +130,25 @@ export async function loadAutoCheckinContext(input: {
     repeat_start_date: homework.repeat_start_date,
     repeat_end_date: homework.repeat_end_date,
     is_active: homework.is_active,
+    type_group_id: homework.type_group_id,
   }));
+
+  // Fetch group names for platform matching hints
+  const groupIds = [...new Set(candidateHomeworks.map((h) => h.type_group_id).filter(Boolean))];
+  let groupNamesById: Record<string, string> = {};
+  if (groupIds.length > 0) {
+    const groupsSelect = input.supabase.from("homework_type_groups")
+      .select as unknown as (columns?: string) => {
+      in: (column: string, values: string[]) => Promise<{
+        data: Record<string, unknown>[] | null;
+        error: { message: string } | null;
+      }>;
+    };
+    const { data: groupsData } = await groupsSelect("id, name").in("id", groupIds as string[]);
+    groupNamesById = Object.fromEntries(
+      (groupsData ?? []).map((g) => [String(g.id), String(g.name)])
+    );
+  }
 
   const existingCheckInsByHomeworkId = Object.fromEntries(
     ((checkIns ?? []) as ExistingCheckIn[]).map((checkIn) => [
@@ -141,6 +160,7 @@ export async function loadAutoCheckinContext(input: {
   return {
     candidateHomeworks,
     existingCheckInsByHomeworkId,
+    groupNamesById,
   };
 }
 
@@ -150,6 +170,7 @@ export async function syncLearningEventAutoCheckins(input: {
   event: LearningEventInput;
   candidateHomeworks: CandidateHomework[];
   existingCheckInsByHomeworkId: Record<string, { id: string } | null>;
+  groupNamesById?: Record<string, string>;
 }) {
   const ingestResult = await ingestLearningEvent({
     supabase: input.supabase as any,
@@ -196,6 +217,10 @@ export async function syncLearningEventAutoCheckins(input: {
       continue;
     }
 
+    const homeworkGroupName = homework.type_group_id
+      ? input.groupNamesById?.[homework.type_group_id]
+      : undefined;
+
     if (
       !matchesDirectBinding &&
       !matchesPlatformHomeworkType({
@@ -203,6 +228,7 @@ export async function syncLearningEventAutoCheckins(input: {
         subject: input.event.subject,
         title: input.event.title,
         homeworkTypeName: homework.type_name,
+        homeworkGroupName,
       })
     ) {
       continue;

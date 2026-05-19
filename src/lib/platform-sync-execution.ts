@@ -147,6 +147,7 @@ export async function importNormalizedEvent(input: {
     },
     candidateHomeworks: context.candidateHomeworks,
     existingCheckInsByHomeworkId: context.existingCheckInsByHomeworkId,
+    groupNamesById: context.groupNamesById,
   });
 }
 

@@ -37,6 +37,7 @@ function buildHomework(task: Task, index: number): Homework {
     type_name: "今日任务",
     type_icon: task.typeIcon ?? '',
     title: task.title,
+    type_group_id: null,
     description: null,
     repeat_type: "daily",
     repeat_days: null,

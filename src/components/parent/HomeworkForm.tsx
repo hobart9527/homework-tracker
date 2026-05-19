@@ -23,33 +23,35 @@ type MessageRoutingRule =
   Database["public"]["Tables"]["message_routing_rules"]["Row"];
 type WeChatGroup = Database["public"]["Tables"]["wechat_groups"]["Row"];
 
+type TypeGroup = {
+  id: string;
+  name: string;
+  icon: string;
+  sort_order: number;
+};
+
+const DEFAULT_TYPE_GROUPS: TypeGroup[] = [
+  { id: "group_english", name: "英文", icon: "🔤", sort_order: 0 },
+  { id: "group_chinese", name: "中文", icon: "🇨🇳", sort_order: 1 },
+  { id: "group_math", name: "数学", icon: "📐", sort_order: 2 },
+  { id: "group_interest", name: "兴趣", icon: "🎨", sort_order: 3 },
+];
+
 const DEFAULT_TYPES = [
-  { id: "piano", name: "钢琴", icon: "🎹", default_points: 6 },
-  { id: "reading", name: "阅读", icon: "📖", default_points: 3 },
-  { id: "khan", name: "Khan Academy", icon: "💻", default_points: 4 },
-  { id: "raz", name: "Raz-Kidz", icon: "📚", default_points: 3 },
-  { id: "ixl", name: "IXL", icon: "🔢", default_points: 4 },
-  { id: "chinese", name: "中文", icon: "🇨🇳", default_points: 3 },
-  { id: "volleyball", name: "排球", icon: "🏐", default_points: 3 },
-  { id: "ballet", name: "Ballet", icon: "👯", default_points: 3 },
-  { id: "musical", name: "Musical", icon: "🎭", default_points: 3 },
-  { id: "housework", name: "家务", icon: "🧹", default_points: 2 },
-  { id: "english_reading", name: "英文阅读", icon: "📚", default_points: 5 },
-  { id: "math", name: "数学", icon: "📐", default_points: 4 },
-  { id: "english", name: "英语", icon: "🔤", default_points: 4 },
-  { id: "science", name: "科学", icon: "🔬", default_points: 3 },
-  { id: "coding", name: "编程", icon: "💻", default_points: 4 },
-  { id: "calligraphy", name: "书法", icon: "✍️", default_points: 3 },
-  { id: "drawing", name: "画画", icon: "🎨", default_points: 3 },
-  { id: "dance", name: "舞蹈", icon: "💃", default_points: 3 },
-  { id: "swimming", name: "游泳", icon: "🏊", default_points: 3 },
-  { id: "running", name: "跑步", icon: "🏃", default_points: 2 },
-  { id: "skipping", name: "跳绳", icon: "🪢", default_points: 2 },
-  { id: "poetry", name: "古诗背诵", icon: "📜", default_points: 4 },
-  { id: "mental_math", name: "口算", icon: "🧮", default_points: 3 },
-  { id: "writing", name: "写字", icon: "✏️", default_points: 3 },
-  { id: "listening", name: "听力", icon: "🎧", default_points: 3 },
-  { id: "speaking", name: "口语", icon: "🗣️", default_points: 4 },
+  { id: "english_reading", name: "阅读", icon: "📚", default_points: 5, group_id: "group_english" },
+  { id: "english_course", name: "课程", icon: "💻", default_points: 4, group_id: "group_english" },
+  { id: "english_practice", name: "练习", icon: "📝", default_points: 4, group_id: "group_english" },
+  { id: "english_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_english" },
+  { id: "chinese_reading", name: "阅读", icon: "📖", default_points: 3, group_id: "group_chinese" },
+  { id: "chinese_practice", name: "练习", icon: "📝", default_points: 3, group_id: "group_chinese" },
+  { id: "chinese_course", name: "课程", icon: "💻", default_points: 4, group_id: "group_chinese" },
+  { id: "chinese_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_chinese" },
+  { id: "math_practice", name: "练习", icon: "🧮", default_points: 4, group_id: "group_math" },
+  { id: "math_course", name: "课程", icon: "💻", default_points: 4, group_id: "group_math" },
+  { id: "interest_piano", name: "钢琴", icon: "🎹", default_points: 6, group_id: "group_interest" },
+  { id: "interest_vocal", name: "声乐", icon: "🎤", default_points: 4, group_id: "group_interest" },
+  { id: "interest_ea", name: "EA", icon: "🎭", default_points: 4, group_id: "group_interest" },
+  { id: "interest_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_interest" },
 ];
 
 interface HomeworkFormProps {
@@ -71,6 +73,7 @@ export function HomeworkForm({
   const [platformAccounts, setPlatformAccounts] = useState<PlatformAccount[]>([]);
   const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
   const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
+  const [typeGroups, setTypeGroups] = useState<TypeGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [readingArticles, setReadingArticles] = useState<
@@ -94,6 +97,7 @@ export function HomeworkForm({
 
   const [formData, setFormData] = useState<HomeworkFormState>({
     child_ids: homework?.child_id ? [homework.child_id] : [],
+    type_group_id: homework?.type_group_id || "",
     type_id: homework?.type_id || "",
     type_name: homework?.type_name || "",
     type_icon: homework?.type_icon || "📝",
@@ -170,6 +174,18 @@ export function HomeworkForm({
         }
       }
 
+      const { data: groupsData } = await supabase
+        .from("homework_type_groups")
+        .select("*")
+        .eq("parent_id", session.user.id)
+        .order("sort_order", { ascending: true });
+
+      if (groupsData && groupsData.length > 0) {
+        setTypeGroups(groupsData as TypeGroup[]);
+      } else {
+        setTypeGroups(DEFAULT_TYPE_GROUPS);
+      }
+
       if (!homework && !copyFromHomeworkId && childrenData?.length && !prefilledChildId) {
         setFormData((prev) => ({ ...prev, child_ids: [childrenData[0].id] }));
       }
@@ -235,6 +251,12 @@ export function HomeworkForm({
 
   const allTypes = DEFAULT_TYPES.map((t) => ({ ...t, is_custom: false }));
 
+  const effectiveTypeGroups = typeGroups.length > 0 ? typeGroups : DEFAULT_TYPE_GROUPS;
+
+  const filteredTypes = formData.type_group_id
+    ? allTypes.filter((t) => t.group_id === formData.type_group_id)
+    : allTypes;
+
   const selectedChildren = children.filter((child) =>
     formData.child_ids.includes(child.id)
   );
@@ -271,7 +293,8 @@ export function HomeworkForm({
   const canBatchAssign = !isEditing && !prefilledChildId;
 
   const isReadingType =
-    formData.type_name === "阅读" || formData.type_name === "英文阅读";
+    formData.type_name === "阅读" || formData.type_name === "英文阅读" ||
+    (effectiveTypeGroups.find(g => g.id === formData.type_group_id)?.name === "英文" && formData.type_name === "阅读");
 
   useEffect(() => {
     if (!autoMatchedPlatform || !canConfigurePlatformBinding) {
@@ -314,6 +337,27 @@ export function HomeworkForm({
       type_icon: type.icon || "📝",
       point_value: type.default_points ?? 3,
       title: isAutoTitle ? type.name + "练习" : prev.title,
+      type_group_id: type.group_id || prev.type_group_id,
+    }));
+  };
+
+  const handleGroupSelect = (groupId: string) => {
+    const group = effectiveTypeGroups.find((g) => g.id === groupId);
+    if (!group) return;
+    setFormData((prev) => ({
+      ...prev,
+      type_group_id: groupId,
+      type_name: "",
+      type_icon: group.icon || "📝",
+    }));
+  };
+
+  const handleClearGroup = () => {
+    setFormData((prev) => ({
+      ...prev,
+      type_group_id: "",
+      type_name: "",
+      type_icon: "📝",
     }));
   };
 
@@ -468,7 +512,49 @@ export function HomeworkForm({
           onToggle={handleToggleChild}
         />
 
-        {/* Type chip grid selector */}
+        {/* Primary category selector */}
+        <div>
+          <label className="block text-ui-sm font-medium text-forest-700 mb-space-1">
+            一级分类
+          </label>
+          <p className="text-ui-sm text-ink-500 mb-space-3">
+            先选择大类，再选择具体类型。
+          </p>
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+            <button
+              type="button"
+              onClick={handleClearGroup}
+              className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
+                !formData.type_group_id
+                  ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
+                  : "border-ink-200 text-ink-600 hover:border-ink-300"
+              }`}
+            >
+              <div className="text-ui-lg">📝</div>
+              <div className="text-ui-xs mt-0.5">全部</div>
+            </button>
+            {effectiveTypeGroups.map((group) => {
+              const isSelected = formData.type_group_id === group.id;
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => handleGroupSelect(group.id)}
+                  className={`rounded-radius-xl border-2 px-2 py-2 text-center text-ui-sm transition-all ${
+                    isSelected
+                      ? "border-forest-500 bg-forest-500/10 text-forest-600 font-medium"
+                      : "border-ink-200 text-ink-600 hover:border-ink-300"
+                  }`}
+                >
+                  <div className="text-ui-lg">{group.icon}</div>
+                  <div className="text-ui-xs mt-0.5">{group.name}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Secondary type selector */}
         <div>
           <label className="block text-ui-sm font-medium text-forest-700 mb-space-1">
             作业类型
@@ -489,7 +575,7 @@ export function HomeworkForm({
               <div className="text-ui-lg">📝</div>
               <div className="text-ui-xs mt-0.5">自定义</div>
             </button>
-            {allTypes.map((type) => {
+            {filteredTypes.map((type) => {
               const isSelected = formData.type_name === type.name;
               return (
                 <button

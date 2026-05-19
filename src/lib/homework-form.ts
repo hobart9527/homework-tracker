@@ -2,6 +2,7 @@ export type HomeworkProofType = "photo" | "audio" | null;
 
 export type HomeworkFormState = {
   child_ids: string[];
+  type_group_id: string;
   type_id: string;
   type_name: string;
   type_icon: string;
@@ -44,6 +45,7 @@ export type HomeworkRulePreview = {
 
 type SourceHomework = {
   child_id: string;
+  type_group_id: string | null;
   type_id: string | null;
   type_name: string;
   type_icon: string;
@@ -118,6 +120,7 @@ export function buildHomeworkDraftFromSource(
   const { description, meta } = decodeDescriptionMeta(source.description);
   return {
     child_ids: [source.child_id],
+    type_group_id: source.type_group_id || "",
     type_id: source.type_id || "",
     type_name: source.type_name,
     type_icon: source.type_icon || "📝",
@@ -185,6 +188,7 @@ export function buildHomeworkInsertRows(
     required_checkpoint_type: checkpointType || null,
     send_to_wechat: effectiveSendToWechat,
     wechat_group_id: effectiveWechatGroupId || null,
+    type_group_id: form.type_group_id || null,
   }));
 }
 

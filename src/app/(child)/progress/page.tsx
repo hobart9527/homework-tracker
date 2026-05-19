@@ -54,12 +54,14 @@ function MonthSwitchButton(props: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  "aria-label"?: string;
 }) {
   return (
     <button
       type="button"
       onClick={props.onClick}
       disabled={props.disabled}
+      aria-label={props["aria-label"]}
       className={`rounded-full px-4 py-2 text-sm font-medium transition ${
         props.disabled
           ? "cursor-not-allowed bg-forest-50 text-forest-300"
@@ -327,6 +329,7 @@ export default function ProgressPage() {
               <div className="flex items-center gap-2">
                 <MonthSwitchButton
                   label="◀"
+                  aria-label="上个月"
                   onClick={() => setMonth(prevMonth)}
                 />
                 <div className="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
@@ -334,6 +337,7 @@ export default function ProgressPage() {
                 </div>
                 <MonthSwitchButton
                   label="▶"
+                  aria-label="下个月"
                   disabled={disableNextMonth}
                   onClick={() => {
                     if (!disableNextMonth) setMonth(nextMonth);

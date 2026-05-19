@@ -347,6 +347,41 @@ export type Database = {
           },
         ]
       }
+      homework_type_groups: {
+        Row: {
+          created_at: string | null
+          icon: string
+          id: string
+          name: string
+          parent_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string | null
+          icon?: string
+          id?: string
+          name: string
+          parent_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string | null
+          icon?: string
+          id?: string
+          name?: string
+          parent_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homework_type_groups_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       homeworks: {
         Row: {
           child_id: string
@@ -369,6 +404,7 @@ export type Database = {
           required_checkpoint_type: string | null
           send_to_wechat: boolean
           title: string
+          type_group_id: string | null
           type_icon: string
           type_id: string | null
           type_name: string
@@ -395,6 +431,7 @@ export type Database = {
           required_checkpoint_type?: string | null
           send_to_wechat?: boolean
           title: string
+          type_group_id?: string | null
           type_icon?: string
           type_id?: string | null
           type_name: string
@@ -421,6 +458,7 @@ export type Database = {
           required_checkpoint_type?: string | null
           send_to_wechat?: boolean
           title?: string
+          type_group_id?: string | null
           type_icon?: string
           type_id?: string | null
           type_name?: string
@@ -432,6 +470,13 @@ export type Database = {
             columns: ["child_id"]
             isOneToOne: false
             referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homeworks_type_group_id_fkey"
+            columns: ["type_group_id"]
+            isOneToOne: false
+            referencedRelation: "homework_type_groups"
             referencedColumns: ["id"]
           },
           {

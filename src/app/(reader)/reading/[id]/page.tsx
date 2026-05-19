@@ -76,6 +76,7 @@ export default function ReadingArticlePage({
   const [pinyinEnabled, setPinyinEnabled] = useState(false);
 
   const articleReaderRef = useRef<ArticleReaderRef>(null);
+  const supabaseRef = useRef(createClient());
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [ttsPaused, setTtsPaused] = useState(false);
 
@@ -176,49 +177,65 @@ export default function ReadingArticlePage({
             .single();
 
           if (assignment) {
-            // Step 2: find a reading homework for this child that
-            // qualifies for auto-completion (type is 阅读/英文阅读 AND
-            // no recording required).
+            // Step 2: find all reading homeworks for this child that
+            // belong to 中文 or 英文 primary category and have secondary
+            // category "阅读".
             const { data: readingHomeworks } = await supabase
               .from("homeworks")
-              .select("id, type_name, point_value, required_checkpoint_type")
+              .select(
+                "id, type_name, point_value, required_checkpoint_type, type_group_id, group:homework_type_groups(name)"
+              )
               .eq("child_id", assignment.child_id)
               .is("deleted_at", null)
-              .in("type_name", ["阅读", "英文阅读"]);
+              .eq("type_name", "阅读")
+              .in("homework_type_groups.name", ["中文", "英文"]);
 
-            if (readingHomeworks && readingHomeworks.length > 0) {
-              const qualifyingHomework = readingHomeworks.find((hw) =>
-                shouldAutoCompleteReading(hw)
-              );
+            const targetGroupName = article?.language === "en" ? "英文" : "中文";
+            const matchingHomeworks =
+              readingHomeworks?.filter(
+                (hw: any) =>
+                  hw.group?.name === targetGroupName &&
+                  shouldAutoCompleteReading(hw)
+              ) ?? [];
 
-              if (qualifyingHomework) {
-                // Guard: skip if a check-in already exists for this
-                // homework today (server-side quiz submit may have
-                // linked its check-in to this homework already).
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-                const todayEnd = new Date();
-                todayEnd.setHours(23, 59, 59, 999);
-                const { data: existingCheckIns } = await supabase
+            for (const hw of matchingHomeworks) {
+              const todayStart = new Date();
+              todayStart.setHours(0, 0, 0, 0);
+              const todayEnd = new Date();
+              todayEnd.setHours(23, 59, 59, 999);
+
+              const { data: existingCheckIns } = await supabase
+                .from("check_ins")
+                .select("id, note")
+                .eq("homework_id", hw.id)
+                .gte("completed_at", todayStart.toISOString())
+                .lte("completed_at", todayEnd.toISOString());
+
+              const newNoteLine = `${targetGroupName}阅读自动打卡 — 文章: ${params.id}, 得分: ${result.score}/${result.total}`;
+
+              if (existingCheckIns && existingCheckIns.length > 0) {
+                // Update existing check-in: append new reading info to note
+                const existing = existingCheckIns[0];
+                const updatedNote = existing.note
+                  ? `${existing.note}\n${newNoteLine}`
+                  : newNoteLine;
+                await supabase
                   .from("check_ins")
-                  .select("id")
-                  .eq("homework_id", qualifyingHomework.id)
-                  .gte("completed_at", todayStart.toISOString())
-                  .lte("completed_at", todayEnd.toISOString());
-
-                if (!existingCheckIns || existingCheckIns.length === 0) {
-                  await createReadingAutoCheckin({
-                    supabase,
-                    childId: assignment.child_id,
-                    homework: {
-                      id: qualifyingHomework.id,
-                      point_value: qualifyingHomework.point_value ?? 0,
-                    },
-                    articleId: params.id,
-                    score: result.score,
-                    total: result.total,
-                  });
-                }
+                  .update({ note: updatedNote })
+                  .eq("id", existing.id);
+              } else {
+                await createReadingAutoCheckin({
+                  supabase,
+                  childId: assignment.child_id,
+                  homework: {
+                    id: hw.id,
+                    point_value: hw.point_value ?? 0,
+                  },
+                  articleId: params.id,
+                  score: result.score,
+                  total: result.total,
+                  articleLanguage: article?.language,
+                });
               }
             }
           }
@@ -349,7 +366,7 @@ export default function ReadingArticlePage({
             pinyinEnabled={pinyinEnabled}
             onTogglePinyin={async () => {
               const newVal = !pinyinEnabled;
-              await supabase
+              await supabaseRef.current
                 .from("children")
                 .update({ pinyin_enabled: newVal })
                 .eq("id", childId!);

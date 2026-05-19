@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { ChildSelector } from "@/components/parent/ChildSelector";
 import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
 import { ParentChildTaskList } from "@/components/parent/ParentChildTaskList";
@@ -551,13 +551,13 @@ describe("ChildSelector summary cards", () => {
       })
     );
 
-    expect(screen.getAllByRole("tab")).toHaveLength(3); // 全部孩子 + Ivy + Albert
     expect(screen.getByText("Ivy")).toBeInTheDocument();
     expect(screen.getByText("Albert")).toBeInTheDocument();
-    expect(screen.getByText("全部孩子")).toBeInTheDocument();
+    expect(screen.getByText("2/3")).toBeInTheDocument();
+    expect(screen.getByText("1/1")).toBeInTheDocument();
   });
 
-  it("shows the top notice for each child", () => {
+  it("marks the selected child tab with aria-selected", () => {
     const result = buildSummaryFixture();
 
     render(
@@ -568,8 +568,8 @@ describe("ChildSelector summary cards", () => {
       })
     );
 
-    expect(screen.getByText("2/3")).toBeInTheDocument();
-    expect(screen.getByText("1/1")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Ivy/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Albert/ })).toHaveAttribute("aria-selected", "false");
   });
 
   it("calls onSelect when a summary card is clicked", () => {
@@ -657,7 +657,6 @@ describe("TodayOverview mixed detail panels", () => {
 describe("ParentDashboardPage wiring", () => {
   afterEach(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
 
   it("renders the linked task overview, compact calendar, and side-by-side analysis blocks", async () => {
@@ -830,18 +829,15 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/reading/progress')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalRead: 0, avgScore: 0, totalPoints: 0, recent: [] }) });
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ reminderStates: [] }) });
-    }));
+    await act(async () => {
+      render(createElement(ParentDashboardPage));
+      await vi.runAllTimersAsync();
+    });
 
-    render(createElement(ParentDashboardPage));
-    await vi.runAllTimersAsync();
-
-    expect(screen.getAllByText("Ivy").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Albert").length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getByText("Ivy")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Albert")).toBeInTheDocument();
     const todayHeading = screen.getAllByText("当天任务")[0];
     const calendarHeading = screen.getByText("本月进度日历");
     const heatmapHeading = screen.getByText("本月时段热力图");
@@ -1005,10 +1001,14 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    render(createElement(ParentDashboardPage));
-    await vi.runAllTimersAsync();
+    await act(async () => {
+      render(createElement(ParentDashboardPage));
+      await vi.runAllTimersAsync();
+    });
 
-    expect(screen.getByText("2026年4月")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("2026年4月")).toBeInTheDocument();
+    });
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "下个月" }));
@@ -1259,18 +1259,11 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/reading/progress')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalRead: 0, avgScore: 0, totalPoints: 0, recent: [] }) });
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ reminderStates: [] }) });
-    }));
-
     render(createElement(ParentDashboardPage));
     await vi.runAllTimersAsync();
 
-    expect(screen.getAllByText("Ivy").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Albert").length).toBeGreaterThan(0);
+    expect(screen.getByText("Ivy")).toBeInTheDocument();
+    expect(screen.getByText("Albert")).toBeInTheDocument();
     expect(screen.getByText("本月进度日历")).toBeInTheDocument();
     expect(screen.getAllByText("当天任务").length).toBeGreaterThan(0);
   });
@@ -1465,25 +1458,18 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
-      if (url.includes('/api/reading/progress')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalRead: 0, avgScore: 0, totalPoints: 0, recent: [] }) });
-      }
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ reminderStates: [] }) });
-    }));
-
     render(createElement(ParentDashboardPage));
     await vi.runAllTimersAsync();
 
-    expect(screen.getByRole("tab", { name: /Ivy/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: /Ivy/ })).toHaveAttribute("aria-selected", "true");
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "下个月" }));
       await vi.runAllTimersAsync();
     });
 
-    expect(screen.getByRole("tab", { name: /Albert/ })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getAllByText("Albert").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Albert/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Albert")).toBeInTheDocument();
   });
 
   it("renders a logout action in the header", async () => {

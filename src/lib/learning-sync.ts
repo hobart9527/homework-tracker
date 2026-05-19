@@ -12,6 +12,13 @@ const HOMEWORK_TYPE_ALIASES: Record<string, string[]> = {
   science: ["science", "科学"],
 };
 
+const GROUP_PLATFORM_HINTS: Record<string, string[]> = {
+  "数学": ["ixl", "khan"],
+  "英文": ["raz", "epic", "ixl"],
+  "中文": [],
+  "兴趣": [],
+};
+
 function normalizeMatchText(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, "");
 }
@@ -65,6 +72,7 @@ export function matchesPlatformHomeworkType(input: {
   subject: string | null;
   title: string;
   homeworkTypeName: string | null | undefined;
+  homeworkGroupName?: string | null | undefined;
 }) {
   if (!input.homeworkTypeName?.trim()) {
     return true;
@@ -87,16 +95,38 @@ export function matchesPlatformHomeworkType(input: {
       aliases.some((alias) => normalizedTypeName.includes(normalizeMatchText(alias)))
   );
 
-  if (!aliasEntry) {
-    return haystack.some((value) => value.includes(normalizedTypeName));
+  if (aliasEntry) {
+    const [, aliases] = aliasEntry;
+    const normalizedAliases = aliases.map(normalizeMatchText);
+
+    return haystack.some((value) =>
+      normalizedAliases.some((alias) => value.includes(alias))
+    );
   }
 
-  const [, aliases] = aliasEntry;
-  const normalizedAliases = aliases.map(normalizeMatchText);
+  if (input.homeworkGroupName?.trim()) {
+    const normalizedGroupName = normalizeMatchText(input.homeworkGroupName);
+    const hintedPlatforms = GROUP_PLATFORM_HINTS[input.homeworkGroupName.trim()];
+    if (hintedPlatforms && hintedPlatforms.includes(input.platform)) {
+      return true;
+    }
 
-  return haystack.some((value) =>
-    normalizedAliases.some((alias) => value.includes(alias))
-  );
+    const fallbackAliases = Object.entries(HOMEWORK_TYPE_ALIASES).find(
+      ([category, aliases]) =>
+        normalizedGroupName.includes(category) ||
+        aliases.some((alias) => normalizedGroupName.includes(normalizeMatchText(alias)))
+    );
+
+    if (fallbackAliases) {
+      const [, aliases] = fallbackAliases;
+      const normalizedAliases = aliases.map(normalizeMatchText);
+      return haystack.some((value) =>
+        normalizedAliases.some((alias) => value.includes(alias))
+      );
+    }
+  }
+
+  return haystack.some((value) => value.includes(normalizedTypeName));
 }
 
 export function matchesDirectPlatformBinding(input: {
