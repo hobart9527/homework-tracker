@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "@/hooks/useTranslation";
 import type { HomeworkRulePreview as HomeworkRulePreviewModel } from "@/lib/homework-form";
 
 type HomeworkRulePreviewProps = {
@@ -9,10 +10,12 @@ type HomeworkRulePreviewProps = {
 export function HomeworkRulePreview({
   preview,
 }: HomeworkRulePreviewProps) {
+  const { t } = useTranslation();
+
   return (
-    <aside className="space-y-3 rounded-3xl border border-primary/20 bg-primary/5 p-5">
+    <aside className="space-y-3 rounded-radius-xl border border-primary/20 bg-primary/5 p-4">
       <div>
-        <h3 className="text-lg font-semibold text-forest-700">孩子端会这样显示</h3>
+        <h3 className="text-lg font-semibold text-forest-700">{t('parent.homework.previewTitle')}</h3>
         <p className="mt-1 text-sm text-forest-500">{preview.title}</p>
       </div>
 
