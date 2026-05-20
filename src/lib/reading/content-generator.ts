@@ -34,6 +34,8 @@ interface LocalGeneratedQuestion {
   options: { label: string; text: string }[];
   correct_answer: string;
   difficulty: number; // 1-5
+  hint?: string;
+  explanation?: string;
 }
 
 export interface GenerateArticleOptions {
@@ -226,7 +228,9 @@ Return STRICT JSON (no markdown, no code fences):
       "question_type": "main_idea|detail|inference|vocabulary|sequence",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
-      "difficulty": number (1-5)
+      "difficulty": number (1-5),
+      "hint": "A short tip (1-2 sentences) to help the child think about this question. Focus on reading strategy, NOT giving away the answer.",
+      "explanation": "Why the correct answer is right, in child-friendly language. Briefly explain which part of the article supports it."
     }
   ]
 }`;
@@ -383,7 +387,9 @@ ${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
       "question_type": "main_idea|detail|inference|vocabulary|sequence",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
-      "difficulty": number (1-5)
+      "difficulty": number (1-5),
+      "hint": "A short tip (1-2 sentences) to help the child think about this question. Focus on reading strategy, NOT giving away the answer.",
+      "explanation": "Why the correct answer is right, in child-friendly language. Briefly explain which part of the article supports it."
     }
   ]
 }`;
@@ -564,7 +570,9 @@ Return STRICT JSON (no markdown, no code fences):
       "question_type": "main_idea|detail|inference|vocabulary|sequence",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
-      "difficulty": number (1-5)
+      "difficulty": number (1-5),
+      "hint": "A short tip (1-2 sentences) to help the child think about this question. Focus on reading strategy, NOT giving away the answer.",
+      "explanation": "Why the correct answer is right, in child-friendly language. Briefly explain which part of the article supports it."
     }
   ]
 }`;

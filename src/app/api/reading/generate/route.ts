@@ -62,6 +62,8 @@ export async function POST(request: Request) {
       correct_answer: q.correct_answer,
       difficulty: q.difficulty,
       order_index: i,
+      hint: q.hint ?? null,
+      explanation: q.explanation ?? null,
     }));
 
     const { data: questions, error: questionsError } = await supabase

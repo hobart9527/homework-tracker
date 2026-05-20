@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     // Fetch questions to validate answers
     const { data: questions } = await supabase
       .from("reading_questions")
-      .select("id, correct_answer")
+      .select("id, correct_answer, explanation")
       .eq("article_id", articleId);
 
     if (!questions || questions.length === 0) {
@@ -261,61 +261,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create check-in record for points
-    const { data: article } = await supabase
-      .from("reading_articles")
-      .select("title")
-      .eq("id", articleId)
-      .single();
-
-    const { data: insertedCheckIns, error: checkInError } = await supabase
-      .from("check_ins")
-      .insert({
-        child_id: childId,
-        homework_id: null,
-        completed_at: new Date().toISOString(),
-        points_earned: pointsEarned,
-        note: `阅读: ${article?.title || "文章"} (${score}/${total})`,
-      })
-      .select("id");
-
-    // Link check-in to pending reading homework if exists
-    const checkInId = insertedCheckIns?.[0]?.id;
-    if (checkInId) {
-      const { data: readingHomeworks } = await supabase
-        .from("homeworks")
-        .select("id")
-        .eq("child_id", childId)
-        .eq("type_name", "英文阅读")
-        .is("deleted_at", null);
-
-      if (readingHomeworks && readingHomeworks.length > 0) {
-        const today = new Date().toISOString().split("T")[0];
-        const { data: todayCheckIns } = await supabase
-          .from("check_ins")
-          .select("homework_id")
-          .eq("child_id", childId)
-          .gte("completed_at", `${today}T00:00:00Z`)
-          .lte("completed_at", `${today}T23:59:59Z`)
-          .not("homework_id", "is", null);
-
-        const completedHomeworkIds = new Set((todayCheckIns || []).map(c => c.homework_id));
-        const pendingHomework = readingHomeworks.find(h => !completedHomeworkIds.has(h.id));
-
-        if (pendingHomework) {
-          await supabase
-            .from("check_ins")
-            .update({ homework_id: pendingHomework.id })
-            .eq("id", checkInId);
-        }
-      }
-    }
-
     return NextResponse.json({
       score,
       total,
       pointsEarned,
       answers: gradedAnswers,
+      questions: questions.map((q) => ({
+        id: q.id,
+        correct_answer: q.correct_answer,
+        explanation: q.explanation,
+      })),
       ...(levelChange ? { level_change: levelChange } : {}),
     });
   } catch (error) {

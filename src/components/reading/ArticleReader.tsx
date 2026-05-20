@@ -239,7 +239,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     setRecordingState('idle');
   };
 
-  const uploadRecording = async (): Promise<{ success: boolean; checkInId?: string; error?: string }> => {
+  const uploadRecording = async (): Promise<{ success: boolean; checkInId?: string | null; error?: string }> => {
     if (!recordingBlob) {
       return { success: false, error: '没有录音文件' };
     }
@@ -275,13 +275,32 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
       setUploadProgress(60);
 
-      // 4. Create check_in record
+      // 4. Find child's reading homework to link check-in
+      const { data: readingHomeworks } = await supabase
+        .from('homeworks')
+        .select('id, type_group_id, group:homework_type_groups(name)')
+        .eq('child_id', session.user.id)
+        .eq('type_name', '阅读')
+        .is('deleted_at', null);
+
+      const targetGroup = article.language === 'en' ? '英文' : '中文';
+      const matchedHw = readingHomeworks?.find((hw: any) =>
+        hw.group?.name === targetGroup
+      );
+
+      if (!matchedHw) {
+        // No matching reading homework — skip check-in, just return success
+        setUploadProgress(100);
+        window.dispatchEvent(new CustomEvent('child-points-changed'));
+        return { success: true, checkInId: null };
+      }
+
+      // 5. Create check_in record
       const { data: checkInData, error: checkInError } = await supabase
         .from('check_ins')
         .insert({
           child_id: session.user.id,
-          assignment_id: assignmentId || null,
-          type: 'reading',
+          homework_id: matchedHw.id,
           completed_at: new Date().toISOString(),
           points_earned: 10,
         })
@@ -295,7 +314,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
       setUploadProgress(80);
 
-      // 5. Create attachment record
+      // 6. Create attachment record
       const { error: attachmentError } = await supabase
         .from('attachments')
         .insert({
@@ -312,7 +331,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
       setUploadProgress(100);
 
-      // 6. Trigger points update event
+      // 7. Trigger points update event
       window.dispatchEvent(new CustomEvent('child-points-changed'));
 
       return { success: true, checkInId: checkInData.id };

@@ -42,7 +42,7 @@ export async function GET(
 
   const { data: questions } = await supabase
     .from("reading_questions")
-    .select("*")
+    .select("id, question_text, question_type, options, correct_answer, difficulty, order_index, hint, explanation")
     .eq("article_id", id)
     .order("order_index", { ascending: true });
 

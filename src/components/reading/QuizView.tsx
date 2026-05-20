@@ -10,6 +10,9 @@ export interface QuizViewQuestion {
   question_type: string;
   options: Array<{ label: string; text: string }>;
   difficulty: number;
+  hint?: string;
+  explanation?: string;
+  correct_answer?: string;
 }
 
 interface QuizViewProps {
@@ -37,6 +40,11 @@ interface QuizResult {
     questionId: string;
     selected: string;
     correct: boolean;
+  }>;
+  questions?: Array<{
+    id: string;
+    correct_answer: string;
+    explanation?: string;
   }>;
 }
 
@@ -113,6 +121,36 @@ function StreakToast({ streak }: { streak: number }) {
         <span className="text-lg font-bold text-honey-600">
           🔥 x{streak}
         </span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Hint panel ── */
+function HintPanel({ hint, onDismiss }: { hint: string; onDismiss?: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(() => onDismiss?.(), 5000);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  return (
+    <div className="rounded-xl bg-honey-100 border border-honey-200 p-4 mt-3">
+      <div className="flex items-start gap-2">
+        <span className="text-lg shrink-0">💡</span>
+        <div className="flex-1">
+          <p className="font-bold text-honey-700">小提示</p>
+          <p className="text-sm text-honey-800 mt-1">{hint}</p>
+        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="shrink-0 text-honey-600 hover:text-honey-800 text-sm"
+            aria-label="关闭提示"
+          >
+            ✕
+          </button>
+        )}
       </div>
     </div>
   );
@@ -201,6 +239,86 @@ function OptionButton({
   );
 }
 
+/* ── Quiz result item (per-question breakdown) ── */
+function QuizResultItem({
+  index,
+  question,
+  answer,
+  correctAnswer,
+  explanation,
+}: {
+  index: number;
+  question: QuizViewQuestion;
+  answer: { selected: string; correct: boolean } | undefined;
+  correctAnswer?: string;
+  explanation?: string;
+}) {
+  const isCorrect = answer?.correct ?? false;
+  const childAnswerText =
+    question.options.find((o) => o.label === answer?.selected)?.text ??
+    answer?.selected ??
+    "未作答";
+  const correctAnswerText =
+    question.options.find((o) => o.label === correctAnswer)?.text ??
+    correctAnswer ??
+    "";
+
+  return (
+    <div className="rounded-xl bg-white ring-1 ring-cream-200/40 p-4 mb-3">
+      {/* Top row: number + type + status */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+          {index + 1}
+        </span>
+        <span className="text-xs text-ink-500">
+          {typeLabels[question.question_type] || question.question_type}
+        </span>
+        {isCorrect ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-forest-100 px-2 py-0.5 text-xs font-medium text-forest-700">
+            ✓ 正确
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-coral-100 px-2 py-0.5 text-xs font-medium text-coral-700">
+            ✗ 错误
+          </span>
+        )}
+      </div>
+
+      {/* Question text */}
+      <p className="text-base font-medium text-forest-800 mb-3">
+        {question.question_text}
+      </p>
+
+      {/* Answer comparison */}
+      <div className="flex flex-wrap gap-2 mb-2">
+        <div
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ${
+            isCorrect
+              ? "bg-forest-50 text-forest-700"
+              : "bg-coral-50 text-coral-700"
+          }`}
+        >
+          <span className="text-xs text-ink-400">你的答案:</span>
+          <span className="font-medium">{childAnswerText}</span>
+        </div>
+        {!isCorrect && correctAnswerText && (
+          <div className="inline-flex items-center gap-1.5 rounded-lg bg-forest-50 px-3 py-1.5 text-sm text-forest-700">
+            <span className="text-xs text-ink-400">正确答案:</span>
+            <span className="font-medium">{correctAnswerText}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Explanation */}
+      {explanation && (
+        <div className="text-sm text-ink-600 bg-cream-50 rounded-lg p-3 mt-2">
+          {explanation}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main QuizView component ── */
 export function QuizView({
   questions,
@@ -212,9 +330,9 @@ export function QuizView({
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"quiz" | "submitting" | "results">(
-    "quiz"
-  );
+  const [phase, setPhase] = useState<
+    "quiz" | "submitting" | "results" | "retake" | "retake_results"
+  >("quiz");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [showStamp, setShowStamp] = useState(false);
@@ -224,6 +342,18 @@ export function QuizView({
   const [showStreakToast, setShowStreakToast] = useState(false);
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
   const [feedbackPhase, setFeedbackPhase] = useState<"correct" | "wrong" | null>(null);
+
+  /* Retake state */
+  const [retakeQuestions, setRetakeQuestions] = useState<QuizViewQuestion[]>([]);
+  const [retakeCurrentIndex, setRetakeCurrentIndex] = useState(0);
+  const [retakeSelectedLabel, setRetakeSelectedLabel] = useState<string | null>(null);
+  const [retakeAnswers, setRetakeAnswers] = useState<Record<string, string>>({});
+  const [retakeAttempts, setRetakeAttempts] = useState<Record<string, number>>({});
+  const [showHintFor, setShowHintFor] = useState<string | null>(null);
+  const [retakeResult, setRetakeResult] = useState<QuizResult | null>(null);
+  const [retakeFeedbackPhase, setRetakeFeedbackPhase] = useState<"correct" | "wrong" | null>(null);
+  const [retakeEncouragement, setRetakeEncouragement] = useState<string>("");
+  const retakeStartTimeRef = useRef<number>(0);
 
   const startTimeRef = useRef(Date.now());
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -283,6 +413,17 @@ export function QuizView({
               correct: a.correct,
             })
           ),
+          questions: (data.questions || []).map(
+            (q: {
+              id: string;
+              correct_answer: string;
+              explanation?: string;
+            }) => ({
+              id: q.id,
+              correct_answer: q.correct_answer,
+              explanation: q.explanation,
+            })
+          ),
         };
         setResult(mappedResult);
         setPhase("results");
@@ -306,11 +447,6 @@ export function QuizView({
         [q.id]: label,
       };
       answersRef.current = updatedAnswers;
-
-      /* We don't know correctness yet — server tells us later.
-         For instant feedback we simulate based on a local guess.
-         In production the server response drives this; here we
-         show a brief "selected" state then advance. */
 
       /* Advance after short delay so user sees the selection */
       autoAdvanceRef.current = setTimeout(() => {
@@ -347,6 +483,154 @@ export function QuizView({
     }
   }, [phase, result]);
 
+  /* ── Retake handlers ── */
+  const startRetake = useCallback(() => {
+    if (!result) return;
+    const wrongIds = new Set(
+      result.answers.filter((a) => !a.correct).map((a) => a.questionId)
+    );
+    const wrongQuestions = questions.filter((q) => wrongIds.has(q.id));
+    if (wrongQuestions.length === 0) return;
+
+    setRetakeQuestions(wrongQuestions);
+    setRetakeCurrentIndex(0);
+    setRetakeSelectedLabel(null);
+    setRetakeAnswers({});
+    setRetakeAttempts({});
+    setShowHintFor(null);
+    setRetakeResult(null);
+    setRetakeFeedbackPhase(null);
+    setRetakeEncouragement("");
+    retakeStartTimeRef.current = Date.now();
+    setPhase("retake");
+  }, [result, questions]);
+
+  const submitRetake = useCallback(
+    async (finalAnswers: Record<string, string>) => {
+      setSubmitError(null);
+      const timeSpentSeconds = Math.round(
+        (Date.now() - retakeStartTimeRef.current) / 1000
+      );
+
+      try {
+        const response = await fetch("/api/reading/quiz/retake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            childId,
+            articleId,
+            assignmentId: assignmentId || undefined,
+            answers: Object.entries(finalAnswers).map(
+              ([questionId, selectedLabel]) => ({
+                questionId,
+                selectedLabel,
+              })
+            ),
+            timeSpentSeconds,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("提交失败");
+        }
+
+        const data = await response.json();
+        const mappedResult: QuizResult = {
+          score: data.score,
+          total: data.total,
+          pointsEarned: data.pointsEarned,
+          answers: (data.answers || []).map(
+            (a: {
+              question_id: string;
+              selected: string;
+              correct: boolean;
+            }) => ({
+              questionId: a.question_id,
+              selected: a.selected,
+              correct: a.correct,
+            })
+          ),
+        };
+        setRetakeResult(mappedResult);
+        setPhase("retake_results");
+
+        /* Call onComplete with best score */
+        if (result && mappedResult.score > result.score) {
+          onComplete(mappedResult);
+        }
+      } catch {
+        setSubmitError("提交失败，请重试");
+      }
+    },
+    [childId, articleId, assignmentId, onComplete, result]
+  );
+
+  const handleRetakeSelect = useCallback(
+    (label: string) => {
+      if (retakeSelectedLabel !== null) return;
+      setRetakeSelectedLabel(label);
+
+      const q = retakeQuestions[retakeCurrentIndex];
+      const attempts = (retakeAttempts[q.id] || 0) + 1;
+      const updatedAttempts = { ...retakeAttempts, [q.id]: attempts };
+      setRetakeAttempts(updatedAttempts);
+
+      const isCorrect = q.correct_answer === label;
+
+      if (isCorrect) {
+        setRetakeFeedbackPhase("correct");
+        setRetakeEncouragement("太棒了！答对了！🎉");
+        const updatedAnswers = { ...retakeAnswers, [q.id]: label };
+        setRetakeAnswers(updatedAnswers);
+
+        autoAdvanceRef.current = setTimeout(() => {
+          if (retakeCurrentIndex < retakeQuestions.length - 1) {
+            setRetakeCurrentIndex((prev) => prev + 1);
+            setRetakeSelectedLabel(null);
+            setRetakeFeedbackPhase(null);
+            setRetakeEncouragement("");
+            setShowHintFor(null);
+          } else {
+            setPhase("submitting");
+            submitRetake(updatedAnswers);
+          }
+        }, 1500);
+      } else {
+        setRetakeFeedbackPhase("wrong");
+        if (attempts < 3) {
+          setShowHintFor(q.id);
+        } else {
+          setShowHintFor(null);
+          setRetakeEncouragement("正确答案已经告诉你啦，记住它哦！📚");
+          /* Reveal correct answer */
+          const updatedAnswers = { ...retakeAnswers, [q.id]: q.correct_answer || label };
+          setRetakeAnswers(updatedAnswers);
+
+          autoAdvanceRef.current = setTimeout(() => {
+            if (retakeCurrentIndex < retakeQuestions.length - 1) {
+              setRetakeCurrentIndex((prev) => prev + 1);
+              setRetakeSelectedLabel(null);
+              setRetakeFeedbackPhase(null);
+              setRetakeEncouragement("");
+              setShowHintFor(null);
+            } else {
+              setPhase("submitting");
+              submitRetake(updatedAnswers);
+            }
+          }, 2000);
+        }
+      }
+    },
+    [
+      retakeSelectedLabel,
+      retakeQuestions,
+      retakeCurrentIndex,
+      retakeAttempts,
+      retakeAnswers,
+      submitRetake,
+    ]
+  );
+
   if (questions.length === 0) {
     return null;
   }
@@ -365,8 +649,10 @@ export function QuizView({
       encouragement = "别灰心，多读多练！📚";
     }
 
+    const hasWrongAnswers = result.score < result.total;
+
     return (
-      <div className="flex flex-col items-center gap-8 py-8">
+      <div className="flex flex-col items-center gap-6 py-8">
         {/* Streak toast */}
         {showStreakToast && <StreakToast streak={streak} />}
 
@@ -401,7 +687,91 @@ export function QuizView({
           </p>
         </div>
 
-        {/* Back to article list */}
+        {/* Per-question breakdown */}
+        <div className="w-full max-w-2xl px-4">
+          <h3 className="text-base font-bold text-forest-800 mb-3">
+            答题详情
+          </h3>
+          <div className="max-h-[50vh] overflow-y-auto pr-1">
+            {questions.map((q, idx) => {
+              const answer = result.answers.find((a) => a.questionId === q.id);
+              const correctAnswer =
+                result.questions?.find((rq) => rq.id === q.id)?.correct_answer ??
+                q.correct_answer;
+              const explanation =
+                result.questions?.find((rq) => rq.id === q.id)?.explanation ??
+                q.explanation;
+              return (
+                <QuizResultItem
+                  key={q.id}
+                  index={idx}
+                  question={q}
+                  answer={answer}
+                  correctAnswer={correctAnswer}
+                  explanation={explanation}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Bottom actions */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {hasWrongAnswers && (
+            <button
+              type="button"
+              onClick={startRetake}
+              className="rounded-full bg-primary px-6 py-3 text-base font-medium text-white transition hover:bg-primary/90 active:scale-95"
+            >
+              {"修正错题"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push("/reading")}
+            className="rounded-full bg-cream-50 px-6 py-3 text-base font-medium text-ink-700 transition hover:bg-cream-100 active:scale-95"
+          >
+            {"返回文章列表"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Retake results phase ──
+  if (phase === "retake_results" && result && retakeResult) {
+    const originalScore = result.score;
+    const newScore = retakeResult.score;
+    const total = result.total;
+    const improved = newScore > originalScore;
+
+    return (
+      <div className="flex flex-col items-center gap-8 py-8">
+        <h2 className="text-2xl font-bold text-forest-800">修正完成！</h2>
+
+        <div className="text-center">
+          <p className="text-lg text-ink-600">
+            {"原来得分: "}
+            <span className="font-bold text-ink-800">
+              {originalScore}/{total}
+            </span>
+            {" → 现在得分: "}
+            <span className="font-bold text-primary">
+              {newScore}/{total}
+            </span>
+          </p>
+          {improved ? (
+            <p className="mt-3 text-xl font-bold text-honey-600">
+              进步了！🌟 {"+"}
+              {retakeResult.pointsEarned - result.pointsEarned} 积分
+            </p>
+          ) : (
+            <p className="mt-3 text-xl font-bold text-primary">
+              继续保持！💪
+            </p>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={() => router.push("/reading")}
@@ -409,6 +779,89 @@ export function QuizView({
         >
           {"返回文章列表"}
         </button>
+      </div>
+    );
+  }
+
+  // ── Retake phase ──
+  if (phase === "retake" && retakeQuestions.length > 0) {
+    const currentQuestion = retakeQuestions[retakeCurrentIndex];
+    const totalRetake = retakeQuestions.length;
+    const attempts = retakeAttempts[currentQuestion.id] || 0;
+    const maxAttemptsReached = attempts >= 3 && retakeFeedbackPhase === "wrong";
+
+    return (
+      <div className="flex flex-col gap-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CircularProgress
+              current={retakeCurrentIndex + 1}
+              total={totalRetake}
+            />
+            <div>
+              <p className="text-sm font-medium text-forest-800">
+                修正第 {retakeCurrentIndex + 1} / {totalRetake} 题
+              </p>
+              <p className="text-xs text-ink-400">
+                {typeLabels[currentQuestion.question_type] ||
+                  currentQuestion.question_type}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Question */}
+        <div className="space-y-4">
+          <p className="text-lg font-medium text-forest-800">
+            {currentQuestion.question_text}
+          </p>
+        </div>
+
+        {/* Options */}
+        <div className="space-y-3">
+          {currentQuestion.options.map((option, idx) => {
+            const isSelected = retakeSelectedLabel === option.label;
+            let feedback: "correct" | "wrong" | null = null;
+            if (isSelected && retakeFeedbackPhase) {
+              feedback = retakeFeedbackPhase;
+            } else if (
+              maxAttemptsReached &&
+              option.label === currentQuestion.correct_answer
+            ) {
+              feedback = "correct";
+            }
+            return (
+              <OptionButton
+                key={option.label}
+                option={option}
+                index={idx}
+                selected={isSelected}
+                disabled={retakeSelectedLabel !== null}
+                feedback={feedback}
+                onClick={() => handleRetakeSelect(option.label)}
+              />
+            );
+          })}
+        </div>
+
+        {/* Encouragement / feedback text */}
+        {retakeEncouragement && (
+          <p className="text-center text-base font-medium text-forest-700">
+            {retakeEncouragement}
+          </p>
+        )}
+
+        {/* Hint panel */}
+        {showHintFor === currentQuestion.id && currentQuestion.hint && (
+          <HintPanel
+            hint={currentQuestion.hint}
+            onDismiss={() => {
+              setShowHintFor(null);
+              setRetakeSelectedLabel(null);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -422,7 +875,13 @@ export function QuizView({
             <p className="text-coral-600">{submitError}</p>
             <button
               type="button"
-              onClick={() => submitQuiz(answersRef.current)}
+              onClick={() => {
+                if (phase === "submitting" && result === null) {
+                  submitQuiz(answersRef.current);
+                } else if (phase === "submitting" && retakeQuestions.length > 0) {
+                  submitRetake(retakeAnswers);
+                }
+              }}
               className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white"
             >
               {"重试"}

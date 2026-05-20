@@ -309,6 +309,8 @@ async function runPipeline(
     correct_answer: q.correct_answer,
     difficulty: q.difficulty,
     order_index: i,
+    hint: q.hint ?? null,
+    explanation: q.explanation ?? null,
   }));
 
   if (questionRows.length > 0) {

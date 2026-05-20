@@ -17,6 +17,7 @@ interface Article {
   source?: string;
   cover_image_url?: string;
   language?: "zh" | "en";
+  created_at?: string;
   status?: string;
   isCompleted?: boolean;
   score?: number;
@@ -59,8 +60,8 @@ function inferLanguage(article: Article): "zh" | "en" {
 function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-xl bg-white shadow-elevation-raised ring-1 ring-cream-200/40 overflow-hidden">
-      <div className="aspect-[3/2] w-full bg-ink-100" />
-      <div className="p-4">
+      <div className="aspect-[16/9] w-full bg-ink-100" />
+      <div className="p-3">
         <div className="flex items-center gap-2 mb-3">
           <div className="h-5 w-14 rounded-full bg-ink-100" />
           <div className="h-5 w-8 rounded-full bg-ink-100" />
@@ -87,7 +88,7 @@ export default function ReadingBrowserPage() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [activeCategory, setActiveCategory] = useState("");
   const [activeLanguage, setActiveLanguage] = useState<"zh" | "en">("en");
-  const [sortNewFirst, setSortNewFirst] = useState(false);
+  const [sortMode, setSortMode] = useState<"default" | "unread" | "latest">("default");
   const [searchQuery, setSearchQuery] = useState("");
 
   const fetchReadingData = useCallback(async () => {
@@ -169,12 +170,20 @@ export default function ReadingBrowserPage() {
       return langMatch && categoryMatch && searchMatch;
     })
     .sort((a, b) => {
-      if (sortNewFirst) {
-        const aOrder = a.isCompleted ? 2 : (a as any).isInProgress ? 1 : 0;
-        const bOrder = b.isCompleted ? 2 : (b as any).isInProgress ? 1 : 0;
-        return aOrder - bOrder;
+      switch (sortMode) {
+        case "unread": {
+          const aOrder = a.isCompleted ? 2 : (a as any).isInProgress ? 1 : 0;
+          const bOrder = b.isCompleted ? 2 : (b as any).isInProgress ? 1 : 0;
+          return aOrder - bOrder;
+        }
+        case "latest": {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return bTime - aTime;
+        }
+        default:
+          return 0;
       }
-      return 0;
     });
 
   // --- Error state ---
@@ -263,17 +272,39 @@ export default function ReadingBrowserPage() {
 
         {/* Sort & Search */}
         <div className="mb-5 flex items-center gap-3">
-          <button
-            onClick={() => setSortNewFirst(!sortNewFirst)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              sortNewFirst
-                ? "bg-coral-100 text-coral-700 ring-1 ring-coral-200"
-                : "bg-cream-100 text-ink-500 hover:bg-cream-200"
-            }`}
-          >
-            {sortNewFirst ? "🆕 未读优先" : "📋 默认排序"}
-          </button>
-          <div className="relative flex-1 max-w-sm ml-auto">
+          <div className="inline-flex rounded-xl bg-white shadow-elevation-raised ring-1 ring-cream-200/40 p-1">
+            <button
+              onClick={() => setSortMode("default")}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                sortMode === "default"
+                  ? "bg-coral-100 text-coral-700 ring-1 ring-coral-200"
+                  : "text-ink-600 hover:bg-cream-50"
+              }`}
+            >
+              📋 默认排序
+            </button>
+            <button
+              onClick={() => setSortMode("unread")}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                sortMode === "unread"
+                  ? "bg-coral-100 text-coral-700 ring-1 ring-coral-200"
+                  : "text-ink-600 hover:bg-cream-50"
+              }`}
+            >
+              🆕 未读优先
+            </button>
+            <button
+              onClick={() => setSortMode("latest")}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                sortMode === "latest"
+                  ? "bg-coral-100 text-coral-700 ring-1 ring-coral-200"
+                  : "text-ink-600 hover:bg-cream-50"
+              }`}
+            >
+              🔥 最新
+            </button>
+          </div>
+          <div className="relative flex-1 max-w-sm">
             <input
               type="text"
               value={searchQuery}
@@ -289,8 +320,8 @@ export default function ReadingBrowserPage() {
 
         {/* --- Article grid --- */}
         {loading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: 10 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
           </div>
@@ -308,7 +339,7 @@ export default function ReadingBrowserPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredArticles.map((article) => (
               <ArticleCard
                 key={article.id}

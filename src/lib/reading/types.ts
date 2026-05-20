@@ -115,6 +115,8 @@ export interface GeneratedQuestion {
   options: { label: string; text: string }[];
   correct_answer: string;
   difficulty: number;
+  hint?: string;
+  explanation?: string;
 }
 
 export interface GeneratedIllustration {

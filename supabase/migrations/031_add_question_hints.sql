@@ -1,0 +1,3 @@
+ALTER TABLE reading_questions
+  ADD COLUMN IF NOT EXISTS hint TEXT,
+  ADD COLUMN IF NOT EXISTS explanation TEXT;

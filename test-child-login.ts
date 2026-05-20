@@ -29,7 +29,7 @@ async function main() {
     }
 
     const u = authUser.user;
-    console.log(`  Email: ${u.email}, Confirmed: ${u.email_confirmed_at || "no"}, Has password: ${u.has_password}`);
+    console.log(`  Email: ${u.email}, Confirmed: ${u.email_confirmed_at || "no"}, Has password: ${(u as any).has_password ?? "unknown"}`);
 
     for (const testPass of ["1234", "0000", "1111", "2222"]) {
       const { data: signInData, error } = await supabase.auth.signInWithPassword({

@@ -68,7 +68,7 @@ export function ArticleCard({
     >
       {/* Cover image */}
       {thumbnailUrl ? (
-        <div className="relative aspect-[3/2] w-full bg-ink-100">
+        <div className="relative aspect-[16/9] w-full bg-ink-100">
           {!imgLoaded && (
             <div className="absolute inset-0 animate-pulse bg-ink-100" />
           )}
@@ -88,32 +88,16 @@ export function ArticleCard({
           )}
         </div>
       ) : (
-        <div className="relative aspect-[3/2] w-full flex items-center justify-center bg-gradient-to-br from-forest-100 to-cream-200">
+        <div className="relative aspect-[16/9] w-full flex items-center justify-center bg-gradient-to-br from-forest-100 to-cream-200">
           <span className="text-5xl opacity-40">
             {category.charAt(0)}
           </span>
         </div>
       )}
 
-      {/* Recommended banner */}
-      {isRecommended && (
-        <div className="flex items-center gap-1.5 bg-gradient-to-r from-honey-300 to-coral-400 px-4 py-1.5 text-xs font-semibold text-white">
-          <span>🎯</span>
-          <span>今日推荐</span>
-        </div>
-      )}
-
-      {/* In-progress badge */}
-      {isInProgress && !isCompleted && (
-        <div className="flex items-center gap-1.5 bg-amber-100 px-4 py-1.5 text-xs font-semibold text-amber-700">
-          <span>📖</span>
-          <span>阅读中</span>
-        </div>
-      )}
-
-      <div className="p-4">
-        {/* Top row: category tag + grade level */}
-        <div className="flex flex-wrap items-center gap-2 mb-3">
+      <div className="p-3">
+        {/* Top row: category tag + grade level + status + language */}
+        <div className="flex items-center gap-2 mb-2">
           <span
             className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${getCategoryStyle(category)}`}
           >
@@ -122,6 +106,12 @@ export function ArticleCard({
           <span className="inline-block rounded-full bg-cream-50 px-2.5 py-0.5 text-xs font-medium text-ink-600">
             G{gradeLevel}
           </span>
+          {isInProgress && !isCompleted && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+              <span>📖</span>
+              <span>阅读中</span>
+            </span>
+          )}
           {isCompleted && (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
               <span>✓</span>
@@ -140,19 +130,19 @@ export function ArticleCard({
         </div>
 
         {/* Title */}
-        <h3 className="font-semibold text-forest-800 line-clamp-2 min-h-[2.5rem]">
+        <h3 className="font-semibold text-forest-800 line-clamp-2">
           {title}
         </h3>
 
         {/* Score display if completed */}
         {isCompleted && score !== undefined && (
-          <div className="mt-2 inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
+          <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
             ⭐ {score}分
           </div>
         )}
 
         {/* Bottom row: metadata */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
           <span className="inline-flex items-center gap-1">
             📝 {wordCount}字
           </span>

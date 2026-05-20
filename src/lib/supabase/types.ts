@@ -877,16 +877,20 @@ export type Database = {
           audio_zh_alignment: Json | null
           audio_zh_url: string | null
           audio_zh_voice: string | null
+          author_purpose: string | null
           category: string
           classical_quote: Json | null
           content: string
+          content_source: string | null
           content_warnings: string[] | null
           cover_image_url: string | null
           cover_source: string | null
           cover_source_url: string | null
           created_at: string | null
+          cultural_connection: string | null
           difficulty: number | null
           estimated_minutes: number | null
+          genre: string | null
           grade_level: number
           id: string
           language: string | null
@@ -908,16 +912,20 @@ export type Database = {
           audio_zh_alignment?: Json | null
           audio_zh_url?: string | null
           audio_zh_voice?: string | null
+          author_purpose?: string | null
           category: string
           classical_quote?: Json | null
           content: string
+          content_source?: string | null
           content_warnings?: string[] | null
           cover_image_url?: string | null
           cover_source?: string | null
           cover_source_url?: string | null
           created_at?: string | null
+          cultural_connection?: string | null
           difficulty?: number | null
           estimated_minutes?: number | null
+          genre?: string | null
           grade_level: number
           id?: string
           language?: string | null
@@ -939,16 +947,20 @@ export type Database = {
           audio_zh_alignment?: Json | null
           audio_zh_url?: string | null
           audio_zh_voice?: string | null
+          author_purpose?: string | null
           category?: string
           classical_quote?: Json | null
           content?: string
+          content_source?: string | null
           content_warnings?: string[] | null
           cover_image_url?: string | null
           cover_source?: string | null
           cover_source_url?: string | null
           created_at?: string | null
+          cultural_connection?: string | null
           difficulty?: number | null
           estimated_minutes?: number | null
+          genre?: string | null
           grade_level?: number
           id?: string
           language?: string | null
@@ -1037,6 +1049,8 @@ export type Database = {
           correct_answer: string
           created_at: string | null
           difficulty: number | null
+          explanation: string | null
+          hint: string | null
           id: string
           options: Json
           order_index: number
@@ -1048,6 +1062,8 @@ export type Database = {
           correct_answer: string
           created_at?: string | null
           difficulty?: number | null
+          explanation?: string | null
+          hint?: string | null
           id?: string
           options: Json
           order_index: number
@@ -1059,6 +1075,8 @@ export type Database = {
           correct_answer?: string
           created_at?: string | null
           difficulty?: number | null
+          explanation?: string | null
+          hint?: string | null
           id?: string
           options?: Json
           order_index?: number
@@ -1179,15 +1197,20 @@ export type Database = {
           age_min_level: string | null
           category: string
           category_v2: string | null
+          content_completeness: string | null
           content_warnings: string[] | null
           created_at: string
           freshness_until: string | null
           id: string
           image_tier: string | null
+          key_facts: string | null
           language: string
           pack_id: string | null
           pack_order: number | null
           recommended_levels: string[] | null
+          source: string | null
+          source_image_url: string | null
+          source_quality_score: number | null
           source_text: string | null
           source_url: string | null
           status: string
@@ -1199,15 +1222,20 @@ export type Database = {
           age_min_level?: string | null
           category: string
           category_v2?: string | null
+          content_completeness?: string | null
           content_warnings?: string[] | null
           created_at?: string
           freshness_until?: string | null
           id?: string
           image_tier?: string | null
+          key_facts?: string | null
           language: string
           pack_id?: string | null
           pack_order?: number | null
           recommended_levels?: string[] | null
+          source?: string | null
+          source_image_url?: string | null
+          source_quality_score?: number | null
           source_text?: string | null
           source_url?: string | null
           status?: string
@@ -1219,15 +1247,20 @@ export type Database = {
           age_min_level?: string | null
           category?: string
           category_v2?: string | null
+          content_completeness?: string | null
           content_warnings?: string[] | null
           created_at?: string
           freshness_until?: string | null
           id?: string
           image_tier?: string | null
+          key_facts?: string | null
           language?: string
           pack_id?: string | null
           pack_order?: number | null
           recommended_levels?: string[] | null
+          source?: string | null
+          source_image_url?: string | null
+          source_quality_score?: number | null
           source_text?: string | null
           source_url?: string | null
           status?: string
@@ -1451,6 +1484,7 @@ export type Database = {
       get_parent_by_passcode: {
         Args: { passcode_param: string }
         Returns: {
+          auth_user_email: string
           auto_remind_child: boolean
           auto_remind_parent: boolean
           created_at: string
@@ -1459,7 +1493,6 @@ export type Database = {
           quiet_hours_end: string
           quiet_hours_start: string
           reminder_cutoff_time: string
-          auth_user_email: string
         }[]
       }
       increment_minimax_quota: {
