@@ -9,3 +9,5 @@ dist/
 .worktrees/
 tsconfig.tsbuildinfo
 supabase/.temp/
+playwright-report/
+test-results/
