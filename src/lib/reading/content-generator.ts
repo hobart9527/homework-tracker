@@ -647,7 +647,7 @@ export async function generateReadingContent(
       {
         role: "system",
         content:
-          "You are an expert children's reading content creator. You create reading articles and comprehension questions for students. Always respond with valid JSON only, no markdown formatting.",
+          "You are an expert children's reading content creator. You create reading articles and comprehension questions for students. CRITICAL: Your entire response must be a single valid JSON object. Do NOT write the article as plain text outside the JSON. Put the full article text inside the JSON 'content' field. Do NOT include markdown code fences, <think> tags, or any text outside the JSON object.",
       },
       { role: "user", content: prompt },
     ],
@@ -655,7 +655,9 @@ export async function generateReadingContent(
     max_tokens: (() => {
       if (opts.route === "A") return 4096;   // questions+metadata only, ~500 tokens needed
       if (opts.route === "B") return 8192;   // constrained rewrite, shorter
-      return opts.language === "zh" ? 24576 : 4096;  // Route C: full generation
+      // Route C: full generation. MiniMax-M2.7 emits <think> blocks that consume tokens,
+      // so we budget extra headroom to avoid JSON truncation.
+      return opts.language === "zh" ? 24576 : 12288;
     })(),
   });
 

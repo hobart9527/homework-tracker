@@ -39,6 +39,9 @@ config({ path: ".env.local" });
 // Validate env BEFORE any dynamic imports that may initialize external clients.
 validateEnv();
 
+// Pipeline language: controls target language for topic loading and content generation.
+const pipelineLanguage = (process.env.PIPELINE_LANGUAGE || "en") as "en" | "zh";
+
 // Dynamic imports are REQUIRED because content-generator.ts initializes its
 // OpenAI client at module load time (needs OPENAI_API_KEY). Static imports
 // would run before dotenv loads, causing an empty API key.
@@ -65,6 +68,7 @@ interface ReadingTopicRow {
   source_text: string | null;
   source_url: string | null;
   source_image_url: string | null;
+  source_inline_image_urls: string[] | null;
   target_grades: number[] | null;
   key_facts: string[] | null;
 }
@@ -198,6 +202,7 @@ interface UpsertArticleData {
   coverSource: string | null;
   coverSourceUrl: string | null;
   qualityIssues: unknown[] | null;
+  language: string;
 }
 
 async function upsertArticle(
@@ -226,6 +231,7 @@ async function upsertArticle(
         cover_source: articleData.coverSource,
         cover_source_url: articleData.coverSourceUrl,
         quality_issues: articleData.qualityIssues,
+        language: articleData.language,
       },
       { onConflict: "topic_key, grade_level" }
     )
@@ -242,6 +248,27 @@ async function upsertArticle(
   }
 
   return upserted.id;
+}
+
+async function updateArticleCover(
+  supabase: SupabaseClient<PipelineDatabase>,
+  articleId: string,
+  coverImageUrl: string | null,
+  coverSource: string | null,
+  coverSourceUrl: string | null
+): Promise<void> {
+  const { error } = await (supabase as SupabaseClient)
+    .from("reading_articles")
+    .update({
+      cover_image_url: coverImageUrl,
+      cover_source: coverSource,
+      cover_source_url: coverSourceUrl,
+    })
+    .eq("id", articleId);
+
+  if (error) {
+    throw new Error(`Failed to update article cover: ${error.message}`);
+  }
 }
 
 interface QuestionData {
@@ -340,7 +367,7 @@ async function loadTopics(
   let query = supabase
     .from("reading_topics")
     .select("topic_key, category, source, source_text, source_url, source_image_url, target_grades")
-    .eq("language", "en")
+    .eq("language", pipelineLanguage)
     .eq("status", "active");
 
   if (limit > 0) {
@@ -385,6 +412,7 @@ async function main(): Promise<void> {
   }
 
   console.log(`Grades:     ${grades.join(", ")}`);
+  console.log(`Language:   ${pipelineLanguage}`);
   console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M2.7"}`);
   console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1"}`);
   console.log("");
@@ -395,7 +423,7 @@ async function main(): Promise<void> {
   const scrapeFirst = process.argv.includes("--scrape-first");
   if (scrapeFirst) {
     console.log("Scraping content sources first...");
-    await scrapeAllSources({ dryRun: false, lang: "en" });
+    await scrapeAllSources({ dryRun: false, lang: pipelineLanguage });
     console.log("");
   }
 
@@ -472,17 +500,18 @@ async function processWorkItem(
     // Determine route (A/B/C) based on source text quality
     const routeDecision = decideRoute({
       topic_key: topic.topic_key,
-      language: "en",
+      language: pipelineLanguage,
       source: topic.source ?? null,
       source_text: topic.source_text ?? null,
       target_grades: topic.target_grades,
     });
 
     // Determine which grades to process for this topic
-    const targetGrades = routeDecision.expandedGrades.filter((g) => grades.includes(g));
+    // Use topic's declared target_grades (intersected with pipeline grades)
+    const targetGrades = (topic.target_grades || []).filter((g) => grades.includes(g));
 
     // If this grade is not in the topic's target_grades, skip it
-    if (topic.target_grades && topic.target_grades.length > 0 && !targetGrades.includes(grade)) {
+    if (targetGrades.length > 0 && !targetGrades.includes(grade)) {
       console.log("SKIP (grade not in target_grades)");
       return { status: "skipped" };
     }
@@ -500,7 +529,7 @@ async function processWorkItem(
     }
 
     // Step 2: Resolve sourceText from corpus if not provided in topic
-    const corpusEntry = getCorpusEntry(topic.topic_key, "en");
+    const corpusEntry = getCorpusEntry(topic.topic_key, pipelineLanguage);
     const sourceText = topic.source_text || corpusEntry?.content || undefined;
 
     // Step 3: Generate article content (concurrent, with retry)
@@ -508,7 +537,7 @@ async function processWorkItem(
       withRetry(() =>
         generateReadingContent({
           topicKey: topic.topic_key,
-          language: "en",
+          language: pipelineLanguage,
           category: topic.category,
           gradeLevel: grade,
           sourceText,
@@ -523,20 +552,20 @@ async function processWorkItem(
     const gate = validateContent({
       article,
       questions,
-      language: "en",
+      language: pipelineLanguage,
       gradeLevel: grade,
     });
     const ibGate = validateIBCriteria({
       article,
       questions,
-      language: "en",
+      language: pipelineLanguage,
       gradeLevel: grade,
     });
     const factualGate = validateFactualAccuracy({
       article,
       sourceText,
       keyFacts: topic.key_facts || undefined,
-      language: "en",
+      language: pipelineLanguage,
       gradeLevel: grade,
     });
 
@@ -551,49 +580,7 @@ async function processWorkItem(
     const effectiveFactualPass = routeDecision.route === "A" ? true : factualGate.pass;
     const status: "draft" | "published" = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
 
-    // Step 4: Generate cover image (concurrent, with retry)
-    let coverResult: { url: string; source: string; source_url: string } | null = null;
-    try {
-      coverResult = await pacer.run(() =>
-        withRetry(() =>
-          generateCover({
-            articleId: existing.id || "pending",
-            language: "en",
-            category: topic.category,
-            scene: article.scene_description,
-            title: article.title,
-            sourceImageUrl: topic.source_image_url ?? undefined,
-          })
-        )
-      );
-    } catch (coverErr) {
-      const reason = coverErr instanceof Error ? coverErr.message : String(coverErr);
-      console.warn(`\n  [cover] failed: ${reason}`);
-    }
-
-    // Step 5: Generate in-article illustrations (concurrent, with retry)
-    let illustrationResults: { paragraph_index: number; url: string; source_url: string; source: string }[] = [];
-    try {
-      illustrationResults = await pacer.run(() =>
-        withRetry(() =>
-          generateIllustrations({
-            articleId: existing.id || "pending",
-            language: "en",
-            category: topic.category,
-            scenes: illustrations.map((ill: { paragraph_index: number; scene_description: string }) => ({
-              paragraphIndex: ill.paragraph_index,
-              sceneDescription: ill.scene_description,
-            })),
-            sourceImageUrls: topic.source_image_url ? [topic.source_image_url] : undefined,
-          })
-        )
-      );
-    } catch (illErr) {
-      const reason = illErr instanceof Error ? illErr.message : String(illErr);
-      console.warn(`\n  [illustrations] failed: ${reason}`);
-    }
-
-    // Step 6: Upsert article with all metadata (DB operation, outside pacer)
+    // Step 4: Upsert article FIRST to get real articleId (cover/ill fields null for now)
     const articleId = await upsertArticle(supabase, {
       topicKey: topic.topic_key,
       gradeLevel: grade,
@@ -608,16 +595,70 @@ async function processWorkItem(
       summary: article.summary,
       status,
       contentSource: routeDecision.route === "A" ? "original" : routeDecision.route === "B" ? "adapted" : "llm",
-      coverImageUrl: coverResult?.url ?? null,
-      coverSource: coverResult?.source ?? null,
-      coverSourceUrl: coverResult?.source_url ?? null,
+      coverImageUrl: null,
+      coverSource: null,
+      coverSourceUrl: null,
       qualityIssues: allIssues.length > 0 ? allIssues : null,
+      language: pipelineLanguage,
     });
 
-    // Step 7: Replace questions (DB operation, outside pacer)
+    // Step 5: Generate cover image with REAL articleId (concurrent, with retry)
+    let coverResult: { url: string; source: string; source_url: string } | null = null;
+    try {
+      coverResult = await pacer.run(() =>
+        withRetry(() =>
+          generateCover({
+            articleId,
+            language: pipelineLanguage,
+            category: topic.category,
+            scene: article.scene_description,
+            title: article.title,
+            sourceImageUrl: topic.source_image_url ?? undefined,
+          })
+        )
+      );
+    } catch (coverErr) {
+      const reason = coverErr instanceof Error ? coverErr.message : String(coverErr);
+      console.warn(`\n  [cover] failed: ${reason}`);
+    }
+
+    // Step 6: Update article cover fields
+    if (coverResult) {
+      await updateArticleCover(
+        supabase,
+        articleId,
+        coverResult.url,
+        coverResult.source,
+        coverResult.source_url
+      );
+    }
+
+    // Step 7: Generate in-article illustrations with REAL articleId (concurrent, with retry)
+    let illustrationResults: { paragraph_index: number; url: string; source_url: string; source: string }[] = [];
+    try {
+      illustrationResults = await pacer.run(() =>
+        withRetry(() =>
+          generateIllustrations({
+            articleId,
+            language: pipelineLanguage,
+            category: topic.category,
+            scenes: illustrations.map((ill: { paragraph_index: number; scene_description: string }) => ({
+              paragraphIndex: ill.paragraph_index,
+              sceneDescription: ill.scene_description,
+            })),
+            sourceImageUrls: topic.source_inline_image_urls ?? undefined,
+          })
+        )
+      );
+    } catch (illErr) {
+      const reason = illErr instanceof Error ? illErr.message : String(illErr);
+      console.warn(`\n  [illustrations] failed: ${reason}`);
+    }
+
+    // Step 8: Replace questions (DB operation, outside pacer)
     await replaceQuestions(supabase, articleId, questions);
 
-    // Step 8: Replace illustrations (DB operation, outside pacer)
+    // Step 9: Replace illustrations (DB operation, outside pacer)
     await replaceIllustrations(
       supabase,
       articleId,
@@ -632,9 +673,11 @@ async function processWorkItem(
       }))
     );
 
+    const sourceCount = illustrationResults.filter(r => r.source === "source-website").length;
+    const aiCount = illustrationResults.length - sourceCount;
     const gateLabel = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
     console.log(
-      `OK — "${article.title}" route=${routeDecision.route} (${questions.length} questions, ${illustrationResults.length} illustrations, quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
+      `OK — "${article.title}" route=${routeDecision.route} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
     );
     return { status: "succeeded" };
   } catch (err) {

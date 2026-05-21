@@ -131,6 +131,7 @@ async function scrapeGushiwenCorpus(args: CliArgs): Promise<{ success: number; s
       content_completeness: "full",
       source_quality_score: 0.95,
       source_image_url: null,
+      source_inline_image_urls: null,
       status: "active",
       target_grades: poem.target_grades,
     });

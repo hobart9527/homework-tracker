@@ -303,6 +303,7 @@ async function upsertArticle(
     status: "active",
     title: levelData.title,
     source_image_url: article.images?.cover ?? null,
+    source_inline_image_urls: article.images?.inline ?? null,
   };
 
   if (DRY_RUN) {

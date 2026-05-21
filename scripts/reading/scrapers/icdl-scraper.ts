@@ -31,6 +31,7 @@ interface BookInfo {
   language: "zh" | "en";
   sourceUrl: string;
   sourceImageUrl: string | null;
+  sourceInlineImageUrls: string[] | null;
 }
 
 interface UpsertResult {
@@ -280,9 +281,11 @@ async function scrapeBook(page: Page, bookUrl: string, language: "zh" | "en"): P
 
   // Extract cover image from page HTML (best-effort)
   let sourceImageUrl: string | null = null;
+  let sourceInlineImageUrls: string[] | null = null;
   try {
     const images = extractImages(pageText);
     sourceImageUrl = images.cover;
+    sourceInlineImageUrls = images.inline;
   } catch {
     // best-effort — leave null
   }
@@ -299,6 +302,7 @@ async function scrapeBook(page: Page, bookUrl: string, language: "zh" | "en"): P
     language,
     sourceUrl: bookUrl,
     sourceImageUrl,
+    sourceInlineImageUrls,
   };
 }
 
@@ -375,6 +379,7 @@ async function upsertBooks(books: BookInfo[], dryRun: boolean): Promise<UpsertRe
           source_text: book.description,
           source_url: book.sourceUrl,
           source_image_url: book.sourceImageUrl,
+          source_inline_image_urls: book.sourceInlineImageUrls || null,
           category,
           grade_level: grades[0],
           target_grades: grades,

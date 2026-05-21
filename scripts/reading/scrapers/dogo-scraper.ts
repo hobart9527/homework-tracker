@@ -331,9 +331,11 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
 
     // Extract cover image from page HTML (best-effort)
     let source_image_url: string | null = null;
+    let source_inline_image_urls: string[] | null = null;
     try {
       const images = extractImages(pageHtml);
       source_image_url = images.cover;
+      source_inline_image_urls = images.inline;
     } catch {
       // best-effort — leave null
     }
@@ -349,6 +351,7 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
       source_url: article.url,
       source_text: sourceText || null,
       source_image_url,
+      source_inline_image_urls,
       content_completeness: completeness,
       status: "active",
       target_grades: [3, 6],

@@ -69,5 +69,5 @@ export function extractImages(html: string): ExtractedImages {
     }
   }
 
-  return { cover, inline: inline.slice(0, 5) };
+  return { cover, inline: inline.slice(0, 15) };
 }

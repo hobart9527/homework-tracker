@@ -34,9 +34,74 @@ export type IllustrationResult = {
   paragraph_index: number;
   url: string; // Supabase Storage URL
   source_url: string;
-  source: "pollinations" | "source-website";
+  source: "pollinations" | "source-website" | "dalle";
   bytes: number;
 }[];
+
+// --- Image dimension parser (pure-JS, no external deps) -----------------------
+
+/** Parse image dimensions from raw bytes without external libs.
+ *  Supports PNG, JPEG (SOF0/SOF2), WebP (VP8 / VP8L), GIF.
+ *  Returns null for unknown formats or parsing failure. */
+function parseImageDimensions(bytes: ArrayBuffer): { width: number; height: number } | null {
+  const view = new DataView(bytes);
+  const len = bytes.byteLength;
+  if (len < 24) return null;
+  const u8 = new Uint8Array(bytes);
+
+  // PNG: 0x89 0x50 0x4E 0x47
+  if (u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4E && u8[3] === 0x47) {
+    if (len < 24) return null;
+    return {
+      width: view.getUint32(16, false),
+      height: view.getUint32(20, false),
+    };
+  }
+
+  // JPEG: scan for SOF0 (0xFF 0xC0) or SOF2 (0xFF 0xC2)
+  for (let i = 0; i < len - 4; i++) {
+    if ((u8[i] === 0xFF && u8[i + 1] === 0xC0) || (u8[i] === 0xFF && u8[i + 1] === 0xC2)) {
+      if (i + 7 >= len) return null;
+      return {
+        height: view.getUint16(i + 5, false),
+        width: view.getUint16(i + 7, false),
+      };
+    }
+  }
+
+  // WebP: starts with RIFF
+  if (u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46) {
+    const webpTag = String.fromCharCode(u8[8], u8[9], u8[10], u8[11]);
+    if (webpTag !== "WEBP") return null;
+    const chunkTag = String.fromCharCode(u8[12], u8[13], u8[14], u8[15]);
+    if (chunkTag === "VP8 " && len >= 28) {
+      return {
+        width: view.getUint16(24, true) & 0x3FFF,
+        height: view.getUint16(26, true) & 0x3FFF,
+      };
+    }
+    if (chunkTag === "VP8L" && len >= 25) {
+      const val = view.getUint32(21, true);
+      return {
+        width: (val & 0x3FFF) + 1,
+        height: ((val >> 14) & 0x3FFF) + 1,
+      };
+    }
+    return null;
+  }
+
+  // GIF: starts with GIF87a or GIF89a
+  const gifTag = String.fromCharCode(u8[0], u8[1], u8[2]);
+  if (gifTag === "GIF" && (u8[3] === 0x38) && ((u8[4] === 0x37 && u8[5] === 0x61) || (u8[4] === 0x39 && u8[5] === 0x61))) {
+    if (len < 10) return null;
+    return {
+      width: view.getUint16(6, true),
+      height: view.getUint16(8, true),
+    };
+  }
+
+  return null;
+}
 
 // --- Retry helper (private; not exported) ---------------------------------
 //
@@ -156,6 +221,9 @@ async function trySourceImage(
     const arrayBuffer = await response.arrayBuffer();
     if (arrayBuffer.byteLength < 1024) return null;
 
+    const dims = parseImageDimensions(arrayBuffer);
+    if (!dims || dims.width < 300 || dims.height < 200) return null;
+
     const lower = contentType.toLowerCase();
     const ext = lower.includes("png") ? "png"
       : lower.includes("webp") ? "webp"
@@ -175,6 +243,45 @@ async function trySourceImage(
       url: upload.url,
       source_url: imageUrl,
       source: "source-website",
+      bytes: upload.bytes,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Try to generate illustration via DALL-E 3 (opt-in, requires DALLE_API_KEY
+ * or OPENAI_API_KEY env var). Returns null if key is missing or API fails.
+ * Caller overrides paragraph_index on the returned result.
+ */
+async function generateViaDalle(opts: {
+  articleId: string;
+  positive: string;
+}): Promise<IllustrationResult[number] | null> {
+  const apiKey = process.env.DALLE_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const { default: OpenAI } = await import("openai");
+    const client = new OpenAI({ apiKey, baseURL: "https://api.openai.com/v1" });
+    const response = await client.images.generate({
+      model: "dall-e-3",
+      prompt: opts.positive,
+      n: 1,
+      size: "1024x1024",
+      response_format: "url",
+    });
+    const externalUrl = response.data?.[0]?.url;
+    if (!externalUrl) return null;
+    const upload = await downloadAndUploadFromUrl({
+      externalUrl,
+      path: `illustrations/${opts.articleId}.webp`,
+    });
+    return {
+      paragraph_index: 0, // caller will override
+      url: upload.url,
+      source_url: externalUrl,
+      source: "dalle" as const,
       bytes: upload.bytes,
     };
   } catch {
@@ -226,12 +333,22 @@ export async function generateIllustrations(
       }
     }
 
-    try {
-      const { positive } = buildCoverPrompt(
-        opts.category,
-        scene.sceneDescription
-      );
+    const { positive } = buildCoverPrompt(
+      opts.category,
+      scene.sceneDescription
+    );
 
+    // DALL-E fallback (opt-in)
+    const dalleResult = await generateViaDalle({
+      articleId: opts.articleId,
+      positive,
+    });
+    if (dalleResult) {
+      results.push({ ...dalleResult, paragraph_index: idx });
+      continue;
+    }
+
+    try {
       const seed = Math.floor(Math.random() * 1_000_000);
       const externalUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
         positive

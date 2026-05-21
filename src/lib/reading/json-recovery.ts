@@ -15,9 +15,10 @@ function tryParseWithFallback(rawText: string): FallbackResult {
     console.warn("[json-recovery] JSON.parse failed, trying fallback strategy 1");
   }
 
-  // Strategy 1: Strip <think> blocks + markdown fences
+  // Strategy 1: Strip <think> blocks (closed + unclosed) + markdown fences
   let text = original
     .replace(/<think[\s\S]*?<\/think>/gi, "")
+    .replace(/<think[\s\S]*/i, "")
     .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
     .trim();
   try {
