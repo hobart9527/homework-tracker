@@ -15,7 +15,6 @@ type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
 type MessageRoutingRule =
   Database["public"]["Tables"]["message_routing_rules"]["Row"];
-type WeChatGroup = Database["public"]["Tables"]["wechat_groups"]["Row"];
 type SupportedPlatform = "ixl" | "khan-academy" | "raz-kids" | "epic";
 
 const AUTO_LOGIN_PLATFORMS = new Set<SupportedPlatform>([
@@ -49,7 +48,6 @@ export default function SettingsIntegrationsPage() {
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [platformAccounts, setPlatformAccounts] = useState<PlatformAccount[]>([]);
   const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
-  const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [bindingForm, setBindingForm] = useState({
     childId: "",
     platform: "ixl" as SupportedPlatform,
@@ -77,18 +75,6 @@ export default function SettingsIntegrationsPage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedChildId, setSelectedChildId] = useState<string>("");
 
-  const [childGroupSelections, setChildGroupSelections] = useState<
-    Record<string, string>
-  >({});
-  const [savingChildGroupId, setSavingChildGroupId] = useState<string | null>(null);
-  const [showGroupAddForm, setShowGroupAddForm] = useState(false);
-  const [groupAddForm, setGroupAddForm] = useState({ recipientRef: "", displayName: "" });
-  const [groupAddLoading, setGroupAddLoading] = useState(false);
-  const [groupAddError, setGroupAddError] = useState<string | null>(null);
-  const [groupEditingId, setGroupEditingId] = useState<string | null>(null);
-  const [groupEditName, setGroupEditName] = useState("");
-  const [groupEditLoading, setGroupEditLoading] = useState(false);
-
   const refreshData = async (nextParentId: string) => {
     const { data: childrenData } = await supabase
       .from("children")
@@ -102,8 +88,6 @@ export default function SettingsIntegrationsPage() {
       setHomeworks([]);
       setPlatformAccounts([]);
       setRoutingRules([]);
-      setWechatGroups([]);
-      setChildGroupSelections({});
       return;
     }
 
@@ -113,7 +97,6 @@ export default function SettingsIntegrationsPage() {
       { data: homeworksData },
       { data: accountsData },
       { data: rulesData },
-      { data: groupsData },
     ] =
       await Promise.all([
         supabase.from("homeworks").select("*").in("child_id", childIds),
@@ -123,22 +106,11 @@ export default function SettingsIntegrationsPage() {
           .select("*")
           .in("child_id", childIds)
           .order("created_at", { ascending: false }),
-        supabase.from("wechat_groups").select("*").eq("parent_id", nextParentId),
       ]);
 
     setHomeworks((homeworksData ?? []) as Homework[]);
     setPlatformAccounts((accountsData ?? []) as PlatformAccount[]);
-    setWechatGroups((groupsData ?? []) as WeChatGroup[]);
-    setRoutingRules(
-      ((rulesData ?? []) as MessageRoutingRule[]).filter(
-        (rule) => rule.channel === "wechat_group"
-      )
-    );
-    setChildGroupSelections(
-      Object.fromEntries(
-        childRows.map((child) => [child.id, child.default_wechat_group_id || ""])
-      )
-    );
+    setRoutingRules((rulesData ?? []) as MessageRoutingRule[]);
   };
 
   useEffect(() => {
@@ -498,62 +470,10 @@ export default function SettingsIntegrationsPage() {
     return message;
   };
 
-  const handleGroupAdd = async () => {
-    setGroupAddError(null);
-    if (!groupAddForm.recipientRef.trim()) {
-      setGroupAddError("请输入微信群标识。");
-      return;
-    }
-    setGroupAddLoading(true);
-    try {
-      const { error } = await supabase.from("wechat_groups").insert({
-        parent_id: parentId,
-        recipient_ref: groupAddForm.recipientRef.trim(),
-        display_name: groupAddForm.displayName.trim() || null,
-        source: "manual",
-      });
-      if (error) {
-        if (error.message.includes("duplicate")) {
-          setGroupAddError("这个群标识已经存在了。");
-        } else {
-          setGroupAddError(error.message);
-        }
-        return;
-      }
-      setGroupAddForm({ recipientRef: "", displayName: "" });
-      setShowGroupAddForm(false);
-      if (parentId) await refreshData(parentId);
-    } finally {
-      setGroupAddLoading(false);
-    }
-  };
-
-  const handleGroupEdit = async (groupId: string) => {
-    setGroupEditLoading(true);
-    try {
-      const { error } = await supabase
-        .from("wechat_groups")
-        .update({ display_name: groupEditName.trim() || null })
-        .eq("id", groupId);
-      if (!error) {
-        setGroupEditingId(null);
-        if (parentId) await refreshData(parentId);
-      }
-    } finally {
-      setGroupEditLoading(false);
-    }
-  };
-
-  const handleGroupDelete = async (groupId: string) => {
-    if (!confirm("确定要删除这个微信群吗？相关的消息路由也会失效。")) return;
-    await supabase.from("wechat_groups").delete().eq("id", groupId);
-    if (parentId) await refreshData(parentId);
-  };
-
   return (
     <SettingsShell
       title="孩子集成"
-      description="这里管理孩子自己的学习平台账号和默认消息路由，不处理家庭级通知通道。"
+      description="绑定学习平台账号和管理消息路由。"
       backHref="/settings"
     >
         {/* Child tab bar */}
@@ -598,7 +518,7 @@ export default function SettingsIntegrationsPage() {
           <div>
             <h2 className="font-bold text-forest-700">学习平台账号</h2>
             <p className="mt-1 text-ui-sm text-forest-500">
-              孩子级绑定只负责"这个孩子在外部学习平台上是谁"，不直接决定具体作业或家庭通道。
+              孩子级绑定只负责"这个孩子在外部学习平台上是谁"，不直接决定具体作业。
             </p>
           </div>
 
@@ -1057,221 +977,6 @@ export default function SettingsIntegrationsPage() {
       </Card>
 
       {selectedChildId && (
-        <Card id="default-group" className="scroll-mt-4">
-          <div className="space-y-4">
-            <div>
-              <h2 className="font-bold text-forest-700">默认微信群</h2>
-              <p className="mt-1 text-ui-sm text-forest-500">
-                孩子提交作业的默认目标微信群；作业级覆盖在作业编辑时确定。
-              </p>
-            </div>
-
-            {(() => {
-              const child = children.find((c) => c.id === selectedChildId);
-              if (!child) return null;
-              return (
-                <div className="rounded-radius-lg border border-forest-100 bg-forest-50/70 px-space-4 py-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div className="flex-1">
-                      <label
-                        htmlFor="default-group-select"
-                        className="mb-1 block text-ui-sm font-medium text-forest-700"
-                      >
-                        {child.name} 默认群
-                      </label>
-                      <select
-                        id="default-group-select"
-                        value={childGroupSelections[child.id] ?? ""}
-                        onChange={(e) =>
-                          setChildGroupSelections((prev) => ({
-                            ...prev,
-                            [child.id]: e.target.value,
-                          }))
-                        }
-                        className="w-full rounded-radius-lg border-2 border-forest-200 bg-white px-space-4 py-space-2 focus:border-forest-500 focus:outline-none"
-                      >
-                        <option value="">暂不设置默认群</option>
-                        {wechatGroups.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.display_name || `群聊 ${group.recipient_ref.substring(0, 12)}...`}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      disabled={savingChildGroupId === child.id}
-                      onClick={async () => {
-                        setSavingChildGroupId(child.id);
-                        try {
-                          await supabase
-                            .from("children")
-                            .update({
-                              default_wechat_group_id:
-                                childGroupSelections[child.id] || null,
-                            })
-                            .eq("id", child.id);
-                          if (parentId) {
-                            await refreshData(parentId);
-                          }
-                        } finally {
-                          setSavingChildGroupId(null);
-                        }
-                      }}
-                    >
-                      {savingChildGroupId === child.id ? "保存中..." : "保存"}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </Card>
-      )}
-
-      {selectedChildId && (
-        <Card id="wechat-groups" className="scroll-mt-4">
-          <div className="space-y-4">
-            <div>
-              <h2 className="font-bold text-forest-700">微信群管理</h2>
-              <p className="mt-1 text-ui-sm text-forest-500">
-                管理你的目标微信群，系统自动发现活跃群，也可以手动添加。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              {wechatGroups.length === 0 ? (
-                <div className="rounded-radius-lg border border-dashed border-forest-200 bg-forest-50 px-space-4 py-5 text-ui-sm text-forest-500">
-                  还没有微信群。点击下方「手动添加微信群」输入企业微信 chatid 即可添加。
-                </div>
-              ) : (
-                wechatGroups.map((group) => (
-                  <div
-                    key={group.id}
-                    className="flex items-center justify-between rounded-radius-lg border border-forest-100 bg-forest-50/70 px-space-4 py-space-3"
-                  >
-                    {groupEditingId === group.id ? (
-                      <div className="flex flex-1 items-center gap-2">
-                        <input
-                          type="text"
-                          value={groupEditName}
-                          onChange={(e) => setGroupEditName(e.target.value)}
-                          placeholder="群显示名称"
-                          className="flex-1 rounded-radius-md border border-forest-200 px-space-3 py-space-2 text-ui-sm focus:border-forest-500 focus:outline-none"
-                          autoFocus
-                        />
-                        <Button
-                          size="sm"
-                          disabled={groupEditLoading}
-                          onClick={() => handleGroupEdit(group.id)}
-                        >
-                          {groupEditLoading ? "保存中..." : "保存"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setGroupEditingId(null)}
-                        >
-                          取消
-                        </Button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="text-ui-sm">
-                          <p className="font-medium text-forest-700">
-                            {group.display_name || "未命名群"}
-                          </p>
-                          <p className="mt-0.5 text-ui-xs text-forest-500">
-                            chatid: {group.recipient_ref}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setGroupEditingId(group.id);
-                              setGroupEditName(group.display_name || "");
-                            }}
-                          >
-                            编辑
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-coral-600"
-                            onClick={() => handleGroupDelete(group.id)}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-
-            {showGroupAddForm ? (
-              <div className="rounded-radius-lg border border-forest-200 bg-white p-space-4 space-y-3">
-                <p className="text-ui-sm font-medium text-forest-700">手动添加微信群</p>
-                <Input
-                  label="群聊 ID（chatid）"
-                  value={groupAddForm.recipientRef}
-                  onChange={(e) =>
-                    setGroupAddForm((prev) => ({ ...prev, recipientRef: e.target.value }))
-                  }
-                  placeholder="在 WeCom 后台群聊信息中查看"
-                />
-                <p className="mt-0.5 text-ui-xs text-forest-500">
-                  chatid 可在企业微信管理后台「应用管理 → 群聊」中查看
-                </p>
-                <Input
-                  label="显示名称"
-                  value={groupAddForm.displayName}
-                  onChange={(e) =>
-                    setGroupAddForm((prev) => ({ ...prev, displayName: e.target.value }))
-                  }
-                  placeholder="例如 Mia 数学群"
-                />
-                <p className="mt-0.5 text-ui-xs text-forest-500">
-                  给这个群起一个好记的名字，例如"张老师数学群"
-                </p>
-                {groupAddError ? (
-                  <p className="text-ui-sm text-coral-600">{groupAddError}</p>
-                ) : null}
-                <div className="flex items-center gap-2">
-                  <Button size="sm" disabled={groupAddLoading} onClick={handleGroupAdd}>
-                    {groupAddLoading ? "添加中..." : "添加"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setShowGroupAddForm(false);
-                      setGroupAddForm({ recipientRef: "", displayName: "" });
-                      setGroupAddError(null);
-                    }}
-                  >
-                    取消
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setShowGroupAddForm(true)}
-              >
-                + 手动添加微信群
-              </Button>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {selectedChildId && (
         <Card id="message-routing" className="scroll-mt-4">
           <div className="space-y-4">
             {(() => {
@@ -1280,9 +985,9 @@ export default function SettingsIntegrationsPage() {
               return (
                 <>
                   <div>
-                    <h3 className="font-medium text-forest-700">遗留路由规则</h3>
+                    <h3 className="font-medium text-forest-700">消息路由规则</h3>
                     <p className="mt-1 text-ui-sm text-forest-500">
-                      以下规则来自旧版系统，仅做展示参考，不再支持新增和编辑。
+                      消息路由决定推送的发送目标。
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -1293,7 +998,7 @@ export default function SettingsIntegrationsPage() {
                       >
                         <p className="font-medium text-forest-700">
                           {children.find((child) => child.id === rule.child_id)?.name ?? "未命名孩子"} ·{" "}
-                          {rule.channel === "telegram_chat" ? "Telegram" : "微信群"}
+                          {rule.channel === "telegram_chat" ? "Telegram" : rule.channel}
                         </p>
                         <p>
                           {rule.homework_id

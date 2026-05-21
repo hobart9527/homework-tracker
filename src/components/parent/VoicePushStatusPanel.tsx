@@ -85,9 +85,9 @@ export function VoicePushStatusPanel({
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="font-bold text-forest-700">语音桥接状态</h2>
+          <h2 className="font-bold text-forest-700">语音推送队列</h2>
           <p className="mt-1 text-sm text-forest-500">
-            查看录音作业的桥接发送状态、失败原因和最近一次处理时间。
+            查看录音作业的推送状态和失败原因。
           </p>
         </div>
 
@@ -107,9 +107,7 @@ export function VoicePushStatusPanel({
           >
             {runningQueue
               ? "处理中..."
-              : deliverableTaskCount > 0
-                ? "处理发送队列"
-                : "刷新队列"}
+              : "刷新队列"}
           </Button>
         ) : null}
       </div>

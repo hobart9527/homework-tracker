@@ -27,10 +27,10 @@ export interface ParentShellProps {
 // ── Default navigation items ──────────────────────────────────────
 
 const DEFAULT_SIDEBAR_ITEMS: SidebarItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: <IconList className="w-5 h-5" /> },
-  { label: "Homework", href: "/homework", icon: <IconDocument className="w-5 h-5" /> },
-  { label: "Children", href: "/children", icon: <IconFox className="w-5 h-5" /> },
-  { label: "Settings", href: "/settings", icon: <IconSettings className="w-5 h-5" /> },
+  { label: "总览", href: "/dashboard", icon: <IconList className="w-5 h-5" /> },
+  { label: "作业管理", href: "/homework", icon: <IconDocument className="w-5 h-5" /> },
+  { label: "孩子管理", href: "/children", icon: <IconFox className="w-5 h-5" /> },
+  { label: "设置", href: "/settings", icon: <IconSettings className="w-5 h-5" /> },
 ];
 
 // ── Component ─────────────────────────────────────────────────────

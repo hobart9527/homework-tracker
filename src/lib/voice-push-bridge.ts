@@ -1,4 +1,5 @@
 import { getWeComAccessToken, uploadMediaToWeCom, sendFileToWeComChat } from "@/lib/wecom";
+import { sendTelegramAudio } from "@/lib/telegram";
 
 type VoicePushDeliveryRequest = {
   taskId: string;
@@ -204,6 +205,79 @@ export async function deliverVoicePushToWeCom(
     return {
       status: "failed",
       error: err instanceof Error ? err.message : "WeCom delivery failed",
+    };
+  }
+}
+
+// ─── Telegram delivery ──────────────────────────────────────────────
+
+const telegramDeliveredKeys = new Set<string>();
+
+export async function deliverVoicePushToTelegram(request: {
+  taskId: string;
+  attachmentId: string;
+  filePath: string;
+  fileUrl?: string | null;
+  recipientRef: string;
+  deliveryKey: string;
+  caption?: string;
+}): Promise<{
+  status: "sent" | "duplicate" | "failed";
+  remoteMessageId?: string | null;
+  error?: string;
+}> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    return { status: "failed", error: "TELEGRAM_BOT_TOKEN not configured" };
+  }
+
+  if (telegramDeliveredKeys.has(request.deliveryKey)) {
+    return { status: "duplicate" };
+  }
+
+  const downloadUrl = request.fileUrl;
+  if (!downloadUrl) {
+    return { status: "failed", error: "No fileUrl available for Telegram delivery" };
+  }
+
+  let buffer: Buffer;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(downloadUrl, { signal: controller.signal })
+      .finally(() => clearTimeout(timeoutId));
+    if (!res.ok) {
+      return { status: "failed", error: `Download failed: HTTP ${res.status}` };
+    }
+    const arrayBuffer = await res.arrayBuffer();
+    buffer = Buffer.from(arrayBuffer);
+  } catch (err) {
+    return {
+      status: "failed",
+      error: `Download error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const caption = request.caption;
+
+  try {
+    const result = await sendTelegramAudio({
+      botToken,
+      chatId: request.recipientRef,
+      audioUrl: downloadUrl,
+      ...(caption ? { caption } : {}),
+    });
+
+    telegramDeliveredKeys.add(request.deliveryKey);
+
+    return {
+      status: "sent",
+      remoteMessageId: result?.result?.message_id ?? result?.message_id ?? null,
+    };
+  } catch (err) {
+    return {
+      status: "failed",
+      error: err instanceof Error ? err.message : "Telegram delivery failed",
     };
   }
 }

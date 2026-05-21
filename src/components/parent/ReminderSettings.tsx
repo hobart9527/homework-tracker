@@ -69,7 +69,7 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
   return (
     <div className="space-y-4">
       <Input
-        label="每日截止时间"
+        label="截止时间"
         type="time"
         value={formData.reminder_cutoff_time}
         onChange={(e) =>
@@ -81,7 +81,7 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
       />
 
       <Input
-        label="Telegram Chat ID"
+        label="Chat ID"
         value={formData.telegram_chat_id}
         onChange={(e) =>
           setFormData((prev) => ({
@@ -93,7 +93,7 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
       />
 
       <Input
-        label="接收人备注"
+        label="备注名称"
         value={formData.telegram_recipient_label}
         onChange={(e) =>
           setFormData((prev) => ({
@@ -129,16 +129,13 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
       </div>
 
       <div className="rounded-xl border border-forest-100 bg-forest-50/70 px-4 py-3 text-sm text-forest-600">
-        <p className="font-medium text-forest-700">Telegram 运行要求</p>
-        <p className="mt-1">要真正发出 Telegram 消息，需要家庭级 Chat ID，以及服务端环境中的 Telegram Bot Token。</p>
-        <p className="mt-1">
-          现在这个页面支持保存后直接发送一条测试消息，帮助你确认家庭通道配置是否真实可用。
-        </p>
+        <p className="font-medium text-forest-700">配置说明</p>
+        <p className="mt-1">需要家庭级 Chat ID 和服务器端的 Bot Token 才能发送消息。保存后可以发送测试消息验证配置是否可用。</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Button onClick={handleSave} disabled={loading}>
-          {loading ? "保存中..." : "保存设置"}
+          {loading ? "保存中..." : "保存"}
         </Button>
 
         {saveMessage ? (
@@ -188,7 +185,7 @@ export function ReminderSettings({ settings, onUpdate }: ReminderSettingsProps) 
             }
           }}
         >
-          {testingTelegram ? "发送中..." : "发送 Telegram 测试消息"}
+          {testingTelegram ? "发送中..." : "发送测试消息"}
         </Button>
       </div>
 

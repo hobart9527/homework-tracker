@@ -21,7 +21,7 @@ export function ReminderActionButton({
   if (state?.status === "escalated_call") {
     return (
       <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-600 whitespace-nowrap">
-        已电话提醒
+        已电话
       </span>
     );
   }
@@ -29,7 +29,7 @@ export function ReminderActionButton({
   if (state?.status === "sent_sms") {
     return (
       <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-600 whitespace-nowrap">
-        已短信提醒 · 45分钟后未完成将电话提醒
+        已短信提醒 · 45分钟后电话
       </span>
     );
   }

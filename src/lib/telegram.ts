@@ -36,3 +36,43 @@ export async function sendTelegramTextMessage(input: {
   return payload;
 }
 
+export async function sendTelegramAudio(input: {
+  botToken: string;
+  chatId: string;
+  audioUrl: string;
+  caption?: string;
+  fetchImpl?: typeof fetch;
+}) {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const response = await fetchImpl(
+    `https://api.telegram.org/bot${input.botToken}/sendAudio`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        chat_id: input.chatId,
+        audio: input.audioUrl,
+        ...(input.caption ? { caption: input.caption } : {}),
+      }),
+    }
+  );
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const errorMessage =
+      payload &&
+      typeof payload === "object" &&
+      "description" in payload &&
+      typeof payload.description === "string"
+        ? payload.description
+        : "Telegram audio send failed";
+
+    throw new Error(errorMessage);
+  }
+
+  return payload;
+}
+

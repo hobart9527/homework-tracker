@@ -143,8 +143,8 @@ export function ParentChildTaskList({
   return (
     <section className="space-y-3">
       <div>
-        <h3 className="text-ui-lg font-ui-display font-semibold text-forest-800">任务清单</h3>
-        <p className="text-ui-sm text-ink-500">点击日历切换日期后，这里会同步更新当天的作业情况</p>
+        <h3 className="text-ui-lg font-ui-display font-semibold text-forest-800">作业列表</h3>
+        <p className="text-ui-sm text-ink-500">选择日历日期查看当天的作业完成情况</p>
       </div>
 
       {tasks.length === 0 ? (
@@ -177,10 +177,10 @@ export function ParentChildTaskList({
                         className="text-ui-xs h-7 px-space-2"
                         onClick={() => handleAttachmentPreview(task)}
                       >
-                        📎 附件
+                        📎 预览
                       </Button>
                     ) : (
-                      <span className="text-ui-xs text-ink-400">完成后查看附件</span>
+                      <span className="text-ui-xs text-ink-400">打卡后可查看</span>
                     )}
                     <ReminderActionButton
                       homeworkId={taskHomeworkId}
@@ -210,7 +210,7 @@ export function ParentChildTaskList({
           <div>
             <p className="text-ui-sm text-ink-500">{previewTaskTitle}</p>
             <p className="mt-space-1 text-ui-xs text-ink-400">
-              图片可直接查看，音频可在下方播放器里试听
+              图片可直接查看，音频可在线播放
             </p>
           </div>
 

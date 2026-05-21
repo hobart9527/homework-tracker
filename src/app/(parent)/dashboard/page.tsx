@@ -338,7 +338,7 @@ export default function ParentDashboardPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">{t('parent.dashboard.title')}</h1>
         <Button variant="ghost" size="sm" onClick={handleLogout}>
-          {t('common.logout')}
+          退出登录
         </Button>
       </div>
 

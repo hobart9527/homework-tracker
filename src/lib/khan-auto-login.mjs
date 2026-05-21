@@ -141,10 +141,19 @@ export async function autoLoginKhan(username, password, options = {}) {
     // ===== Warm-up: visit homepage like a real user =====
     log("🌐 访问 Khan Academy 首页...");
     await page.goto("https://www.khanacademy.org", {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
+      waitUntil: "commit",
+      timeout: 60000,
     });
 
+    // Wait for body to have meaningful content (Cloudflare may inject challenge scripts)
+    try {
+      await page.waitForFunction(
+        () => document.body && document.body.textContent && document.body.textContent.length > 50,
+        { timeout: 15000 }
+      );
+    } catch {
+      log("⚠️ 首页内容加载缓慢，继续尝试...");
+    }
     await page.waitForTimeout(rand(2000, 4000));
     await randomMouseWander(page);
     await humanScroll(page);
@@ -154,9 +163,19 @@ export async function autoLoginKhan(username, password, options = {}) {
     // We already have domain cookies from the homepage visit.
     log("🔗 导航到登录页...");
     await page.goto("https://www.khanacademy.org/login", {
-      waitUntil: "domcontentloaded",
-      timeout: 30000,
+      waitUntil: "commit",
+      timeout: 60000,
     });
+
+    // Wait for the login page body to actually render
+    try {
+      await page.waitForFunction(
+        () => document.body && document.body.textContent && document.body.textContent.length > 100,
+        { timeout: 20000 }
+      );
+    } catch {
+      log("⚠️ 登录页内容加载缓慢，继续尝试...");
+    }
     await page.waitForTimeout(rand(2000, 4000));
 
     // Check for Cloudflare "Checking your browser" page
@@ -285,7 +304,16 @@ export async function autoLoginKhan(username, password, options = {}) {
 
     log("⏳ 等待登录响应...");
     await page.waitForTimeout(rand(5000, 8000));
-    await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
+    // Wait for the URL to change away from /login (redirect after successful auth)
+    try {
+      await page.waitForFunction(
+        () => !window.location.href.includes("/login"),
+        { timeout: 15000 }
+      );
+    } catch {
+      log("⚠️ 登录后未自动跳转，继续提取 Cookie...");
+    }
+    await page.waitForTimeout(rand(2000, 3000));
 
     // Gather cookies
     const cookies = await browser.cookies();

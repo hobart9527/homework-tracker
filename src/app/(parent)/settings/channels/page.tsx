@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import { SettingsShell } from "@/components/parent/SettingsShell";
 import { ReminderSettings } from "@/components/parent/ReminderSettings";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
@@ -14,13 +13,6 @@ export default function SettingsChannelsPage() {
   const supabase = useMemo(() => createClient(), []);
   const [parent, setParent] = useState<Parent | null>(null);
   const [loading, setLoading] = useState(true);
-  const [wecomStatusLoading, setWecomStatusLoading] = useState(false);
-  const [wecomStatusMessage, setWecomStatusMessage] = useState<string | null>(
-    null
-  );
-  const [wecomStatusTone, setWecomStatusTone] = useState<
-    "neutral" | "success" | "danger"
-  >("neutral");
 
   useEffect(() => {
     const fetchParent = async () => {
@@ -57,116 +49,14 @@ export default function SettingsChannelsPage() {
 
   return (
     <SettingsShell
-      title="家庭通知通道"
-      description="管理微信群、Telegram 等家庭级通知通道。微信群管理已移至孩子集成页。"
+      title="通知通道"
+      description="管理 Telegram 通知通道和提醒偏好。"
       backHref="/settings"
     >
-      <Card className="scroll-mt-4">
-        <div className="space-y-4">
-          <div>
-            <h2 className="font-bold text-forest-700">微信群管理</h2>
-            <p className="mt-1 text-ui-sm text-forest-500">
-              微信群的管理（添加、编辑、删除、设置孩子默认群）已迁移至
-              <a href="/settings/integrations" className="mx-1 text-forest-500 underline">孩子集成页</a>，
-              在那里你可以为每个孩子配置专属的微信群。
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      <Card id="wechat-setup" className="scroll-mt-4">
-        <div className="space-y-4">
-          <div>
-            <h2 className="font-bold text-forest-700">企业微信发送服务</h2>
-            <p className="mt-1 text-ui-sm text-forest-500">
-              使用企业微信官方 API 发送作业录音到群聊，无需额外启动服务或扫码登录。
-            </p>
-          </div>
-
-          <div className="rounded-radius-lg border border-honey-200 bg-honey-50 px-space-4 py-space-3 text-ui-sm text-honey-900">
-            <p className="font-medium">企业微信设置步骤</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>注册
-                <a href="https://work.weixin.qq.com/" target="_blank" className="underline" rel="noreferrer">
-                  企业微信
-                </a>
-                （免费），创建企业
-              </li>
-              <li>在「应用管理」中创建自建应用，获取 CorpID、CorpSecret 和 AgentID</li>
-              <li>在环境变量中配置 <code className="rounded bg-honey-100 px-1">WECOM_CORPID</code>、
-                <code className="rounded bg-honey-100 px-1">WECOM_CORPSECRET</code>、
-                <code className="rounded bg-honey-100 px-1">WECOM_AGENTID</code>
-              </li>
-              <li>创建群聊并将应用加入群中，获取 chatid</li>
-              <li>在孩子集成页添加群，填写群聊 ID（chatid）和显示名称</li>
-            </ol>
-
-            <p className="mt-2 text-ui-sm text-honey-800">配置完成后，作业录音将自动通过企业微信官方 API 发送，无需额外启动服务。</p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={wecomStatusLoading}
-              onClick={async () => {
-                setWecomStatusLoading(true);
-                setWecomStatusMessage(null);
-                setWecomStatusTone("neutral");
-
-                try {
-                  const response = await fetch("/api/voice-push/wecom-status", {
-                    method: "GET",
-                  });
-                  const body = await response.json();
-
-                  if (body.configured) {
-                    setWecomStatusTone("success");
-                    setWecomStatusMessage(
-                      `企业微信已配置（CorpID: ${body.corpidPreview}），可正常发送。`
-                    );
-                  } else {
-                    setWecomStatusTone("danger");
-                    setWecomStatusMessage(
-                      "企业微信未配置，请在环境变量中设置 WECOM_CORPID 和 WECOM_CORPSECRET。"
-                    );
-                  }
-                } catch (error) {
-                  setWecomStatusTone("danger");
-                  setWecomStatusMessage(
-                    error instanceof Error
-                      ? error.message
-                      : "状态检查失败，请稍后重试。"
-                  );
-                } finally {
-                  setWecomStatusLoading(false);
-                }
-              }}
-            >
-              {wecomStatusLoading ? "检查中..." : "检查发送服务状态"}
-            </Button>
-
-            {wecomStatusMessage ? (
-              <p
-                className={`text-ui-sm ${
-                  wecomStatusTone === "success"
-                    ? "text-forest-700"
-                    : wecomStatusTone === "danger"
-                      ? "text-coral-600"
-                      : "text-forest-600"
-                }`}
-              >
-                {wecomStatusMessage}
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </Card>
-
       <Card id="reminder-settings" className="scroll-mt-4">
-        <h2 className="mb-4 font-bold text-forest-700">提醒与 Telegram 通道</h2>
+        <h2 className="mb-4 font-bold text-forest-700">提醒与 Telegram</h2>
         <p className="mb-4 text-ui-sm text-forest-500">
-          Telegram 通道在这里保存家庭级 Chat ID 和接收人备注；Bot Token 由服务端运行环境统一提供。
+          Telegram 通道在此配置家庭级 Chat ID；Bot Token 由服务端提供。
         </p>
         <ReminderSettings
           settings={parent}

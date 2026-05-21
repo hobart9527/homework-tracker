@@ -8,29 +8,6 @@ import SettingsSystemPage from "@/app/(parent)/settings/system/page";
 const fetchMock = vi.fn();
 const searchParamsState = new URLSearchParams();
 const updateChildEq = vi.fn().mockResolvedValue({ error: null });
-const updateWeChatGroupEq = vi.fn().mockResolvedValue({ error: null });
-const wechatGroupsState = [
-  {
-    id: "group-1",
-    parent_id: "parent-1",
-    recipient_ref: "wxid_math@chatroom",
-    display_name: "Mia 数学老师群",
-    source: "discovered",
-    is_active: true,
-    last_seen_at: "2026-04-21T10:00:00.000Z",
-    created_at: "2026-04-20T09:00:00.000Z",
-  },
-  {
-    id: "group-2",
-    parent_id: "parent-1",
-    recipient_ref: "wxid_reading@chatroom",
-    display_name: "Mia 阅读老师群",
-    source: "manual",
-    is_active: true,
-    last_seen_at: null,
-    created_at: "2026-04-20T09:10:00.000Z",
-  },
-];
 
 const sessionResponse = {
   data: {
@@ -182,34 +159,6 @@ function createSupabaseClient() {
         };
       }
 
-      if (table === "wechat_groups") {
-        return {
-          select: () => ({
-            eq: vi.fn(() => {
-              const groupsData = {
-                data: wechatGroupsState.map((group) => ({ ...group })),
-              };
-              const result = Promise.resolve(groupsData);
-              (result as any).order = vi.fn().mockResolvedValue(groupsData);
-              return result;
-            }),
-          }),
-          insert: vi.fn().mockResolvedValue({ error: null }),
-          update: vi.fn((payload: { display_name: string | null }) => ({
-            eq: vi.fn((field: string, id: string) => {
-              const group = wechatGroupsState.find((item) => item.id === id);
-              if (group) {
-                group.display_name = payload.display_name;
-              }
-              return updateWeChatGroupEq(field, id);
-            }),
-          })),
-          delete: vi.fn(() => ({
-            eq: vi.fn().mockResolvedValue({ error: null }),
-          })),
-        };
-      }
-
       if (table === "voice_push_tasks") {
         return {
           select: () => ({
@@ -313,97 +262,39 @@ describe("Settings IA pages", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     updateChildEq.mockClear();
-    updateWeChatGroupEq.mockClear();
     searchParamsState.forEach((_, key) => searchParamsState.delete(key));
-    wechatGroupsState[0].display_name = "Mia 数学老师群";
-    wechatGroupsState[1].display_name = "Mia 阅读老师群";
   });
 
   it("renders the root settings page as a navigation hub", async () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("设置导航")).toBeInTheDocument();
+      expect(screen.getByText("设置")).toBeInTheDocument();
     });
 
     expect(
-      screen.getByRole("link", { name: /家庭通知通道/i })
+      screen.getByRole("link", { name: /通知通道/i })
     ).toHaveAttribute("href", "/settings/channels");
     expect(
-      screen.getByRole("link", { name: /孩子集成/i })
+      screen.getByRole("link", { name: /学习平台与路由/i })
     ).toHaveAttribute("href", "/settings/integrations");
     expect(
-      screen.getByRole("link", { name: /系统运行/i })
-    ).toHaveAttribute("href", "/settings/system");
+      screen.getByText(/系统运维/)
+    ).toBeInTheDocument();
   });
 
   it("keeps family-level channel settings on the channels page", async () => {
     render(<SettingsChannelsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("微信群管理")).toBeInTheDocument();
-      expect(screen.getByText("提醒与 Telegram 通道")).toBeInTheDocument();
+      expect(screen.getByText("提醒与 Telegram")).toBeInTheDocument();
     });
 
     expect(
-      screen.getByText(/管理微信群、Telegram 等家庭级通知通道/)
+      screen.getByText("管理 Telegram 通知通道和提醒偏好。")
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Telegram Chat ID")).toHaveValue("123456789");
+    expect(screen.getByLabelText("Chat ID")).toHaveValue("123456789");
     expect(screen.queryByLabelText("Telegram Bot Token")).not.toBeInTheDocument();
-  });
-
-  it("checks wecom bridge status from the channels page", async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({
-        configured: true,
-        corpidPreview: "wx123456",
-      }),
-    });
-
-    render(<SettingsChannelsPage />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "检查发送服务状态" })
-      ).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "检查发送服务状态" }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/voice-push/wecom-status", {
-        method: "GET",
-      });
-      expect(
-        screen.getByText(
-          "企业微信已配置（CorpID: wx123456），可正常发送。"
-        )
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("lets parents rename a discovered WeChat group from the integrations page", async () => {
-    render(<SettingsIntegrationsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("微信群管理")).toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Mia 数学老师群").length).toBeGreaterThan(0);
-    });
-
-    fireEvent.click(screen.getAllByRole("button", { name: "编辑" })[1]);
-    fireEvent.change(screen.getByPlaceholderText("群显示名称"), {
-      target: { value: "Mia 数学打卡群" },
-    });
-    fireEvent.click(screen.getAllByRole("button", { name: "保存" })[1]);
-
-    await waitFor(() => {
-      expect(updateWeChatGroupEq).toHaveBeenCalledWith("id", "group-1");
-      expect(screen.getAllByText("Mia 数学打卡群").length).toBeGreaterThan(0);
-    });
   });
 
   it("submits a child platform binding from the integrations page", async () => {
@@ -419,7 +310,6 @@ describe("Settings IA pages", () => {
 
     await waitFor(() => {
       expect(screen.getByText("学习平台账号")).toBeInTheDocument();
-      expect(screen.getByText("默认微信群")).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText("账号标识 / 登录用户名"), {
@@ -487,41 +377,6 @@ describe("Settings IA pages", () => {
     });
   });
 
-  it("keeps child routing focused on wechat bridge targets", async () => {
-    render(<SettingsIntegrationsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("默认微信群")).toBeInTheDocument();
-    });
-
-    expect(screen.getByLabelText("Mia 默认群")).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("通道")
-    ).not.toBeInTheDocument();
-  });
-
-  it("lets parents choose a child default WeChat group from the household group directory", async () => {
-    render(<SettingsIntegrationsPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("默认微信群")).toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Mia 默认群")).toHaveValue("group-1");
-    });
-
-    fireEvent.change(screen.getByLabelText("Mia 默认群"), {
-      target: { value: "group-2" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-
-    await waitFor(() => {
-      expect(updateChildEq).toHaveBeenCalledWith("id", "child-1");
-    });
-  });
-
   it("shows runtime status and supports retry actions on the system page", async () => {
     fetchMock
       .mockResolvedValueOnce({
@@ -543,7 +398,7 @@ describe("Settings IA pages", () => {
 
     await waitFor(() => {
       expect(screen.getByText("平台同步状态")).toBeInTheDocument();
-      expect(screen.getByText("语音桥接状态")).toBeInTheDocument();
+      expect(screen.getByText("语音推送队列")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "立即重试" }));
@@ -555,7 +410,7 @@ describe("Settings IA pages", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "处理发送队列" }));
+    fireEvent.click(screen.getByRole("button", { name: "刷新队列" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(

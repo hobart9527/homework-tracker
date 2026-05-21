@@ -15,6 +15,12 @@ vi.mock("@/lib/voice-push-worker", () => ({
 
 vi.mock("@/lib/voice-push-bridge", () => ({
   deliverVoicePushRequest: vi.fn(),
+  deliverVoicePushToTelegram: vi.fn(),
+  deliverVoicePushToWeCom: vi.fn(),
+}));
+
+vi.mock("@/lib/message-routing", () => ({
+  resolveMessageDeliveryTarget: vi.fn(),
 }));
 
 import { GET } from "@/app/api/voice-push/run/route";

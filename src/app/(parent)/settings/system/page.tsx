@@ -62,6 +62,14 @@ export default function SettingsSystemPage() {
   const [readingRefreshLoading, setReadingRefreshLoading] = useState(false);
   const [readingRefreshMessage, setReadingRefreshMessage] = useState<string | null>(null);
   const [readingRefreshTone, setReadingRefreshTone] = useState<"success" | "danger" | "neutral">("neutral");
+  const [readingRefreshGrades, setReadingRefreshGrades] = useState<number[]>([3, 6]);
+  const [readingRefreshLimit, setReadingRefreshLimit] = useState(5);
+
+  const toggleGrade = (g: number) => {
+    setReadingRefreshGrades((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g].sort((a, b) => a - b)
+    );
+  };
 
   const refreshStatus = async (nextParentId: string) => {
     const { data: children } = await supabase
@@ -210,8 +218,8 @@ export default function SettingsSystemPage() {
 
   return (
     <SettingsShell
-      title="系统运行"
-      description="这里只看运行状态、失败重试和人工排障，不承载家庭级或孩子级配置。"
+      title="系统运维"
+      description="查看平台同步状态、语音推送队列和执行日志。"
     >
       <Card>
         <PlatformSyncStatusPanel
@@ -238,10 +246,9 @@ export default function SettingsSystemPage() {
       <Card className="scroll-mt-4">
         <div className="space-y-4">
           <div>
-            <h2 className="font-bold text-forest-700">平台手动同步</h2>
+            <h2 className="font-bold text-forest-700">手动同步</h2>
             <p className="mt-1 text-ui-sm text-forest-500">
-              手动触发所有已绑定平台的学习记录同步（IXL、Khan Academy 等）。
-              系统会遍历孩子的平台账号，拉取最新活动数据并自动匹配作业。
+              立刻同步所有已绑定平台的学习记录，系统将拉取最新活动并自动匹配作业。
             </p>
           </div>
           <Button
@@ -271,7 +278,7 @@ export default function SettingsSystemPage() {
               }
             }}
           >
-            {manualSyncLoading ? "同步中..." : "立即同步"}
+            {manualSyncLoading ? "同步中..." : "开始同步"}
           </Button>
           {manualSyncMessage ? (
             <p
@@ -292,16 +299,53 @@ export default function SettingsSystemPage() {
       <Card className="scroll-mt-4">
         <div className="space-y-4">
           <div>
-            <h2 className="font-bold text-forest-700">英文阅读内容刷新</h2>
+            <h2 className="font-bold text-forest-700">阅读内容刷新</h2>
             <p className="mt-1 text-ui-sm text-forest-500">
-              调用 OpenAI 为精选话题生成 G3 和 G6 两个年级的适配文章和阅读理解题。
-              每次处理 5 个话题，生成约 10 篇文章。需要配置 OPENAI_API_KEY 环境变量。
+              调用 AI 为精选话题生成多年级适配文章和阅读理解题。
             </p>
           </div>
+
+          <div>
+            <label className="block text-ui-sm font-medium text-forest-700 mb-2">目标年级</label>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => toggleGrade(g)}
+                  className={`px-3 py-1.5 rounded-radius-md text-ui-sm border transition-colors ${
+                    readingRefreshGrades.includes(g)
+                      ? "border-forest-500 bg-forest-50 text-forest-700"
+                      : "border-ink-200 bg-white text-ink-500 hover:border-ink-300"
+                  }`}
+                >
+                  G{g}
+                </button>
+              ))}
+            </div>
+            {readingRefreshGrades.length === 0 && (
+              <p className="mt-1 text-xs text-coral-600">至少选择一个年级</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-ui-sm font-medium text-forest-700 mb-2">
+              每轮篇数：{readingRefreshLimit}
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={20}
+              value={readingRefreshLimit}
+              onChange={(e) => setReadingRefreshLimit(Number(e.target.value))}
+              className="w-full max-w-xs"
+            />
+          </div>
+
           <Button
             size="sm"
             variant="secondary"
-            disabled={readingRefreshLoading}
+            disabled={readingRefreshLoading || readingRefreshGrades.length === 0}
             onClick={async () => {
               setReadingRefreshLoading(true);
               setReadingRefreshMessage(null);
@@ -309,14 +353,17 @@ export default function SettingsSystemPage() {
                 const response = await fetch("/api/reading/refresh-news", {
                   method: "POST",
                   headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ grades: [3, 6], limit: 5 }),
+                  body: JSON.stringify({
+                    grades: readingRefreshGrades,
+                    limit: readingRefreshLimit,
+                  }),
                 });
                 const body = await response.json();
                 if (response.ok) {
                   setReadingRefreshMessage(
-                    `已生成 ${body.count ?? body.articles?.length ?? 0} 篇文章`
+                    `成功 ${body.succeeded ?? 0} 篇，失败 ${body.failed ?? 0} 篇，跳过 ${body.skipped ?? 0} 篇（共 ${body.total ?? 0} 个任务）`
                   );
-                  setReadingRefreshTone("success");
+                  setReadingRefreshTone(body.failed > 0 ? "neutral" : "success");
                 } else {
                   setReadingRefreshMessage(body.error ?? "刷新请求失败");
                   setReadingRefreshTone("danger");
@@ -329,7 +376,7 @@ export default function SettingsSystemPage() {
               }
             }}
           >
-            {readingRefreshLoading ? "生成中（约需1-2分钟）..." : "刷新阅读内容"}
+            {readingRefreshLoading ? "生成中（约需1-2分钟）..." : "刷新内容"}
           </Button>
           {readingRefreshMessage ? (
             <p

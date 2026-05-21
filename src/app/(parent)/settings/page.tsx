@@ -10,15 +10,10 @@ import type { Database } from "@/lib/supabase/types";
 
 type Parent = Database["public"]["Tables"]["parents"]["Row"];
 
-type Child = Database["public"]["Tables"]["children"]["Row"] & {
-  reading_grade_level: number | null;
-};
-
 export default function SettingsPage() {
   const { t } = useTranslation();
   const supabase = useMemo(() => createClient(), []);
   const [parent, setParent] = useState<Parent | null>(null);
-  const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,45 +36,11 @@ export default function SettingsPage() {
         setParent(parentData);
       }
 
-      const { data: childrenData } = await supabase
-        .from("children")
-        .select("*")
-        .eq("parent_id", session.user.id);
-      if (childrenData) setChildren(childrenData as Child[]);
-
       setLoading(false);
     };
 
     fetchData();
   }, [supabase]);
-
-  const handleUpdateReadingGrade = async (childId: string, grade: number) => {
-    // Optimistic update
-    setChildren((prev) =>
-      prev.map((c) =>
-        c.id === childId ? { ...c, reading_grade_level: grade } : c,
-      ),
-    );
-
-    // Persist to DB
-    const { error } = await supabase
-      .from("children")
-      .update({ reading_grade_level: grade })
-      .eq("id", childId);
-
-    if (error) {
-      // Revert on error: re-fetch children from server
-      const { data: sessionData } = await supabase.auth.getSession();
-      const pid = sessionData.session?.user.id;
-      if (pid) {
-        const { data } = await supabase
-          .from("children")
-          .select("*")
-          .eq("parent_id", pid);
-        if (data) setChildren(data as Child[]);
-      }
-    }
-  };
 
   if (loading || !parent) {
     return (
@@ -96,24 +57,24 @@ export default function SettingsPage() {
       <Card>
         <div className="space-y-3">
           <div>
-            <h2 className="font-bold text-forest-700">设置导航</h2>
+            <h2 className="font-bold text-forest-700">功能设置</h2>
             <p className="mt-1 text-ui-sm text-ink-500">
-              不同对象的配置入口已经拆开，避免把家庭通道、孩子身份和作业规则混在同一个页面里。
+              按功能拆分为独立配置页，方便管理通知通道、学习平台路由和系统运维。
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Link href="/settings/channels" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
-              <h3 className="font-semibold text-forest-700">家庭通知通道</h3>
+              <h3 className="font-semibold text-forest-700">通知通道</h3>
               <p className="mt-1 text-ui-sm text-ink-500">
-                Telegram、微信 bridge 与家庭级通知偏好
+                Telegram 与提醒偏好
               </p>
             </Link>
 
             <Link href="/settings/integrations" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
-              <h3 className="font-semibold text-forest-700">孩子集成</h3>
+              <h3 className="font-semibold text-forest-700">学习平台与路由</h3>
               <p className="mt-1 text-ui-sm text-ink-500">
-                学习平台账号与孩子默认消息路由
+                绑定学习平台账号和管理消息路由
               </p>
             </Link>
           </div>
@@ -121,39 +82,43 @@ export default function SettingsPage() {
       </Card>
 
       <Card>
-        <h2 className="mb-4 font-bold text-forest-700">阅读等级设置</h2>
-        <p className="mb-4 text-ui-sm text-ink-500">
-          为每个孩子单独设置英文阅读等级（Grade 1-12），默认与孩子年级一致。
-        </p>
         <div className="space-y-3">
-          {children.map((child) => (
-            <div
-              key={child.id}
-              className="flex items-center justify-between rounded-radius-lg bg-ink-50 p-3"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">{child.avatar || "🦊"}</span>
-                <div>
-                  <span className="font-medium text-forest-700">
-                    {child.name}
-                  </span>
-                </div>
-              </div>
-              <select
-                value={child.reading_grade_level ?? 3}
-                onChange={(e) =>
-                  handleUpdateReadingGrade(child.id, parseInt(e.target.value))
-                }
-                className="rounded-radius-md border border-ink-300 bg-white px-3 py-1.5 text-ui-sm text-forest-700 focus:border-forest-500 focus:outline-none"
-              >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((g) => (
-                  <option key={g} value={g}>
-                    Grade {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
+          <div>
+            <h2 className="font-bold text-forest-700">阅读内容管理</h2>
+            <p className="mt-1 text-ui-sm text-ink-500">
+              查看内容生产状态、管理抓取来源和文章储备。
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Link href="/settings/reading" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
+              <h3 className="font-semibold text-forest-700">内容概览</h3>
+              <p className="mt-1 text-ui-sm text-ink-500">
+                文章总数、话题活跃度、生成历史
+              </p>
+            </Link>
+
+            <Link href="/settings/reading/sources" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
+              <h3 className="font-semibold text-forest-700">抓取源管理</h3>
+              <p className="mt-1 text-ui-sm text-ink-500">
+                管理内容来源和抓取配置
+              </p>
+            </Link>
+
+            <Link href="/settings/reading-standards" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
+              <h3 className="font-semibold text-forest-700">等级标准</h3>
+              <p className="mt-1 text-ui-sm text-ink-500">
+                各年级字数、难度、RAZ 对标
+              </p>
+            </Link>
+
+            <Link href="/settings/system" className="block rounded-radius-xl border border-ink-300 bg-white p-space-4 transition-colors hover:border-forest-400">
+              <h3 className="font-semibold text-forest-700">系统运维</h3>
+              <p className="mt-1 text-ui-sm text-ink-500">
+                平台同步、内容刷新、语音推送
+              </p>
+            </Link>
+          </div>
         </div>
       </Card>
 
@@ -166,7 +131,7 @@ export default function SettingsPage() {
             window.location.href = "/login";
           }}
         >
-          {t("common.logout")}
+          退出登录
         </Button>
       </Card>
     </div>
