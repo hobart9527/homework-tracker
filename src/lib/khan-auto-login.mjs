@@ -154,7 +154,7 @@ export async function autoLoginKhan(username, password, options = {}) {
     // We already have domain cookies from the homepage visit.
     log("🔗 导航到登录页...");
     await page.goto("https://www.khanacademy.org/login", {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
       timeout: 30000,
     });
     await page.waitForTimeout(rand(2000, 4000));
@@ -215,16 +215,17 @@ export async function autoLoginKhan(username, password, options = {}) {
 
     // Find username field with multiple selectors
     const usernameSelectors = [
+      'input[name="username"]',
       'input[name="identifier"]',
       'input[type="email"]',
+      'input#username-field',
       'input#identifier',
-      'input[name="username"]',
     ];
     let usernameFound = false;
     for (const sel of usernameSelectors) {
       if ((await page.locator(sel).count()) > 0) {
         log("⌨️  输入邮箱...");
-        await humanType(page, sel, username);
+        await page.locator(sel).first().fill(username);
         usernameFound = true;
         break;
       }
@@ -239,15 +240,16 @@ export async function autoLoginKhan(username, password, options = {}) {
 
     // Find password field
     const passwordSelectors = [
+      'input[name="current-password"]',
       'input[name="password"]',
       'input[type="password"]',
-      'input[name="current-password"]',
+      'input#current-password-field',
     ];
     let passwordFound = false;
     for (const sel of passwordSelectors) {
       if ((await page.locator(sel).count()) > 0) {
         log("⌨️  输入密码...");
-        await humanType(page, sel, password);
+        await page.locator(sel).first().fill(password);
         passwordFound = true;
         break;
       }
@@ -272,7 +274,7 @@ export async function autoLoginKhan(username, password, options = {}) {
     for (const sel of loginBtnSelectors) {
       if ((await page.locator(sel).count()) > 0) {
         log("🖱️  点击登录...");
-        await humanClick(page, sel);
+        await page.locator(sel).first().click();
         loginBtnFound = true;
         break;
       }

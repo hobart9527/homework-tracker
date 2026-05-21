@@ -58,7 +58,7 @@ const { data: accounts, error } = await supabase
   .select("*")
   .in("platform", ["ixl", "khan-academy"])
   .not("login_credentials_encrypted", "is", null)
-  .eq("status", "active");
+  .in("status", ["active", "attention_required"]);
 
 if (error) {
   console.error("Failed to fetch platform accounts:", error.message);
@@ -131,11 +131,6 @@ for (const account of accounts) {
       successCount++;
     }
 
-    if (result.logs && result.logs.length > 0) {
-      for (const log of result.logs) {
-        console.log(`  ${log}`);
-      }
-    }
   } catch (err) {
     console.error(`[${account.id}] Error: ${err.message}`);
     failureCount++;
