@@ -1,4 +1,4 @@
-export type LearningPlatform = "ixl" | "khan" | "raz" | "epic" | string;
+export type LearningPlatform = "ixl" | "khan-academy" | "raz-kids" | "epic" | string;
 
 export type AutoCheckinDecision =
   | "auto_completed"
@@ -13,9 +13,9 @@ const HOMEWORK_TYPE_ALIASES: Record<string, string[]> = {
 };
 
 const GROUP_PLATFORM_HINTS: Record<string, string[]> = {
-  "数学": ["ixl", "khan"],
-  "英文": ["raz", "epic", "ixl"],
-  "中文": [],
+  "数学": ["ixl", "khan-academy"],
+  "英文": ["raz-kids", "epic", "ixl"],
+  "中文": ["raz-kids", "epic"],
   "兴趣": [],
 };
 

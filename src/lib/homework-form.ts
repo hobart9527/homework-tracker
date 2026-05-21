@@ -189,6 +189,8 @@ export function buildHomeworkInsertRows(
     send_to_wechat: effectiveSendToWechat,
     wechat_group_id: effectiveWechatGroupId || null,
     type_group_id: form.type_group_id || null,
+    platform_binding_platform: form.platform_binding_platform || null,
+    platform_binding_source_ref: form.platform_binding_source_ref || null,
   }));
 }
 

@@ -39,6 +39,7 @@ const PRESET_GROUPS = [
   { name: "中文", icon: "🇨🇳", sort_order: 2 },
   { name: "数学", icon: "🔢", sort_order: 3 },
   { name: "兴趣", icon: "🎨", sort_order: 4 },
+  { name: "自定义", icon: "✨", sort_order: 5 },
 ];
 
 async function seed() {

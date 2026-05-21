@@ -44,10 +44,18 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
   - 添加和查看孩子信息
   - Add and view child profiles
 - 作业管理 / Homework management
+  - 5 级分类体系：英文/中文/数学/兴趣/自定义，每级下设预设二级类型
+  - 5-tier category system: English/Chinese/Math/Interest/Custom, each with preset secondary types
+  - 自定义一级分类支持动态添加任意二级类型
+  - Custom primary group supports dynamic secondary type creation
+  - 上下文感知平台绑定：阅读→EPIC/Raz-Kids，课程/练习→IXL/Khan Academy
+  - Context-aware platform binding: reading→EPIC/Raz-Kids, course/practice→IXL/Khan
   - 批量分配作业给多个孩子，并生成彼此独立的作业副本
   - Assign homework to multiple children at once while creating independent copies
   - 支持复制已有作业、设置重复规则、积分、截止时间和证明要求
   - Supports copying existing homework, recurrence rules, points, cutoff times, and proof requirements
+  - 中英文阅读类型可绑定指定阅读文章，完成后自动打卡
+  - Chinese/English reading homework can bind to specific articles for auto-checkin
 - 月度总览 / Monthly dashboard
   - 月历查看每天的完成情况
   - View daily completion from a month calendar
@@ -56,12 +64,12 @@ Homework Tracker is an iPad-first family web app that helps parents assign homew
   - 查看当月完成率较低的作业类型
   - Review weaker homework categories for the month
 - 学习平台同步 / Platform sync
-  - 绑定 IXL、Khan Academy、Epic、Raz-Kids 等学习平台账号
-  - Bind external learning platform accounts per child
+  - 绑定 IXL、Khan Academy、EPIC、Raz-Kids 等学习平台账号
+  - Bind IXL, Khan Academy, EPIC, Raz-Kids learning platform accounts per child
   - 定时自动同步学习记录并生成统一学习事件
   - Scheduled sync imports learning activity into normalized events
-  - 支持 managed session 和账号密码两种绑定方式
-  - Supports managed-session and password-based authentication
+  - 支持 managed session (自动登录) 和手动 session (Cookie 粘贴)
+  - Supports managed-session (auto-login) and manual session (Cookie paste)
 - 自动打卡 / Auto check-ins
   - 根据同步的学习记录自动完成对应作业
   - Automatically complete homework when same-day learning evidence matches
@@ -501,21 +509,25 @@ This project is a good fit for families that want one simple workflow for assign
 
 项目正在持续迭代中，当前重点包括：
 
-- 首发平台同步（IXL、Khan Academy）的定时抓取与自动打卡
+- 5 级作业分类体系（英文/中文/数学/兴趣/自定义）已完善，支持上下文感知平台绑定
+- 平台同步扩展至 EPIC 和 Raz-Kids，支持 4 平台自动同步与自动打卡
+- 分级阅读中文跟读音频（Azure TTS）和逐孩子推荐 v2 已上线
+- 阅读新闻家长投递管线已上线，LLM 自动改写为分级文章
 - Telegram 家庭日报和即时通知的稳定性
 - 录音类作业微信群推送桥接的试点运行
 - 学习记录去重、凭据过期处理和自动打卡依据的可解释性
-- 分级阅读内容生成管道（中英文统一管线、质量门控、自动插图与封面生成）
 
 ### English
 
 The project is under active iteration. Current focus areas include:
 
-- first-release platform sync (IXL, Khan Academy) with scheduled sync and auto-checkins
+- 5-tier homework category system (English/Chinese/Math/Interest/Custom) with context-aware platform binding
+- Platform sync expanded to EPIC and Raz-Kids, now covering 4 platforms with auto-sync and auto-checkins
+- Chinese read-along audio (Azure TTS) and per-child recommendation v2 live
+- Parent-fed news pipeline live with LLM rewriting into grade-appropriate articles
 - Telegram household daily summaries and instant notification reliability
-- pilot operation of WeChat voice-push bridge for recording homework
-- learning-event deduplication, credential expiry handling, and auto-completion auditability
-- graded reading content pipeline (unified Chinese/English generation, quality gate, auto illustration and cover generation)
+- WeChat voice-push bridge pilot for recording homework
+- Learning-event deduplication, credential expiry handling, and auto-completion auditability
 
 ## 贡献与协作 Contributing
 

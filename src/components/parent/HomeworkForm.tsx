@@ -36,6 +36,7 @@ const DEFAULT_TYPE_GROUPS: TypeGroup[] = [
   { id: "group_chinese", name: "中文", icon: "🇨🇳", sort_order: 1 },
   { id: "group_math", name: "数学", icon: "📐", sort_order: 2 },
   { id: "group_interest", name: "兴趣", icon: "🎨", sort_order: 3 },
+  { id: "group_custom", name: "自定义", icon: "✨", sort_order: 4 },
 ];
 
 const DEFAULT_TYPES = [
@@ -49,6 +50,7 @@ const DEFAULT_TYPES = [
   { id: "chinese_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_chinese" },
   { id: "math_practice", name: "练习", icon: "🧮", default_points: 4, group_id: "group_math" },
   { id: "math_course", name: "课程", icon: "💻", default_points: 4, group_id: "group_math" },
+  { id: "math_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_math" },
   { id: "interest_piano", name: "钢琴", icon: "🎹", default_points: 6, group_id: "group_interest" },
   { id: "interest_vocal", name: "声乐", icon: "🎤", default_points: 4, group_id: "group_interest" },
   { id: "interest_ea", name: "EA", icon: "🎭", default_points: 4, group_id: "group_interest" },
@@ -82,6 +84,10 @@ export function HomeworkForm({
     Array<{ id: string; title: string; grade_level: number; category: string }>
   >([]);
   const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
+  const [customSecondaryTypes, setCustomSecondaryTypes] = useState<
+    Array<{ id: string; name: string; icon: string; default_points: number; group_id: string; is_custom: boolean }>
+  >([]);
+  const [newCustomTypeName, setNewCustomTypeName] = useState("");
   const [homeworkRoutingMode, setHomeworkRoutingMode] = useState<
     "child_default" | "homework_override"
   >("child_default");
@@ -256,7 +262,9 @@ export function HomeworkForm({
   const effectiveTypeGroups = typeGroups.length > 0 ? typeGroups : DEFAULT_TYPE_GROUPS;
 
   const filteredTypes = formData.type_group_id
-    ? allTypes.filter((t) => t.group_id === formData.type_group_id)
+    ? (formData.type_group_id === "group_custom"
+        ? customSecondaryTypes
+        : allTypes.filter((t) => t.group_id === formData.type_group_id))
     : allTypes;
 
   const selectedChildren = children.filter((child) =>
@@ -271,6 +279,12 @@ export function HomeworkForm({
     }
     if (normalizedType === "khan academy" || normalizedType === "khan") {
       return "khan-academy";
+    }
+    if (normalizedType === "raz-kids" || normalizedType === "raz kids" || normalizedType === "raz") {
+      return "raz-kids";
+    }
+    if (normalizedType === "epic" || normalizedType === "epic reading") {
+      return "epic";
     }
     return "";
   })();
@@ -296,7 +310,17 @@ export function HomeworkForm({
 
   const isReadingType =
     formData.type_name === "阅读" || formData.type_name === "英文阅读" ||
-    (effectiveTypeGroups.find(g => g.id === formData.type_group_id)?.name === "英文" && formData.type_name === "阅读");
+    (effectiveTypeGroups.find(g => g.id === formData.type_group_id)?.name === "英文" && formData.type_name === "阅读") ||
+    (effectiveTypeGroups.find(g => g.id === formData.type_group_id)?.name === "中文" && formData.type_name === "阅读");
+
+  const isCourseOrPracticeType =
+    formData.type_name === "课程" || formData.type_name === "练习";
+
+  const relevantPlatforms = (() => {
+    if (isReadingType) return ["raz-kids", "epic"];
+    if (isCourseOrPracticeType) return ["ixl", "khan-academy"];
+    return ["ixl", "khan-academy", "raz-kids", "epic"];
+  })();
 
   useEffect(() => {
     if (!autoMatchedPlatform || !canConfigurePlatformBinding) {
@@ -352,6 +376,28 @@ export function HomeworkForm({
       type_name: "",
       type_icon: group.icon || "📝",
     }));
+  };
+
+  const handleAddCustomType = () => {
+    const name = newCustomTypeName.trim();
+    if (!name) return;
+    const id = `custom_${Date.now()}`;
+    setCustomSecondaryTypes((prev) => [
+      ...prev,
+      { id, name, icon: "📝", default_points: 3, group_id: "group_custom", is_custom: true },
+    ]);
+    setNewCustomTypeName("");
+    setFormData((prev) => ({
+      ...prev,
+      type_name: name,
+      type_icon: "📝",
+      point_value: 3,
+      title: name + "练习",
+    }));
+  };
+
+  const handleRemoveCustomType = (id: string) => {
+    setCustomSecondaryTypes((prev) => prev.filter((t) => t.id !== id));
   };
 
   const handleClearGroup = () => {
@@ -594,6 +640,28 @@ export function HomeworkForm({
               );
             })}
           </div>
+
+          {/* Custom secondary type input — only when 自定义 primary group is selected */}
+          {formData.type_group_id === "group_custom" && (
+            <div className="mt-3 flex gap-2">
+              <input
+                value={newCustomTypeName}
+                onChange={(e) => setNewCustomTypeName(e.target.value)}
+                placeholder="输入自定义类型名称，如：编程、游泳"
+                className="w-full rounded-radius-xl border-2 border-ink-300 px-space-4 py-space-2 focus:border-forest-500 focus:outline-none"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddCustomType(); } }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={handleAddCustomType}
+                disabled={!newCustomTypeName.trim()}
+              >
+                添加
+              </Button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1008,8 +1076,10 @@ export function HomeworkForm({
                     className="w-full rounded-radius-xl border-2 border-ink-300 bg-white px-space-4 py-space-2 text-ui-sm text-forest-700 outline-none transition-all focus:border-forest-500 disabled:cursor-not-allowed disabled:bg-ink-100"
                   >
                     <option value="">{t('parent.homework.noBinding')}</option>
-                    <option value="ixl">IXL</option>
-                    <option value="khan-academy">Khan Academy</option>
+                    {relevantPlatforms.includes("ixl") && <option value="ixl">IXL</option>}
+                    {relevantPlatforms.includes("khan-academy") && <option value="khan-academy">Khan Academy</option>}
+                    {relevantPlatforms.includes("raz-kids") && <option value="raz-kids">Raz-Kids</option>}
+                    {relevantPlatforms.includes("epic") && <option value="epic">EPIC</option>}
                   </select>
                 </div>
 
