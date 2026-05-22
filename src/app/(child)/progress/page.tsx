@@ -160,11 +160,11 @@ export default function ProgressPage() {
       const [homeworkResponse, checkInResponse] = await Promise.all([
         supabase
           .from("homeworks")
-          .select("*")
+          .select("id, child_id, type_name, type_icon, title, repeat_type, repeat_days, repeat_interval, repeat_start_date, repeat_end_date, point_value, daily_cutoff_time, is_active, required_checkpoint_type, estimated_minutes")
           .eq("child_id", session.user.id),
         supabase
           .from("check_ins")
-          .select("*")
+          .select("id, homework_id, child_id, completed_at, is_scored, is_late, awarded_points, points_earned, proof_type, created_at")
           .eq("child_id", session.user.id)
           .gte("completed_at", start)
           .lte("completed_at", end)
@@ -175,8 +175,8 @@ export default function ProgressPage() {
         return;
       }
 
-      setHomeworks(homeworkResponse.data || []);
-      setCheckIns(checkInResponse.data || []);
+      setHomeworks(homeworkResponse.data as Homework[] || []);
+      setCheckIns(checkInResponse.data as CheckIn[] || []);
     } catch (fetchError) {
       if (requestId !== requestIdRef.current) {
         return;

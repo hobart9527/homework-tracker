@@ -33,6 +33,9 @@ export async function GET(request: Request) {
     query = query.ilike("title", `%${search}%`);
   }
 
+  const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+  query = query.limit(limit);
+
   const { data: articles, error } = await query;
 
   if (error) {

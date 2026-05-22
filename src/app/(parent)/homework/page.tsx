@@ -34,13 +34,13 @@ export default function HomeworkListPage() {
           supabase.from("children").select("*").eq("parent_id", session.user.id),
           supabase
             .from("homeworks")
-            .select("*")
+            .select("id, child_id, type_name, type_icon, title, repeat_type, repeat_days, repeat_interval, repeat_start_date, repeat_end_date, point_value, daily_cutoff_time, is_active, created_at, required_checkpoint_type, estimated_minutes")
             .eq("created_by", session.user.id)
             .order("created_at", { ascending: false }),
         ]);
 
       if (childrenData) setChildren(childrenData);
-      if (homeworksData) setHomeworks(homeworksData);
+      if (homeworksData) setHomeworks(homeworksData as Homework[]);
       setLoading(false);
     };
 

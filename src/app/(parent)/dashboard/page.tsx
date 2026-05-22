@@ -89,7 +89,7 @@ export default function ParentDashboardPage() {
 
         const { data: childrenData } = await supabase
           .from("children")
-          .select("*")
+          .select("id, name, avatar")
           .eq("parent_id", session.user.id);
 
         const children = (childrenData ?? []) as Child[];
@@ -108,15 +108,17 @@ export default function ParentDashboardPage() {
         let checkInsData: CheckIn[] = [];
 
         try {
+          const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
           const results = await Promise.all([
             supabase
               .from("homeworks")
-              .select("*")
+              .select("id, child_id, type_name, type_icon, title, repeat_type, repeat_days, repeat_interval, repeat_start_date, repeat_end_date, point_value, daily_cutoff_time, is_active, required_checkpoint_type")
               .eq("created_by", session.user.id),
             supabase
               .from("check_ins")
-              .select("*")
-              .in("child_id", childIds),
+              .select("id, homework_id, child_id, completed_at, is_scored, is_late, awarded_points, points_earned, proof_type")
+              .in("child_id", childIds)
+              .gte("completed_at", threeMonthsAgo),
           ]);
           homeworksData = (results[0].data ?? []) as Homework[];
           checkInsData = (results[1].data ?? []) as CheckIn[];

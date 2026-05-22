@@ -35,14 +35,19 @@ export async function GET(request: Request) {
   }
 
   const totalRead = attempts?.length || 0;
-  const avgScore = totalRead > 0
-    ? Math.round(attempts!.reduce((sum, a) => sum + (a.score / a.total_questions) * 100, 0) / totalRead)
-    : 0;
+  let sumScore = 0;
+  let sumPoints = 0;
+  for (const a of attempts || []) {
+    const pct = a.score / a.total_questions;
+    sumScore += pct * 100;
+    sumPoints += Math.round(10 * pct);
+  }
+  const avgScore = totalRead > 0 ? Math.round(sumScore / totalRead) : 0;
 
   return NextResponse.json({
     totalRead,
     avgScore,
-    totalPoints: attempts?.reduce((sum, a) => sum + Math.round(10 * (a.score / a.total_questions)), 0) || 0,
+    totalPoints: sumPoints,
     recent: (attempts || []).slice(0, 10).map((a) => ({
       title: (a.article as Record<string, unknown>)?.title || "",
       category: (a.article as Record<string, unknown>)?.category || "",

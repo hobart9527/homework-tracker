@@ -389,6 +389,7 @@ function buildWeakestTypes(
   checkIns: CheckIn[],
   date: string
 ): ParentMonthlyInsight[] {
+  const homeworkById = new Map(homeworks.map((h) => [h.id, h]));
   const totals = new Map<string, { assignedCount: number; completedCount: number }>();
 
   for (const day of createMonthDays(date)) {
@@ -400,7 +401,7 @@ function buildWeakestTypes(
     );
 
     for (const status of statuses) {
-      const homework = homeworks.find((item) => item.id === status.homeworkId);
+      const homework = homeworkById.get(status.homeworkId);
       const typeName = homework?.type_name || "未分类";
       const current = totals.get(typeName) ?? { assignedCount: 0, completedCount: 0 };
       current.assignedCount += 1;
