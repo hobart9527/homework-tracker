@@ -47,7 +47,7 @@ function getMonthBounds(month: string) {
 
 function getMonthLabel(month: string) {
   const [year, monthIndex] = month.split("-").map(Number);
-  return `${year}年${monthIndex}月`;
+  return `${year}-${monthIndex}`;
 }
 
 function MonthSwitchButton(props: {
@@ -110,16 +110,6 @@ function getCalendarTone(day: {
 
   return "bg-cream-100 text-ink-500";
 }
-
-function getHeatmapLabel(day: { date: string; totalCount: number; completedCount: number }) {
-  if (day.totalCount === 0) {
-    return `${day.date} 无任务`;
-  }
-
-  return `${day.date} 完成 ${day.completedCount}/${day.totalCount}`;
-}
-
-const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 
 export default function ProgressPage() {
   const { t } = useTranslation();
@@ -184,7 +174,7 @@ export default function ProgressPage() {
 
       setHomeworks([]);
       setCheckIns([]);
-      setError(fetchError instanceof Error ? fetchError.message : "加载失败");
+      setError(fetchError instanceof Error ? fetchError.message : t('child.page.error'));
     } finally {
       if (requestId === requestIdRef.current) {
         setLoading(false);
@@ -265,12 +255,12 @@ export default function ProgressPage() {
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
                 <span className="text-5xl lg:text-6xl">{dashboard.summary.totalPoints}</span>
-                <span className="text-xl text-white/80">积分</span>
+                <span className="text-xl text-white/80">{t('child.progress.pointsLabel')}</span>
               </h1>
               <p className="mt-3 text-sm leading-6 text-white/85">
                 {dashboard.summary.completedCount > 0
-                  ? `太棒了！你已经完成了 ${dashboard.summary.completedCount} 项任务，继续加油！`
-                  : '这个月还没开始打卡哦，快去完成任务吧！'}
+                  ? t('child.progress.encouragementCompleted', { count: dashboard.summary.completedCount })
+                  : t('child.progress.encouragementEmpty')}
               </p>
             </div>
           </div>
@@ -293,7 +283,7 @@ export default function ProgressPage() {
                     <line x1="8" y1="2" x2="8" y2="6" />
                     <line x1="3" y1="10" x2="21" y2="10" />
                   </svg>
-                  {getMonthLabel(month)} {t('child.weekCalendar.title').replace('本周', '月历')}
+                  {getMonthLabel(month)} {t('child.progress.monthlyTitle')}
                 </h2>
                 <p className="mt-1 text-sm text-forest-500">
                   {dashboard.summary.completedCount}/{dashboard.summary.totalAssigned} {t('child.progress.completed')} · {dashboard.summary.activeDays} {t('child.progress.activeDays')}
@@ -303,7 +293,7 @@ export default function ProgressPage() {
               <div className="flex items-center gap-2">
                 <MonthSwitchButton
                   label="◀"
-                  aria-label="上个月"
+                  aria-label={t('parent.monthCalendar.previousMonth')}
                   onClick={() => setMonth(prevMonth)}
                 />
                 <div className="rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
@@ -311,7 +301,7 @@ export default function ProgressPage() {
                 </div>
                 <MonthSwitchButton
                   label="▶"
-                  aria-label="下个月"
+                  aria-label={t('parent.monthCalendar.nextMonth')}
                   disabled={disableNextMonth}
                   onClick={() => {
                     if (!disableNextMonth) setMonth(nextMonth);
@@ -324,8 +314,8 @@ export default function ProgressPage() {
             <div className="mt-4">
               {/* 星期标签 */}
               <div className="grid grid-cols-7 gap-1.5 text-center text-xs font-medium text-forest-400">
-                {WEEKDAY_LABELS.map((label) => (
-                  <div key={label} className="py-1.5">周{label}</div>
+                {t('child.progress.weekdayLabels').split(',').map((label) => (
+                  <div key={label} className="py-1.5">{label}</div>
                 ))}
               </div>
               {/* 日期格子 */}
@@ -337,7 +327,7 @@ export default function ProgressPage() {
                   <div
                     key={day.date}
                     role="img"
-                    aria-label={getHeatmapLabel(day)}
+                    aria-label={day.totalCount === 0 ? t('child.progress.noTaskDate', { date: day.date }) : t('child.progress.taskCountDate', { date: day.date, completed: day.completedCount, total: day.totalCount })}
                     className={`min-h-[64px] rounded-2xl border border-forest-100 p-2 ${getCalendarTone(day)}`}
                   >
                     <span className="text-sm font-semibold">{day.date.slice(-2)}</span>
@@ -371,9 +361,9 @@ export default function ProgressPage() {
                     <path d="M10 22V12a2 2 0 0 1 2-2 2 2 0 0 1 2 2v10" />
                     <path d="M8 9h8v2a4 4 0 0 1-8 0V9z" />
                   </svg>
-                  作业类型表现
+                  {t('child.progress.sectionHomeworkTypes')}
                 </h2>
-                <p className="mt-1 text-xs text-forest-500">本月各类型作业的完成情况</p>
+                <p className="mt-1 text-xs text-forest-500">{t('child.progress.sectionHomeworkTypesDesc')}</p>
                 <div className="mt-4 space-y-3">
                   {/* Strongest */}
                   {dashboard.strongestTypes.slice(0, 1).map((item) => (
@@ -387,7 +377,7 @@ export default function ProgressPage() {
                       <div className="mt-2 flex items-end justify-between gap-3">
                         <div>
                           <div className="text-lg font-bold text-forest-950">{item.typeName}</div>
-                          <div className="text-sm text-forest-700">{item.completedCount}/{item.assignedCount} 完成</div>
+                          <div className="text-sm text-forest-700">{t('child.progress.completedWithCount', { completed: item.completedCount, total: item.assignedCount })}</div>
                         </div>
                         <div className="text-3xl font-bold text-emerald-600">{formatPercent(item.completionRate)}</div>
                       </div>
@@ -406,7 +396,7 @@ export default function ProgressPage() {
                       <div className="mt-2 flex items-end justify-between gap-3">
                         <div>
                           <div className="text-base font-bold text-forest-950">{item.typeName}</div>
-                          <div className="text-sm text-forest-700">{item.completedCount}/{item.assignedCount} 完成</div>
+                          <div className="text-sm text-forest-700">{t('child.progress.completedWithCount', { completed: item.completedCount, total: item.assignedCount })}</div>
                         </div>
                         <div className="text-2xl font-bold text-forest-700">{formatPercent(item.completionRate)}</div>
                       </div>
@@ -425,9 +415,9 @@ export default function ProgressPage() {
                     <path d="M10 22h4" />
                     <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
                   </svg>
-                  学习习惯建议
+                  {t('child.progress.sectionHabit')}
                 </h2>
-                <p className="mt-1 text-xs text-forest-500">基于本月数据生成的个性化建议</p>
+                <p className="mt-1 text-xs text-forest-500">{t('child.progress.sectionHabitDesc')}</p>
                 <div className="mt-4 space-y-2">
                   {dashboard.habitInsights.map((item) => (
                     <div key={item.title} className={`rounded-2xl p-3 ${
@@ -470,9 +460,9 @@ export default function ProgressPage() {
                     <circle cx="12" cy="12" r="10" />
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
-                  打卡时段分布
+                  {t('child.progress.sectionTimeHeatmap')}
                 </h2>
-                <p className="mt-1 text-xs text-forest-500">颜色越深说明这个时段越常完成作业</p>
+                <p className="mt-1 text-xs text-forest-500">{t('child.progress.sectionTimeHeatmapDesc')}</p>
                 <div className="mt-4">
                   <ParentCheckInHeatmap
                     buckets={dashboard.timeHeatmap}

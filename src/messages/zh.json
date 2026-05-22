@@ -1,4 +1,9 @@
 {
+  "app": {
+    "title": "作业小管家",
+    "description": "帮助家长管理孩子作业的小工具",
+    "skipToContent": "跳过导航，查看内容"
+  },
   "common": {
     "loading": "加载中...",
     "retry": "重试",
@@ -13,7 +18,17 @@
   },
   "auth": {
     "login": "登录",
-    "logout": "退出登录"
+    "logout": "退出登录",
+    "title": "作业小管家",
+    "subtitle": "家长请输入密码登录",
+    "verifying": "正在验证密码…",
+    "signingIn": "正在登录…",
+    "error": {
+      "network": "网络连接失败，请检查网络后重试",
+      "wrongPassword": "密码错误，请重试",
+      "failed": "登录失败，请重试",
+      "unexpected": "登录出错，请重试"
+    }
   },
   "child": {
     "page": {
@@ -23,6 +38,13 @@
       "noChildren": "还没有添加孩子",
       "addChildPrompt": "点击下方按钮添加您的第一个孩子",
       "addChild": "添加孩子"
+    },
+    "layout": {
+      "loading": "加载中...",
+      "points": "积分: {totalPoints}",
+      "confirmLogout": "确认退出？",
+      "logout": "退出",
+      "cancel": "取消"
     },
     "weekCalendar": {
       "title": "本周日历",
@@ -64,18 +86,42 @@
       "completedTasks": "完成任务",
       "incompleteTasks": "未完成任务",
       "homeworkTypePerformance": "作业类型表现",
+      "achievement": "成就",
       "focusOnWeakest": "优先盯住最弱项",
       "needsImprovement": "需要补强",
       "currentStrength": "当前优势项",
       "learningHabitSuggestions": "学习习惯建议",
       "loadingMessage": "正在整理这个月的打卡表现...",
-      "loadError": "加载月度数据失败"
+      "loadError": "加载月度数据失败",
+      "monthLabel": "{year}年{month}月",
+      "weekdayLabels": "周日,周一,周二,周三,周四,周五,周六",
+      "pointsLabel": "积分",
+      "encouragementCompleted": "太棒了！你已经完成了 {count} 项任务，继续加油！",
+      "encouragementEmpty": "这个月还没开始打卡哦，快去完成任务吧！",
+      "noTaskDate": "{date} 无任务",
+      "taskCountDate": "{date} 完成 {completed}/{total}",
+      "sectionHomeworkTypes": "作业类型表现",
+      "sectionHomeworkTypesDesc": "本月各类型作业的完成情况",
+      "completedWithCount": "{completed}/{total} 完成",
+      "sectionHabit": "学习习惯建议",
+      "sectionHabitDesc": "基于本月数据生成的个性化建议",
+      "sectionTimeHeatmap": "打卡时段分布",
+      "sectionTimeHeatmapDesc": "颜色越深说明这个时段越常完成作业"
     },
     "rewards": {
       "title": "奖励",
       "subtitle": "你获得的奖励",
       "noRewards": "还没有奖励",
-      "keepGoing": "继续加油哦！"
+      "keepGoing": "继续加油哦！",
+      "todayPoints": "今日已获得 +{points} 积分",
+      "nextMilestone": "下一个目标: {points} 积分",
+      "allMilestonesDone": "你已经达成所有里程碑！",
+      "weeklyStar": "每周之星",
+      "weeklyCheckinCount": "本周已完成 {count} 次打卡",
+      "weeklyPoints": "共获得 +{points} 积分",
+      "weeklyEmpty": "本周还没打卡呢，加油哦",
+      "defaultHomeworkTitle": "作业",
+      "timePending": "时间待定"
     },
     "today": {
       "title": "今日任务",
@@ -108,6 +154,62 @@
       "lateSubmit": "逾期可补交",
       "complete": "完成",
       "lateCompleteBtn": "补打卡"
+    },
+    "checkin": {
+      "title": "完成作业",
+      "points": "+{points} 积分",
+      "requiresPhoto": "需要照片",
+      "requiresAudio": "需要录音",
+      "photoHint": "可以拍照，或上传已有图片",
+      "uploadAudio": "上传录音",
+      "uploadPhoto": "上传照片",
+      "addPhoto": "添加照片",
+      "startRecording": "开始录音",
+      "stopRecording": "停止录音",
+      "recordingInProgress": "录音中 {duration}",
+      "stopBeforeSubmit": "请先停止录音，再提交本次作业",
+      "addPhotoBeforeSubmit": "请先添加照片，再提交本次作业",
+      "addAudioBeforeSubmit": "请先添加录音，再提交本次作业",
+      "addedPhoto": "已添加照片",
+      "addedAudio": "已添加录音",
+      "duration": "录音时长 {duration}",
+      "delete": "删除",
+      "deleteReRecord": "删除重录",
+      "noteLabel": "备注（可选）",
+      "notePlaceholder": "可以写点备注...",
+      "labelPhoto": "照片",
+      "labelAudio": "录音",
+      "uploading": "{type}上传中",
+      "uploadingWait": "{type}上传中，请稍等...",
+      "saving": "{type}保存中...",
+      "saved": "{type}已保存，打卡完成",
+      "uploadFailed": "{type}上传失败：{error}",
+      "saveFailed": "{type}保存失败：{error}",
+      "recordedButUploadFailed": "作业已记录，但{type}上传失败：{error}",
+      "recordedButSaveFailed": "作业已记录，但{type}保存失败：{error}",
+      "submitting": "提交中...",
+      "resubmit": "重新提交",
+      "confirmComplete": "确认完成",
+      "retryUpload": "重试上传附件",
+      "retryingUpload": "重新上传附件...",
+      "fileTooLarge": "文件过大（最大支持 {maxSizeMB}MB）",
+      "typeMismatchPhoto": "这项作业需要上传照片，当前文件类型不匹配",
+      "typeMismatchAudio": "这项作业需要上传录音，当前文件类型不匹配",
+      "recordingSaved": "录音已保存，可以试听后再提交",
+      "photoAddedFeedback": "照片已添加，可以确认后再提交",
+      "fileAlreadyAdded": "这个文件已经添加过了",
+      "compressImage": "正在压缩图片...",
+      "audioNotSupported": "当前设备不支持直接录音，请改用上传录音文件",
+      "recordingHint": "录音中，点一次停止录音保存",
+      "pleaseLogin": "请先重新登录后再试",
+      "checkinFailed": "打卡失败，请重试",
+      "attachmentFailed": "附件上传失败，请重试",
+      "recordingFailed": "录音启动失败，请检查麦克风权限",
+      "addProof": "请先添加{proof}，再提交本次作业",
+      "statusUploading": "上传中",
+      "statusUploaded": "已保存",
+      "statusFailed": "上传失败",
+      "proofRequired": "需要{proof}"
     }
   },
   "parent": {
@@ -118,7 +220,8 @@
       "noChildren": "还没有添加孩子",
       "noChildrenHint": "点击下方按钮添加您的第一个孩子",
       "addChild": "添加孩子",
-      "loading": "🦊 加载中..."
+      "loading": "🦊 加载中...",
+      "allChildren": "全部孩子"
     },
     "monthCalendar": {
       "sectionLabel": "月度视图",
@@ -135,8 +238,7 @@
       "notStarted": "未开始",
       "notCompleted": "未完成",
       "lateCompleted": "补做完成",
-      "noTask": "无任务",
-      "allChildren": "全部孩子"
+      "noTask": "无任务"
     },
     "monthlyInsights": {
       "title": "本月薄弱类型",
@@ -271,6 +373,26 @@
     }
   },
   "reading": {
+    "browser": {
+      "title": "阅读专区",
+      "subtitle": "探索有趣的文章，拓展知识视野",
+      "searchPlaceholder": "搜索文章标题...",
+      "sortDefault": "默认排序",
+      "sortUnread": "未读优先",
+      "sortLatest": "最新",
+      "enEmpty": "暂无英文文章",
+      "zhEmpty": "暂无中文文章",
+      "switchHintEn": "切换到中文 to see Chinese articles",
+      "switchHintZh": "Switch to English to see English articles",
+      "loadError": "获取文章列表失败",
+      "loadGenericError": "加载失败"
+    },
+    "article": {
+      "notFound": "文章未找到",
+      "loadFailed": "加载失败",
+      "back": "返回",
+      "autoCheckinNote": "{group}阅读自动打卡 — 文章: {id}, 得分: {score}/{total}"
+    },
     "levelProgress": {
       "currentLevel": "当前级别",
       "streakLabel": "连续正确率: {streak}/3",

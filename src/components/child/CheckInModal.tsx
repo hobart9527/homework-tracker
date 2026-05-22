@@ -13,6 +13,7 @@ import {
 } from "@/lib/audio-recording";
 import type { Database } from "@/lib/supabase/types";
 import type { AttachmentUploadStatus } from "@/lib/attachment-types";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
@@ -34,6 +35,7 @@ export function CheckInModal({
   onSuccess,
   onAttachmentUploadStatusChange,
 }: CheckInModalProps) {
+  const { t } = useTranslation();
   const supabase = createClient();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingChunksRef = useRef<BlobPart[]>([]);
@@ -212,7 +214,7 @@ export function CheckInModal({
 
     const oversized = candidateFiles.filter((item) => item.file.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
-      setFeedback(`文件过大（最大支持 ${MAX_FILE_SIZE / 1024 / 1024}MB）`);
+      setFeedback(t('child.checkin.fileTooLarge', { maxSizeMB: MAX_FILE_SIZE / 1024 / 1024 }));
       setSubmissionState("error");
       return;
     }
@@ -233,8 +235,8 @@ export function CheckInModal({
     if (candidateFiles.length > 0 && nextAttachments.length !== candidateFiles.length) {
       setFeedback(
         expectedType === "photo"
-          ? "这项作业需要上传照片，当前文件类型不匹配"
-          : "这项作业需要上传录音，当前文件类型不匹配"
+          ? t('child.checkin.typeMismatchPhoto')
+          : t('child.checkin.typeMismatchAudio')
       );
       setSubmissionState("error");
       return;
@@ -254,7 +256,7 @@ export function CheckInModal({
             }
           });
 
-        setFeedback("录音已保存，可以试听后再提交");
+        setFeedback(t('child.checkin.recordingSaved'));
         setSubmissionState("success");
         return [
           ...prev.filter((attachment) => attachment.type !== "audio"),
@@ -276,13 +278,13 @@ export function CheckInModal({
       });
 
       if (uniqueAttachments.length !== nextAttachments.length) {
-        setFeedback("这个文件已经添加过了");
+        setFeedback(t('child.checkin.fileAlreadyAdded'));
         setSubmissionState("error");
       } else {
         setFeedback(
           expectedType === "audio"
-            ? "录音已保存，可以试听后再提交"
-            : "照片已添加，可以确认后再提交"
+            ? t('child.checkin.recordingSaved')
+            : t('child.checkin.photoAddedFeedback')
         );
         setSubmissionState("success");
       }
@@ -297,7 +299,7 @@ export function CheckInModal({
 
     const imageFiles = files.filter((f) => f.type.startsWith("image/"));
     if (imageFiles.length > 0) {
-      setFeedback("正在压缩图片...");
+      setFeedback(t('child.checkin.compressImage'));
       setSubmissionState("submitting");
     }
 
@@ -318,7 +320,7 @@ export function CheckInModal({
     }
 
     if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setFeedback("当前设备不支持直接录音，请改用上传录音文件");
+      setFeedback(t('child.checkin.audioNotSupported'));
       setSubmissionState("error");
       return;
     }
@@ -380,30 +382,33 @@ export function CheckInModal({
       setRecordingStartedAt(startedAt);
       setRecordingElapsedSeconds(0);
       setRecording(true);
-      setFeedback("录音中，点一次“停止录音”保存");
+      setFeedback(t('child.checkin.recordingHint'));
       setSubmissionState("idle");
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "录音启动失败，请检查麦克风权限");
+      setFeedback(error instanceof Error ? error.message : t('child.checkin.recordingFailed'));
       setSubmissionState("error");
       setRecording(false);
     }
   };
+
+  const typeLabelFn = (type: string) =>
+    type === "photo" ? t('child.checkin.labelPhoto') : t('child.checkin.labelAudio');
 
   const uploadAttachmentsToCheckIn = async (
     checkInId: string,
     sessionUserId: string
   ): Promise<boolean> => {
     const mainAttachmentType = attachments[0]?.type ?? "audio";
-    const typeLabel = mainAttachmentType === "photo" ? "照片" : "录音";
+    const typeLabel = typeLabelFn(mainAttachmentType);
 
     updateUploadStatus({
       homeworkId: homework.id,
       checkInId,
       state: "uploading",
       progress: 10,
-      message: `${typeLabel}上传中`,
+      message: t('child.checkin.uploading', { type: typeLabel }),
     });
-    setFeedback(`${typeLabel}上传中，请稍等...`);
+    setFeedback(t('child.checkin.uploadingWait', { type: typeLabel }));
 
     const storageUploads = await Promise.all(
       attachments.map(async (attachment) => {
@@ -422,10 +427,10 @@ export function CheckInModal({
         checkInId,
         state: "failed",
         progress: 30,
-        message: `${typeLabel}上传失败：${failedUpload.uploadError!.message}`,
+        message: t('child.checkin.uploadFailed', { type: typeLabel, error: failedUpload.uploadError!.message }),
       });
       setFeedback(
-        `作业已记录，但${typeLabel}上传失败：${failedUpload.uploadError!.message}`
+        t('child.checkin.recordedButUploadFailed', { type: typeLabel, error: failedUpload.uploadError!.message })
       );
       setSubmissionState("error");
       return false;
@@ -441,7 +446,7 @@ export function CheckInModal({
         checkInId,
         state: "uploading",
         progress: dbProgress,
-        message: `${typeLabel}保存中...`,
+        message: t('child.checkin.saving', { type: typeLabel }),
       });
 
       const { data: insertedAttachment, error: insertAttachmentError } =
@@ -461,10 +466,10 @@ export function CheckInModal({
           checkInId,
           state: "failed",
           progress: Math.min(95, dbProgress + 20),
-          message: `${typeLabel}保存失败：${insertAttachmentError.message}`,
+          message: t('child.checkin.saveFailed', { type: typeLabel, error: insertAttachmentError.message }),
         });
         setFeedback(
-          `作业已记录，但${typeLabel}保存失败：${insertAttachmentError.message}`
+          t('child.checkin.recordedButSaveFailed', { type: typeLabel, error: insertAttachmentError.message })
         );
         setSubmissionState("error");
         return false;
@@ -499,9 +504,9 @@ export function CheckInModal({
       checkInId,
       state: "uploaded",
       progress: 100,
-      message: `${typeLabel}已保存`,
+      message: t('child.checkin.saved', { type: typeLabel }),
     });
-    setFeedback(`${typeLabel}已保存，打卡完成`);
+    setFeedback(t('child.checkin.saved', { type: typeLabel }));
     setSubmissionState("success");
     return true;
   };
@@ -512,7 +517,7 @@ export function CheckInModal({
     }
 
     if (recording) {
-      setFeedback("请先停止录音，再提交本次作业");
+      setFeedback(t('child.checkin.stopBeforeSubmit'));
       setSubmissionState("error");
       return;
     }
@@ -520,8 +525,8 @@ export function CheckInModal({
     if (homework.required_checkpoint_type && attachments.length === 0) {
       setFeedback(
         homework.required_checkpoint_type === "photo"
-          ? "请先添加照片后再提交"
-          : "请先添加录音后再提交"
+          ? t('child.checkin.addPhotoBeforeSubmit')
+          : t('child.checkin.addAudioBeforeSubmit')
       );
       setSubmissionState("error");
       return;
@@ -529,7 +534,7 @@ export function CheckInModal({
 
     submittingRef.current = true;
     setLoading(true);
-    setFeedback("正在保存打卡记录...");
+    setFeedback(t('child.checkin.submitting'));
     setSubmissionState("submitting");
 
     try {
@@ -537,7 +542,7 @@ export function CheckInModal({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) {
-        setFeedback("请先重新登录后再试");
+        setFeedback(t('child.checkin.pleaseLogin'));
         setSubmissionState("error");
         setLoading(false);
         submittingRef.current = false;
@@ -565,7 +570,7 @@ export function CheckInModal({
         const result = await response.json();
 
         if (!response.ok || !result.checkIn) {
-          setFeedback(result.error || "打卡失败，请重试");
+          setFeedback(result.error || t('child.checkin.checkinFailed'));
           setSubmissionState("error");
           setLoading(false);
           submittingRef.current = false;
@@ -582,7 +587,7 @@ export function CheckInModal({
           checkInId,
           session.user.id
         ).catch((error) => {
-          const typeLabel = attachments[0]?.type === "photo" ? "照片" : "录音";
+          const typeLabel = typeLabelFn(attachments[0]?.type ?? "audio");
           updateUploadStatus({
             homeworkId: homework.id,
             checkInId,
@@ -591,12 +596,12 @@ export function CheckInModal({
             message:
               error instanceof Error
                 ? error.message
-                : `${typeLabel}上传失败，请重试`,
+                : t('child.checkin.uploadFailed', { type: typeLabel, error: t('common.retry') }),
           });
           setFeedback(
             error instanceof Error
               ? error.message
-              : `${typeLabel}上传失败，请重试`
+              : t('child.checkin.uploadFailed', { type: typeLabel, error: t('common.retry') })
           );
           setSubmissionState("error");
           return false;
@@ -618,7 +623,7 @@ export function CheckInModal({
       onSuccess(checkInData);
       onClose();
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "打卡失败，请重试");
+      setFeedback(error instanceof Error ? error.message : t('child.checkin.checkinFailed'));
       setSubmissionState("error");
       setLoading(false);
       submittingRef.current = false;
@@ -632,7 +637,7 @@ export function CheckInModal({
 
     submittingRef.current = true;
     setLoading(true);
-    setFeedback("重新上传附件...");
+    setFeedback(t('child.checkin.retryingUpload'));
     setSubmissionState("submitting");
 
     try {
@@ -640,7 +645,7 @@ export function CheckInModal({
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) {
-        setFeedback("请先重新登录后再试");
+        setFeedback(t('child.checkin.pleaseLogin'));
         setSubmissionState("error");
         setLoading(false);
         submittingRef.current = false;
@@ -652,7 +657,7 @@ export function CheckInModal({
         session.user.id
       ).catch((error) => {
         setFeedback(
-          error instanceof Error ? error.message : "附件上传失败，请重试"
+          error instanceof Error ? error.message : t('child.checkin.attachmentFailed')
         );
         setSubmissionState("error");
         return false;
@@ -670,7 +675,7 @@ export function CheckInModal({
       }
     } catch (error) {
       setFeedback(
-        error instanceof Error ? error.message : "附件上传失败，请重试"
+        error instanceof Error ? error.message : t('child.checkin.attachmentFailed')
       );
       setSubmissionState("error");
       setLoading(false);
@@ -680,32 +685,32 @@ export function CheckInModal({
 
   const requiredProofLabel =
     homework.required_checkpoint_type === "photo"
-      ? "照片"
+      ? t('child.checkin.labelPhoto')
       : homework.required_checkpoint_type === "audio"
-        ? "录音"
-        : null;
+        ? t('child.checkin.labelAudio')
+        : "";
   const canSubmit =
     !loading &&
     !recording &&
     (!homework.required_checkpoint_type || attachments.length > 0);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="完成作业">
+    <Modal isOpen={isOpen} onClose={onClose} title={t('child.checkin.title')}>
       <div className="space-y-3">
         <div className="text-center">
           <span className="text-5xl">{homework.type_icon}</span>
           <h3 className="text-lg font-bold text-forest-700 mt-2">
             {homework.title}
           </h3>
-          <p className="text-primary font-semibold">+{homework.point_value} 积分</p>
+          <p className="text-primary font-semibold">{t('child.checkin.points', { points: homework.point_value })}</p>
           {homework.required_checkpoint_type && (
             <p className="mt-2 text-sm text-ink-500">
-              需要{requiredProofLabel}
+              {t('child.checkin.proofRequired', { proof: requiredProofLabel })}
             </p>
           )}
           {homework.required_checkpoint_type === "photo" && (
             <p className="mt-1 text-xs text-ink-400">
-              可以拍照，或上传已有图片
+              {t('child.checkin.photoHint')}
             </p>
           )}
         </div>
@@ -726,7 +731,7 @@ export function CheckInModal({
             onClick={() => fileInputRef.current?.click()}
             disabled={loading}
           >
-            {homework.required_checkpoint_type === "audio" ? "上传录音" : "添加照片"}
+            {homework.required_checkpoint_type === "audio" ? t('child.checkin.uploadAudio') : t('child.checkin.addPhoto')}
           </Button>
           {(homework.required_checkpoint_type === "audio" ||
             !homework.required_checkpoint_type) && (
@@ -735,26 +740,26 @@ export function CheckInModal({
               onClick={handleAudioRecord}
               disabled={loading}
             >
-              {recording ? "停止录音" : "开始录音"}
+              {recording ? t('child.checkin.stopRecording') : t('child.checkin.startRecording')}
             </Button>
           )}
         </div>
 
         {recording ? (
           <p className="text-center text-sm font-medium text-primary">
-            录音中 {formatDuration(recordingElapsedSeconds)}
+            {t('child.checkin.recordingInProgress', { duration: formatDuration(recordingElapsedSeconds) })}
           </p>
         ) : null}
 
         {recording ? (
           <p className="text-center text-xs text-honey-500">
-            请先停止录音，再提交本次作业
+            {t('child.checkin.stopBeforeSubmit')}
           </p>
         ) : null}
 
         {homework.required_checkpoint_type && attachments.length === 0 ? (
           <p className="text-center text-xs text-coral-500">
-            请先添加{requiredProofLabel}，再提交本次作业
+            {t('child.checkin.addProof', { proof: requiredProofLabel })}
           </p>
         ) : null}
 
@@ -769,11 +774,11 @@ export function CheckInModal({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-forest-700">
-                      {att.type === "photo" ? "已添加照片" : "已添加录音"}
+                      {att.type === "photo" ? t('child.checkin.addedPhoto') : t('child.checkin.addedAudio')}
                     </p>
                     {att.type === "audio" && att.durationSeconds != null ? (
                       <p className="mt-1 text-xs text-ink-500">
-                        录音时长 {formatDuration(att.durationSeconds)}
+                        {t('child.checkin.duration', { duration: formatDuration(att.durationSeconds) })}
                       </p>
                     ) : null}
                   </div>
@@ -791,14 +796,14 @@ export function CheckInModal({
                       });
                       setFeedback(
                         homework.required_checkpoint_type === "audio"
-                          ? "请先添加录音，再提交本次作业"
-                          : "请先添加照片，再提交本次作业"
+                          ? t('child.checkin.addAudioBeforeSubmit')
+                          : t('child.checkin.addPhotoBeforeSubmit')
                       );
                       setSubmissionState("idle");
                     }}
                     className="shrink-0 text-coral-500 hover:bg-coral-50 hover:text-coral-600"
                   >
-                    {att.type === "photo" ? "删除" : "删除重录"}
+                    {att.type === "photo" ? t('child.checkin.delete') : t('child.checkin.deleteReRecord')}
                   </Button>
                 </div>
 
@@ -825,12 +830,12 @@ export function CheckInModal({
         {/* Note */}
         <div>
           <label className="block text-sm font-medium text-forest-700 mb-1">
-            备注（可选）
+            {t('child.checkin.noteLabel')}
           </label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="可以写点备注..."
+            placeholder={t('child.checkin.notePlaceholder')}
             className="w-full px-4 py-3 rounded-xl border-2 border-cream-200 focus:border-primary focus:outline-none"
             rows={2}
             disabled={loading}
@@ -890,10 +895,10 @@ export function CheckInModal({
               >
                 {uploadStatus.message ||
                   (uploadStatus.state === "failed"
-                    ? "上传失败"
+                    ? t('child.checkin.statusFailed')
                     : uploadStatus.state === "uploaded"
-                      ? "已保存"
-                      : "上传中")}
+                      ? t('child.checkin.statusUploaded')
+                      : t('child.checkin.statusUploading'))}
               </span>
               <span className="text-ink-500">
                 {Math.round(uploadStatus.progress)}%
@@ -916,10 +921,10 @@ export function CheckInModal({
         {/* Submit */}
         <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit}>
           {loading
-            ? "提交中..."
+            ? t('child.checkin.submitting')
             : createdCheckInId
-              ? "重新提交"
-              : "确认完成"}
+              ? t('child.checkin.resubmit')
+              : t('child.checkin.confirmComplete')}
         </Button>
         {createdCheckInId && submissionState === "error" && (
           <Button
@@ -928,7 +933,7 @@ export function CheckInModal({
             onClick={handleRetryUpload}
             disabled={loading || attachments.length === 0}
           >
-            重试上传附件
+            {t('child.checkin.retryUpload')}
           </Button>
         )}
     </Modal>

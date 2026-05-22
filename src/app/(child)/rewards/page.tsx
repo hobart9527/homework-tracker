@@ -136,7 +136,7 @@ export default function RewardsPage() {
               <circle cx="12" cy="12" r="6" />
               <circle cx="12" cy="12" r="2" />
             </svg>
-            今日已获得 +{todayPoints} 积分
+            {t('child.rewards.todayPoints', { points: todayPoints })}
           </div>
         )}
       </div>
@@ -150,7 +150,7 @@ export default function RewardsPage() {
                 <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
                 <line x1="4" y1="22" x2="4" y2="15" />
               </svg>
-              下一个目标: {nextMilestone} 积分
+              {t('child.rewards.nextMilestone', { points: nextMilestone })}
             </span>
             <span className="text-xs text-forest-400">
               {totalPoints} / {nextMilestone}
@@ -173,7 +173,7 @@ export default function RewardsPage() {
               <path d="M10 22V12a2 2 0 0 1 2-2 2 2 0 0 1 2 2v10" />
               <path d="M8 9h8v2a4 4 0 0 1-8 0V9z" />
             </svg>
-            你已经达成所有里程碑！
+            {t('child.rewards.allMilestonesDone')}
           </p>
         </div>
       ) : null}
@@ -188,7 +188,7 @@ export default function RewardsPage() {
             <path d="M10 22V12a2 2 0 0 1 2-2 2 2 0 0 1 2 2v10" />
             <path d="M8 9h8v2a4 4 0 0 1-8 0V9z" />
           </svg>
-          每周之星
+          {t('child.rewards.weeklyStar')}
         </h3>
         {weeklyCheckIns.length > 0 ? (
           <div className="flex items-center gap-3">
@@ -199,15 +199,15 @@ export default function RewardsPage() {
             </span>
             <div>
               <p className="text-sm text-forest-700 font-medium">
-                本周已完成 {weeklyCheckIns.length} 次打卡
+                {t('child.rewards.weeklyCheckinCount', { count: weeklyCheckIns.length })}
               </p>
               <p className="text-xs text-forest-400">
-                共获得 +{weeklyPoints} 积分
+                {t('child.rewards.weeklyPoints', { points: weeklyPoints })}
               </p>
             </div>
           </div>
         ) : (
-          <p className="text-forest-400 text-sm">本周还没打卡呢，加油哦</p>
+          <p className="text-forest-400 text-sm">{t('child.rewards.weeklyEmpty')}</p>
         )}
       </div>
 
@@ -235,7 +235,7 @@ export default function RewardsPage() {
                     )}</span>
                     <div>
                       <div className="text-sm font-medium text-forest-700">
-                        +{ci.points_earned} {hw?.title || "作业"}
+                        +{ci.points_earned} {hw?.title || t('child.rewards.defaultHomeworkTitle')}
                       </div>
                       <p className="text-xs text-forest-400 mt-1">
                         {ci.is_scored
@@ -252,7 +252,7 @@ export default function RewardsPage() {
                   <span className="text-xs text-forest-400 whitespace-nowrap">
                     {ci.completed_at
                       ? new Date(ci.completed_at).toLocaleDateString()
-                      : "时间待定"}{" "}
+                      : t('child.rewards.timePending')}{" "}
                     {displayTime
                       ? new Date(displayTime).toLocaleTimeString([], {
                           hour: "2-digit",

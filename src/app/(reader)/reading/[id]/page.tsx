@@ -8,6 +8,7 @@ import type { ArticleReaderArticle, ArticleReaderRef } from "@/components/readin
 import { ReadAlong } from "@/components/reading/ReadAlong";
 import { QuizView } from "@/components/reading/QuizView";
 import type { QuizViewQuestion } from "@/components/reading/QuizView";
+import { useTranslation } from "@/hooks/useTranslation";
 import {
   shouldAutoCompleteReading,
   createReadingAutoCheckin,
@@ -59,6 +60,7 @@ export default function ReadingArticlePage({
 }: {
   params: { id: string };
 }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const searchParams = useSearchParams();
   const assignmentId = searchParams?.get("assignmentId") ?? null;
@@ -117,9 +119,9 @@ export default function ReadingArticlePage({
 
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error("文章未找到");
+          throw new Error(t('reading.article.notFound'));
         }
-        throw new Error("加载失败");
+        throw new Error(t('reading.article.loadFailed'));
       }
 
       const data: FetchResult = await response.json();
@@ -147,7 +149,7 @@ export default function ReadingArticlePage({
       setQuestions(data.questions || []);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "加载失败"
+        err instanceof Error ? err.message : t('reading.article.loadFailed')
       );
     } finally {
       setLoading(false);
@@ -335,7 +337,7 @@ export default function ReadingArticlePage({
               border: "1px solid var(--reader-border)",
             }}
           >
-            {"返回"}
+            {t('reading.article.back')}
           </button>
         </div>
       </div>

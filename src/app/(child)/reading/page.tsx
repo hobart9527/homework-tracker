@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArticleCard } from "@/components/reading/ArticleCard";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface Article {
   id: string;
@@ -79,6 +80,7 @@ function SkeletonCard() {
 }
 
 export default function ReadingBrowserPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [supabase] = useState(() => createClient());
 
@@ -117,7 +119,7 @@ export default function ReadingBrowserPage() {
       ]);
 
       if (!articlesRes.ok) {
-        throw new Error("获取文章列表失败");
+        throw new Error(t('reading.browser.loadError'));
       }
 
       const articlesData = await articlesRes.json();
@@ -147,7 +149,7 @@ export default function ReadingBrowserPage() {
 
       setArticles(enrichedArticles);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
+      setError(err instanceof Error ? err.message : t('reading.browser.loadGenericError'));
     } finally {
       setLoading(false);
     }
@@ -195,14 +197,14 @@ export default function ReadingBrowserPage() {
           className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center rounded-2xl bg-white/90 p-6 text-center shadow-elevation-modal ring-1 ring-cream-200/40"
         >
           <div>
-            <div className="text-2xl font-bold text-forest-700 mb-2">加载失败</div>
+            <div className="text-2xl font-bold text-forest-700 mb-2">{t('reading.browser.loadGenericError')}</div>
             <p className="text-sm text-ink-500 mb-4">{error}</p>
             <button
               type="button"
               onClick={() => void fetchReadingData()}
               className="rounded-full bg-primary px-5 py-2.5 text-sm font-medium text-white shadow-elevation-raised transition hover:bg-primary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
-              重试
+              {t('common.retry')}
             </button>
           </div>
         </div>
@@ -215,8 +217,8 @@ export default function ReadingBrowserPage() {
       <div className="mx-auto max-w-6xl">
         {/* Page heading */}
         <div className="mb-5">
-          <h1 className="text-2xl font-bold text-forest-800">阅读专区</h1>
-          <p className="mt-1 text-sm text-ink-500">探索有趣的文章，拓展知识视野</p>
+          <h1 className="text-2xl font-bold text-forest-800">{t('reading.browser.title')}</h1>
+          <p className="mt-1 text-sm text-ink-500">{t('reading.browser.subtitle')}</p>
         </div>
 
         {/* --- Language toggle - PRIMARY --- */}
@@ -282,7 +284,7 @@ export default function ReadingBrowserPage() {
               }`}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 inline-block mr-1"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>{" "}
-              默认排序
+              {t('reading.browser.sortDefault')}
             </button>
             <button
               onClick={() => setSortMode("unread")}
@@ -292,7 +294,7 @@ export default function ReadingBrowserPage() {
                   : "text-ink-600 hover:bg-cream-50"
               }`}
             >
-              🆕 未读优先
+              🆕 {t('reading.browser.sortUnread')}
             </button>
             <button
               onClick={() => setSortMode("latest")}
@@ -303,7 +305,7 @@ export default function ReadingBrowserPage() {
               }`}
             >
               <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 inline-block mr-1"><path d="M12 2c-1.5 3-4 5-5 8-1 3 0 6 2 8 1 1 2 2 3 2s2-1 3-2c2-2 3-5 2-8-1-3-3.5-5-5-8z" /></svg>{" "}
-              最新
+              {t('reading.browser.sortLatest')}
             </button>
           </div>
           <div className="relative flex-1 max-w-sm">
@@ -311,7 +313,7 @@ export default function ReadingBrowserPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索文章标题..."
+              placeholder={t('reading.browser.searchPlaceholder')}
               className="w-full pl-9 pr-4 py-2 rounded-lg bg-white text-sm border border-cream-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
             />
             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -336,12 +338,12 @@ export default function ReadingBrowserPage() {
               </svg>
             </div>
             <p className="text-lg font-medium text-ink-600">
-              {activeLanguage === "en" ? "No English articles yet" : "暂无中文文章"}
+              {activeLanguage === "en" ? t('reading.browser.enEmpty') : t('reading.browser.zhEmpty')}
             </p>
             <p className="mt-1 text-sm text-ink-400">
               {activeLanguage === "en"
-                ? "Switch to 中文 to see Chinese articles"
-                : "切换到 English to see English articles"
+                ? t('reading.browser.switchHintEn')
+                : t('reading.browser.switchHintZh')
               }
             </p>
           </div>
