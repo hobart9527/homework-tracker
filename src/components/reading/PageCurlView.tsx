@@ -65,7 +65,7 @@ export function PageCurlView({ pages, currentPage, onPageChange }: PageCurlViewP
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-[calc(100vh-8rem)] overflow-hidden"
+      className="relative w-full h-[calc(100dvh-8rem)] overflow-hidden"
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}

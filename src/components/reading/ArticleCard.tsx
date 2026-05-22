@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { IconStar, IconBook, IconPencil } from "@/components/ui/icons";
+
 interface ArticleCardProps {
   id: string;
   title: string;
@@ -20,16 +22,16 @@ interface ArticleCardProps {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  时事: "bg-sky-100 text-sky-700",
-  历史: "bg-honey-100 text-honey-700",
-  科学: "bg-indigo-100 text-indigo-700",
+  时事: "bg-forest-100 text-forest-700",
+  历史: "bg-cream-200 text-ink-700",
+  科学: "bg-forest-subtle text-forest-600",
   人物: "bg-coral-100 text-coral-700",
-  自然: "bg-emerald-100 text-emerald-700",
-  文化: "bg-purple-100 text-purple-700",
-  成语故事: "bg-rose-100 text-rose-700",
-  寓言: "bg-amber-100 text-amber-700",
-  现代文: "bg-teal-100 text-teal-700",
-  科普: "bg-cyan-100 text-cyan-700",
+  自然: "bg-forest-100 text-forest-700",
+  文化: "bg-cream-200 text-ink-700",
+  成语故事: "bg-coral-subtle text-coral-700",
+  寓言: "bg-cream-200 text-ink-700",
+  现代文: "bg-forest-subtle text-forest-600",
+  科普: "bg-forest-100 text-forest-700",
 };
 
 function getCategoryStyle(category: string): string {
@@ -75,6 +77,7 @@ export function ArticleCard({
           <img
             src={thumbnailUrl}
             alt={title}
+            loading="lazy"
             onLoad={() => setImgLoaded(true)}
             className={`h-full w-full object-cover rounded-t-xl transition-opacity duration-300 ${
               imgLoaded ? "opacity-100" : "opacity-0"
@@ -82,7 +85,7 @@ export function ArticleCard({
           />
           {isCompleted && (
             <div className="absolute top-2 right-2 z-10 bg-amber-400 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1">
-              <span>⭐</span>
+              <IconStar className="w-3.5 h-3.5" />
               <span>已完成</span>
             </div>
           )}
@@ -108,7 +111,7 @@ export function ArticleCard({
           </span>
           {isInProgress && !isCompleted && (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-              <span>📖</span>
+              <IconBook className="w-3.5 h-3.5" />
               <span>阅读中</span>
             </span>
           )}
@@ -137,17 +140,21 @@ export function ArticleCard({
         {/* Score display if completed */}
         {isCompleted && score !== undefined && (
           <div className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-sm font-bold text-primary">
-            ⭐ {score}分
+            <IconStar className="w-3.5 h-3.5 mr-0.5" /> {score}分
           </div>
         )}
 
         {/* Bottom row: metadata */}
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-500">
           <span className="inline-flex items-center gap-1">
-            📝 {wordCount}字
+            <IconPencil className="w-3 h-3" /> {wordCount}字
           </span>
           <span className="inline-flex items-center gap-1">
-            ⏱️ {estimatedMinutes}分钟
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>{" "}
+            {estimatedMinutes}分钟
           </span>
         </div>
       </div>

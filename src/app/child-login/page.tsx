@@ -10,11 +10,13 @@ export default function ChildLoginPage() {
   const supabase = createClient();
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState("");
   const [childName, setChildName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const handlePasscodeComplete = async (passcode: string) => {
     setLoading(true);
+    setLoadingStep("正在查找…");
     setError("");
 
     // Look up child by name
@@ -31,8 +33,11 @@ export default function ChildLoginPage() {
         setError("找不到孩子，请先添加孩子");
       }
       setLoading(false);
+      setLoadingStep("");
       return;
     }
+
+    setLoadingStep("正在登录…");
 
     // Verify the child account through Supabase auth using the derived child email.
     const {
@@ -50,6 +55,7 @@ export default function ChildLoginPage() {
         setError("密码错误，请重试");
       }
       setLoading(false);
+      setLoadingStep("");
       return;
     }
 
@@ -66,8 +72,13 @@ export default function ChildLoginPage() {
 
   if (!showPassword) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-cream-50">
-        <div className="text-6xl mb-4">🧒</div>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-cream-50 safe-area-pb">
+        <div className="text-6xl mb-4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-14 h-14 mx-auto text-coral-400">
+            <circle cx="12" cy="8" r="5" />
+            <path d="M3 21v-2a7 7 0 0 1 7-7h4a7 7 0 0 1 7 7v2" />
+          </svg>
+        </div>
         <h1 className="text-3xl font-bold text-ink-800 mb-2">作业小管家</h1>
         <p className="text-ink-500 mb-8">小朋友，你的名字是？</p>
 
@@ -98,8 +109,13 @@ export default function ChildLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-cream-50">
-      <div className="text-6xl mb-4">🧒</div>
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-cream-50 safe-area-pb">
+      <div className="text-6xl mb-4">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-14 h-14 mx-auto text-coral-400">
+          <circle cx="12" cy="8" r="5" />
+          <path d="M3 21v-2a7 7 0 0 1 7-7h4a7 7 0 0 1 7 7v2" />
+        </svg>
+      </div>
       <h1 className="text-3xl font-bold text-ink-800 mb-2">你好，{childName}！</h1>
       <p className="text-ink-500 mb-8">输入你的密码</p>
 
@@ -109,7 +125,13 @@ export default function ChildLoginPage() {
       />
 
       {loading && (
-        <p className="text-ink-500 mt-4">登录中...</p>
+        <div className="mt-4 flex items-center gap-2">
+          <svg className="animate-spin h-4 w-4 text-primary" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+            <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+          </svg>
+          <p className="text-ink-500 text-sm">{loadingStep}</p>
+        </div>
       )}
 
       <p className="text-center text-sm text-ink-400 mt-8">

@@ -39,7 +39,9 @@ export function DayHomeworkView({
         {taskStatuses.length === 0 ? (
           <div className="text-center py-12">
             <div className="mx-auto mb-4 flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-honey-50 to-honey-100 shadow-elevation-floating ring-1 ring-honey-200/50">
-              <span className="text-6xl">🎉</span>
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-14 h-14 text-honey-400">
+                <path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" />
+              </svg>
             </div>
             <h2 className="text-xl font-bold text-forest-700">
               今天没有作业！

@@ -54,7 +54,6 @@ export default function RewardsPage() {
   }
 
   const MILESTONES = [50, 100, 200, 500];
-  const sparkleEmojis = ["⭐", "💫", "✨", "🌟", "🎉", "🏆"];
 
   const todayStr = useMemo(() => getLocalDateStr(new Date()), []);
 
@@ -92,7 +91,6 @@ export default function RewardsPage() {
     if (totalPoints <= 0) return [];
     return Array.from({ length: 8 }, (_, i) => ({
       id: i,
-      emoji: sparkleEmojis[i % sparkleEmojis.length],
       left: 10 + Math.random() * 80,
       delay: Math.random() * 0.8,
       duration: 0.8 + Math.random() * 0.7,
@@ -107,25 +105,38 @@ export default function RewardsPage() {
       {/* Big points display */}
       <div className="bg-primary text-white rounded-2xl shadow-lg p-8 text-center mb-6 relative overflow-hidden">
         {sparkles.map((s) => (
-          <span
+          <svg
             key={s.id}
-            className="absolute text-xl animate-float-up pointer-events-none"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="absolute animate-float-up pointer-events-none text-honey-400"
             style={{
               left: `${s.left}%`,
               top: "35%",
+              width: 18 + (s.id % 3) * 4,
+              height: 18 + (s.id % 3) * 4,
               animationDelay: `${s.delay}s`,
               animationDuration: `${s.duration}s`,
             }}
           >
-            {s.emoji}
-          </span>
+            <path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" />
+          </svg>
         ))}
-        <div className="text-3xl mb-2">⭐</div>
+        <div className="text-3xl mb-2">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 mx-auto text-honey-400">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </div>
         <div className="text-6xl font-bold">{totalPoints}</div>
         <div className="text-lg opacity-80 mt-2">{t('child.rewards.title')}</div>
         {todayPoints > 0 && (
-          <div className="mt-3 inline-block bg-cream-50/20 rounded-full px-4 py-1 text-sm backdrop-blur-sm">
-            🎯 今日已获得 +{todayPoints} 积分
+          <div className="mt-3 inline-flex items-center gap-1.5 bg-cream-50/20 rounded-full px-4 py-1 text-sm backdrop-blur-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="2" />
+            </svg>
+            今日已获得 +{todayPoints} 积分
           </div>
         )}
       </div>
@@ -135,7 +146,11 @@ export default function RewardsPage() {
         <div className="bg-cream-50 rounded-2xl shadow-elevation-raised p-4 mb-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-forest-700">
-              🏁 下一个目标: {nextMilestone} 积分
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 inline-block mr-1.5">
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                <line x1="4" y1="22" x2="4" y2="15" />
+              </svg>
+              下一个目标: {nextMilestone} 积分
             </span>
             <span className="text-xs text-forest-400">
               {totalPoints} / {nextMilestone}
@@ -150,16 +165,38 @@ export default function RewardsPage() {
         </div>
       ) : totalPoints > 0 ? (
         <div className="bg-cream-50 rounded-2xl shadow-elevation-raised p-4 mb-4 text-center">
-          <p className="text-forest-700 font-medium">🏆 你已经达成所有里程碑！</p>
+          <p className="text-forest-700 font-medium">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 inline-block mr-1.5">
+              <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C6 4 8 6 8 9z" />
+              <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C18 4 16 6 16 9z" />
+              <path d="M4 22h16" />
+              <path d="M10 22V12a2 2 0 0 1 2-2 2 2 0 0 1 2 2v10" />
+              <path d="M8 9h8v2a4 4 0 0 1-8 0V9z" />
+            </svg>
+            你已经达成所有里程碑！
+          </p>
         </div>
       ) : null}
 
       {/* Weekly star */}
       <div className="bg-cream-50 rounded-2xl shadow-elevation-raised p-4 mb-4">
-        <h3 className="font-medium text-forest-700 mb-2">🏆 每周之星</h3>
+        <h3 className="font-medium text-forest-700 mb-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 inline-block mr-1.5">
+            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C6 4 8 6 8 9z" />
+            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C18 4 16 6 16 9z" />
+            <path d="M4 22h16" />
+            <path d="M10 22V12a2 2 0 0 1 2-2 2 2 0 0 1 2 2v10" />
+            <path d="M8 9h8v2a4 4 0 0 1-8 0V9z" />
+          </svg>
+          每周之星
+        </h3>
         {weeklyCheckIns.length > 0 ? (
           <div className="flex items-center gap-3">
-            <span className="text-3xl">🌟</span>
+            <span className="text-3xl">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-honey-400">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </span>
             <div>
               <p className="text-sm text-forest-700 font-medium">
                 本周已完成 {weeklyCheckIns.length} 次打卡
@@ -170,7 +207,7 @@ export default function RewardsPage() {
             </div>
           </div>
         ) : (
-          <p className="text-forest-400 text-sm">本周还没打卡呢，加油哦 💪</p>
+          <p className="text-forest-400 text-sm">本周还没打卡呢，加油哦</p>
         )}
       </div>
 
@@ -190,7 +227,12 @@ export default function RewardsPage() {
                   className="flex items-center justify-between p-3 rounded-xl bg-forest-50"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{hw?.type_icon || "📝"}</span>
+                    <span className="text-2xl">{hw?.type_icon || (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    )}</span>
                     <div>
                       <div className="text-sm font-medium text-forest-700">
                         +{ci.points_earned} {hw?.title || "作业"}

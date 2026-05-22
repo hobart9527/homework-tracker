@@ -3,16 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useTranslation } from "@/hooks/useTranslation";
 import { HomeworkAssignmentPanel } from "@/components/parent/HomeworkAssignmentPanel";
-import { HomeworkRulePreview } from "@/components/parent/HomeworkRulePreview";
 import {
   buildAssignmentSummary,
   buildHomeworkDraftFromSource,
   buildHomeworkInsertRows,
-  buildHomeworkRulePreview,
   decodeDescriptionMeta,
   type HomeworkFormState,
 } from "@/lib/homework-form";
@@ -71,6 +70,7 @@ export function HomeworkForm({
   onSuccess,
 }: HomeworkFormProps) {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [children, setChildren] = useState<Child[]>([]);
@@ -194,6 +194,24 @@ export function HomeworkForm({
         setTypeGroups(DEFAULT_TYPE_GROUPS);
       }
 
+      const { data: customTypesData } = await supabase
+        .from("custom_homework_types")
+        .select("*")
+        .eq("parent_id", session.user.id);
+
+      if (customTypesData && customTypesData.length > 0) {
+        setCustomSecondaryTypes(
+          customTypesData.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            icon: t.icon || "📝",
+            default_points: t.default_points,
+            group_id: "group_custom",
+            is_custom: true,
+          }))
+        );
+      }
+
       if (!homework && !copyFromHomeworkId && childrenData?.length && !prefilledChildId) {
         setFormData((prev) => ({ ...prev, child_ids: [childrenData[0].id] }));
       }
@@ -265,7 +283,7 @@ export function HomeworkForm({
     ? (formData.type_group_id === "group_custom"
         ? customSecondaryTypes
         : allTypes.filter((t) => t.group_id === formData.type_group_id))
-    : allTypes;
+    : [];
 
   const selectedChildren = children.filter((child) =>
     formData.child_ids.includes(child.id)
@@ -305,7 +323,6 @@ export function HomeworkForm({
       (rule.homework_id === null || rule.homework_id === homework?.id)
   );
   const assignmentSummary = buildAssignmentSummary(selectedChildren);
-  const preview = buildHomeworkRulePreview(formData, assignmentSummary.childNames);
   const canBatchAssign = !isEditing && !prefilledChildId;
 
   const isReadingType =
@@ -378,13 +395,27 @@ export function HomeworkForm({
     }));
   };
 
-  const handleAddCustomType = () => {
+  const handleAddCustomType = async () => {
     const name = newCustomTypeName.trim();
     if (!name) return;
-    const id = `custom_${Date.now()}`;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("custom_homework_types")
+      .insert({ name, icon: "📝", default_points: 3, parent_id: session.user.id })
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) {
+      console.error("Failed to save custom type:", error);
+      return;
+    }
+
     setCustomSecondaryTypes((prev) => [
       ...prev,
-      { id, name, icon: "📝", default_points: 3, group_id: "group_custom", is_custom: true },
+      { id: data.id, name, icon: "📝", default_points: 3, group_id: "group_custom", is_custom: true },
     ]);
     setNewCustomTypeName("");
     setFormData((prev) => ({
@@ -509,7 +540,7 @@ export function HomeworkForm({
       console.error("Failed to save homework:", err);
       const msg =
         err?.message || err?.error_description || JSON.stringify(err);
-      alert(`保存作业失败: ${msg}`);
+      toast("error", `保存作业失败: ${msg}`);
     }
   };
 
@@ -542,9 +573,6 @@ export function HomeworkForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl mx-auto">
-      {/* Compact Rule Preview */}
-      <HomeworkRulePreview preview={preview} />
-
       {/* Section 1: Basic Info (always expanded) */}
       <section className="rounded-radius-xl border border-ink-300 bg-white p-space-5 space-y-space-4">
         <h2 className="text-ui-lg font-ui-display font-semibold text-forest-700">{t('parent.homework.basicInfo')}</h2>
@@ -563,9 +591,6 @@ export function HomeworkForm({
           <label className="block text-ui-sm font-medium text-forest-700 mb-space-1">
             {t('parent.homework.groupLabel')}
           </label>
-          <p className="text-ui-sm text-ink-500 mb-space-3">
-            {t('parent.homework.groupHint')}
-          </p>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
             <button
               type="button"
@@ -605,9 +630,6 @@ export function HomeworkForm({
           <label className="block text-ui-sm font-medium text-forest-700 mb-space-1">
             {t('parent.homework.typeLabel')}
           </label>
-          <p className="text-ui-sm text-ink-500 mb-space-3">
-            {t('parent.homework.typeHint')}
-          </p>
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
             <button
               type="button"

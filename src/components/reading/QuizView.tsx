@@ -119,7 +119,10 @@ function StreakToast({ streak }: { streak: number }) {
     <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex justify-center">
       <div className="animate-float-up rounded-full bg-honey-100 px-5 py-2 shadow-elevation-floating">
         <span className="text-lg font-bold text-honey-600">
-          🔥 x{streak}
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 inline-block mr-0.5">
+            <path d="M12 2c-1.5 3-4 5-5 8-1 3 0 6 2 8 1 1 2 2 3 2s2-1 3-2c2-2 3-5 2-8-1-3-3.5-5-5-8z" />
+          </svg>{" "}
+          x{streak}
         </span>
       </div>
     </div>
@@ -136,7 +139,11 @@ function HintPanel({ hint, onDismiss }: { hint: string; onDismiss?: () => void }
   return (
     <div className="rounded-xl bg-honey-100 border border-honey-200 p-4 mt-3">
       <div className="flex items-start gap-2">
-        <span className="text-lg shrink-0">💡</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 shrink-0 text-honey-600">
+          <path d="M9 18h6" />
+          <path d="M10 22h4" />
+          <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+        </svg>
         <div className="flex-1">
           <p className="font-bold text-honey-700">小提示</p>
           <p className="text-sm text-honey-800 mt-1">{hint}</p>
@@ -579,7 +586,7 @@ export function QuizView({
 
       if (isCorrect) {
         setRetakeFeedbackPhase("correct");
-        setRetakeEncouragement("太棒了！答对了！🎉");
+        setRetakeEncouragement("太棒了！答对了！");
         const updatedAnswers = { ...retakeAnswers, [q.id]: label };
         setRetakeAnswers(updatedAnswers);
 
@@ -601,7 +608,7 @@ export function QuizView({
           setShowHintFor(q.id);
         } else {
           setShowHintFor(null);
-          setRetakeEncouragement("正确答案已经告诉你啦，记住它哦！📚");
+          setRetakeEncouragement("正确答案已经告诉你啦，记住它哦！");
           /* Reveal correct answer */
           const updatedAnswers = { ...retakeAnswers, [q.id]: q.correct_answer || label };
           setRetakeAnswers(updatedAnswers);
@@ -640,13 +647,13 @@ export function QuizView({
     const percentage = (result.score / result.total) * 100;
     let encouragement: string;
     if (percentage === 100) {
-      encouragement = "太棒了！满分！🌟";
+      encouragement = "太棒了！满分!";
     } else if (percentage >= 80) {
-      encouragement = "很棒！继续加油！👏";
+      encouragement = "很棒！继续加油！";
     } else if (percentage >= 60) {
-      encouragement = "不错！再接再厉！💪";
+      encouragement = "不错！再接再厉！";
     } else {
-      encouragement = "别灰心，多读多练！📚";
+      encouragement = "每一次阅读都在进步！";
     }
 
     const hasWrongAnswers = result.score < result.total;
@@ -762,12 +769,12 @@ export function QuizView({
           </p>
           {improved ? (
             <p className="mt-3 text-xl font-bold text-honey-600">
-              进步了！🌟 {"+"}
+              进步了！{" +"}
               {retakeResult.pointsEarned - result.pointsEarned} 积分
             </p>
           ) : (
             <p className="mt-3 text-xl font-bold text-primary">
-              继续保持！💪
+              继续保持！
             </p>
           )}
         </div>
@@ -931,7 +938,10 @@ export function QuizView({
         </div>
         {streak >= 3 && (
           <span className="rounded-full bg-honey-100 px-3 py-1 text-xs font-bold text-honey-600">
-            🔥 x{streak}
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 inline-block mr-0.5">
+            <path d="M12 2c-1.5 3-4 5-5 8-1 3 0 6 2 8 1 1 2 2 3 2s2-1 3-2c2-2 3-5 2-8-1-3-3.5-5-5-8z" />
+          </svg>{" "}
+          x{streak}
           </span>
         )}
       </div>

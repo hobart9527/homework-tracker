@@ -335,7 +335,7 @@ export default function ReadingArticlePage({
               border: "1px solid var(--reader-border)",
             }}
           >
-            {"← 返回"}
+            {"返回"}
           </button>
         </div>
       </div>

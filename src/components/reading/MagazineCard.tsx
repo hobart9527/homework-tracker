@@ -77,6 +77,7 @@ export function MagazineCard({
           <img
             src={thumbnailUrl}
             alt={title}
+            loading="lazy"
             onLoad={() => setImgLoaded(true)}
             className={`h-full w-full object-cover transition-all duration-500 group-hover:scale-105 ${
               imgLoaded ? "opacity-100" : "opacity-0"

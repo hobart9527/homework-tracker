@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
 export default function NewChildPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -39,7 +41,7 @@ export default function NewChildPage() {
     const result = await res.json();
 
     if (!res.ok) {
-      alert(result.error || "创建失败，请重试");
+      toast("error", result.error || "创建失败，请重试");
       setLoading(false);
       return;
     }

@@ -281,7 +281,8 @@ export default function ReadingBrowserPage() {
                   : "text-ink-600 hover:bg-cream-50"
               }`}
             >
-              📋 默认排序
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 inline-block mr-1"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>{" "}
+              默认排序
             </button>
             <button
               onClick={() => setSortMode("unread")}
@@ -301,7 +302,8 @@ export default function ReadingBrowserPage() {
                   : "text-ink-600 hover:bg-cream-50"
               }`}
             >
-              🔥 最新
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 inline-block mr-1"><path d="M12 2c-1.5 3-4 5-5 8-1 3 0 6 2 8 1 1 2 2 3 2s2-1 3-2c2-2 3-5 2-8-1-3-3.5-5-5-8z" /></svg>{" "}
+              最新
             </button>
           </div>
           <div className="relative flex-1 max-w-sm">
@@ -327,7 +329,12 @@ export default function ReadingBrowserPage() {
           </div>
         ) : filteredArticles.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="text-5xl mb-4 opacity-40">📚</div>
+            <div className="text-5xl mb-4 opacity-40">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-14 h-14 mx-auto">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </div>
             <p className="text-lg font-medium text-ink-600">
               {activeLanguage === "en" ? "No English articles yet" : "暂无中文文章"}
             </p>

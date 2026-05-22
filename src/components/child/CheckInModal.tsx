@@ -807,6 +807,7 @@ export function CheckInModal({
                     <img
                       src={att.previewUrl}
                       alt={att.file.name}
+                      loading="lazy"
                       className="h-full w-full object-cover"
                     />
                   </div>
@@ -836,46 +837,28 @@ export function CheckInModal({
           />
         </div>
 
-        {/* Celebration star burst — shown on success */}
-        <div className="relative">
-          {submissionState === "success" && (
-            <>
-              <span
-                className="absolute left-[10%] top-0 animate-star-burst text-2xl"
-                aria-hidden="true"
+        {/* Celebration sparkles — shown on success */}
+        {submissionState === "success" && (
+          <div className="relative h-10" aria-hidden="true">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <svg
+                key={i}
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="absolute animate-star-burst text-honey-400"
+                style={{
+                  left: `${12 + i * 20}%`,
+                  top: -4,
+                  width: 20 + (i % 3) * 6,
+                  height: 20 + (i % 3) * 6,
+                  animationDelay: `${i * 0.06}s`,
+                }}
               >
-                ✨
-              </span>
-              <span
-                className="absolute left-[30%] -top-1 animate-star-burst text-xl"
-                style={{ animationDelay: "0.1s" }}
-                aria-hidden="true"
-              >
-                ⭐
-              </span>
-              <span
-                className="absolute left-[55%] top-0 animate-float-up text-2xl"
-                style={{ animationDelay: "0.15s" }}
-                aria-hidden="true"
-              >
-                🌟
-              </span>
-              <span
-                className="absolute left-[75%] -top-1 animate-star-burst text-xl"
-                style={{ animationDelay: "0.2s" }}
-                aria-hidden="true"
-              >
-                ✨
-              </span>
-              <span
-                className="absolute left-[90%] top-0 animate-float-up text-lg"
-                style={{ animationDelay: "0.25s" }}
-                aria-hidden="true"
-              >
-                ⭐
-              </span>
-            </>
-          )}
+                <path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" />
+              </svg>
+            ))}
+          </div>
+        )}
 
         {feedback && (
           <p
@@ -936,7 +919,7 @@ export function CheckInModal({
             ? "提交中..."
             : createdCheckInId
               ? "重新提交"
-              : "确认完成 ✨"}
+              : "确认完成"}
         </Button>
         {createdCheckInId && submissionState === "error" && (
           <Button
@@ -948,7 +931,6 @@ export function CheckInModal({
             重试上传附件
           </Button>
         )}
-      </div>
     </Modal>
   );
 }

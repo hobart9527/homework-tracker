@@ -94,18 +94,18 @@ function getCalendarTone(day: {
 
   if (outstandingCount === 0) {
     if (day.lateCount > 0) {
-      return "bg-amber-100 text-amber-700";
+      return "bg-honey-100 text-honey-700";
     }
 
-    return "bg-emerald-500 text-white";
+    return "bg-forest-200 text-forest-800";
   }
 
   if (day.completedCount > 0) {
-    return "bg-sky-100 text-sky-700";
+    return "bg-forest-100 text-forest-600";
   }
 
   if (day.date < todayKey) {
-    return "bg-rose-100 text-rose-700";
+    return "bg-coral-100 text-coral-700";
   }
 
   return "bg-cream-100 text-ink-500";
@@ -249,25 +249,21 @@ export default function ProgressPage() {
       : new Date(`${dashboard.calendarDays[0].date}T00:00:00`).getDay();
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#F6FBF8] via-[#FFF9F1] to-[#F5F8FF] p-4 pb-24 text-forest-700 lg:p-6">
+    <main className="min-h-screen bg-cream-50 p-4 pb-24 text-forest-700 lg:p-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-5">
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            第1区：成就激励区 - 孩子最关心的：积分、连续天数、完成数
-            ═══════════════════════════════════════════════════════════════════ */}
-        <section className="relative overflow-hidden rounded-[32px] bg-[linear-gradient(135deg,#155E52_0%,#2C7C68_48%,#F6B06A_100%)] p-6 text-white shadow-xl">
-          {/* 装饰圆形 */}
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
-          <div className="absolute -bottom-5 -right-5 h-24 w-24 rounded-full bg-white/5" />
-
-          <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            {/* 左侧：核心成就展示 */}
+        {/* 成就激励区 — 积分 + 鼓励 */}
+        <section className="relative overflow-hidden rounded-card bg-forest-500 p-6 text-white shadow-elevation-floating">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            {/* 核心成就展示 */}
             <div className="max-w-2xl">
               <p className="text-sm font-medium text-white/80">
                 {dashboard.summary.monthLabel} {t('child.progress.achievement')}
               </p>
               <h1 className="mt-2 flex items-baseline gap-3 text-3xl font-bold lg:text-4xl">
-                <span>⭐</span>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-9 h-9 text-honey-400">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
                 <span className="text-5xl lg:text-6xl">{dashboard.summary.totalPoints}</span>
                 <span className="text-xl text-white/80">积分</span>
               </h1>
@@ -277,38 +273,10 @@ export default function ProgressPage() {
                   : '这个月还没开始打卡哦，快去完成任务吧！'}
               </p>
             </div>
-
-            {/* 右侧：关键数据卡片 */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {/* 完成率 */}
-              <div className="rounded-3xl bg-white/15 px-4 py-3 backdrop-blur">
-                <div className="text-xs text-white/70">{t('child.progress.monthCompletionRate')}</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {formatPercent(dashboard.summary.completionRate)}
-                </div>
-              </div>
-              {/* 活跃天数 */}
-              <div className="rounded-3xl bg-white/15 px-4 py-3 backdrop-blur">
-                <div className="text-xs text-white/70">{t('child.progress.activeDays')}</div>
-                <div className="mt-1 flex items-baseline gap-1 text-2xl font-bold">
-                  {dashboard.summary.activeDays}
-                  <span className="text-sm text-white/70">天</span>
-                </div>
-              </div>
-              {/* 准时率 */}
-              <div className="rounded-3xl bg-white/15 px-4 py-3 backdrop-blur sm:col-span-1">
-                <div className="text-xs text-white/70">{t('child.progress.onTimeRate')}</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {formatPercent(dashboard.summary.onTimeRate)}
-                </div>
-              </div>
-            </div>
           </div>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            Two-column: calendar + insights sidebar
-            ═══════════════════════════════════════════════════════════════════ */}
+        {/* Two-column: calendar + insights sidebar */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px]">
 
           {/* ═══════════════════════════════════════════════════════════════════
@@ -319,7 +287,13 @@ export default function ProgressPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-xl font-bold text-forest-800">
-                  📅 {getMonthLabel(month)} {t('child.weekCalendar.title').replace('本周', '月历')}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 inline-block mr-1.5">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                  {getMonthLabel(month)} {t('child.weekCalendar.title').replace('本周', '月历')}
                 </h2>
                 <p className="mt-1 text-sm text-forest-500">
                   {dashboard.summary.completedCount}/{dashboard.summary.totalAssigned} {t('child.progress.completed')} · {dashboard.summary.activeDays} {t('child.progress.activeDays')}
@@ -389,14 +363,26 @@ export default function ProgressPage() {
             {/* Card 1: 作业类型表现 */}
             {dashboard.weakestTypes.length > 0 || dashboard.strongestTypes.length > 0 ? (
               <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-forest-800">🏆 作业类型表现</h2>
+                <h2 className="text-lg font-bold text-forest-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 inline-block mr-1.5">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C6 4 8 6 8 9z" />
+                    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C18 4 16 6 16 9z" />
+                    <path d="M4 22h16" />
+                    <path d="M10 22V12a2 2 0 0 1 2-2 2 2 0 0 1 2 2v10" />
+                    <path d="M8 9h8v2a4 4 0 0 1-8 0V9z" />
+                  </svg>
+                  作业类型表现
+                </h2>
                 <p className="mt-1 text-xs text-forest-500">本月各类型作业的完成情况</p>
                 <div className="mt-4 space-y-3">
                   {/* Strongest */}
                   {dashboard.strongestTypes.slice(0, 1).map((item) => (
                     <div key={`strong-${item.typeName}`} className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/80 p-4">
                       <div className="flex items-center gap-2 text-sm font-medium text-emerald-600">
-                        <span>🌟</span> {t('child.progress.currentStrength')}
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 inline-block">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>{" "}
+                        {t('child.progress.currentStrength')}
                       </div>
                       <div className="mt-2 flex items-end justify-between gap-3">
                         <div>
@@ -411,7 +397,11 @@ export default function ProgressPage() {
                   {dashboard.weakestTypes.slice(0, 1).map((item) => (
                     <div key={`weak-${item.typeName}`} className="rounded-2xl border border-forest-100 bg-forest-50/80 p-4">
                       <div className="flex items-center gap-2 text-xs font-medium text-forest-600">
-                        <span>📚</span> {t('child.progress.needsImprovement')}
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 inline-block">
+                          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                        </svg>{" "}
+                        {t('child.progress.needsImprovement')}
                       </div>
                       <div className="mt-2 flex items-end justify-between gap-3">
                         <div>
@@ -429,7 +419,14 @@ export default function ProgressPage() {
             {/* Card 2: 学习习惯建议 */}
             {dashboard.habitInsights.length > 0 ? (
               <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-forest-800">💡 学习习惯建议</h2>
+                <h2 className="text-lg font-bold text-forest-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 inline-block mr-1.5">
+                    <path d="M9 18h6" />
+                    <path d="M10 22h4" />
+                    <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+                  </svg>
+                  学习习惯建议
+                </h2>
                 <p className="mt-1 text-xs text-forest-500">基于本月数据生成的个性化建议</p>
                 <div className="mt-4 space-y-2">
                   {dashboard.habitInsights.map((item) => (
@@ -439,7 +436,23 @@ export default function ProgressPage() {
                       'bg-sky-50/80'
                     }`}>
                       <div className="flex items-center gap-2 text-sm font-semibold text-forest-950">
-                        <span>{item.tone === 'good' ? '✅' : item.tone === 'warn' ? '⚠️' : '💡'}</span>
+                        {item.tone === 'good' ? (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-emerald-600">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        ) : item.tone === 'warn' ? (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-amber-600">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-sky-600">
+                            <path d="M9 18h6" />
+                            <path d="M10 22h4" />
+                            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14" />
+                          </svg>
+                        )}
                         {item.title}
                       </div>
                       <p className="mt-1 text-xs leading-5 text-forest-600">{item.description}</p>
@@ -452,7 +465,13 @@ export default function ProgressPage() {
             {/* Card 3: 打卡时段分布 */}
             {dashboard.timeHeatmap.length > 0 ? (
               <section className="rounded-[32px] border border-forest-100 bg-white/90 p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-forest-800">⏰ 打卡时段分布</h2>
+                <h2 className="text-lg font-bold text-forest-800">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 inline-block mr-1.5">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  打卡时段分布
+                </h2>
                 <p className="mt-1 text-xs text-forest-500">颜色越深说明这个时段越常完成作业</p>
                 <div className="mt-4">
                   <ParentCheckInHeatmap

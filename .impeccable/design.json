@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-22T00:00:00.000Z",
+  "title": "Design System: 作业小管家 Homework Tracker",
+  "extensions": {
+    "colorMeta": {
+      "forest-green": { "role": "primary", "displayName": "Forest Green", "canonical": "oklch(65% 0.08 160)", "tonalRamp": ["oklch(15% 0.04 160)", "oklch(25% 0.05 160)", "oklch(35% 0.06 160)", "oklch(45% 0.07 160)", "oklch(55% 0.08 160)", "oklch(65% 0.07 160)", "oklch(80% 0.04 160)", "oklch(95% 0.02 160)"] },
+      "forest-green-deep": { "role": "primary", "displayName": "Forest Green Deep", "canonical": "oklch(55% 0.08 160)" },
+      "forest-green-dark": { "role": "primary", "displayName": "Forest Green Dark", "canonical": "oklch(45% 0.07 160)" },
+      "forest-green-subtle": { "role": "primary", "displayName": "Forest Green Subtle", "canonical": "oklch(97% 0.01 160)" },
+      "forest-green-surface": { "role": "primary", "displayName": "Forest Green Surface", "canonical": "oklch(93% 0.03 160)" },
+      "coral-warm": { "role": "secondary", "displayName": "Coral Warm", "canonical": "oklch(60% 0.18 35)", "tonalRamp": ["oklch(25% 0.08 35)", "oklch(35% 0.10 35)", "oklch(45% 0.12 35)", "oklch(55% 0.15 35)", "oklch(60% 0.18 35)", "oklch(70% 0.14 35)", "oklch(85% 0.06 35)", "oklch(96% 0.02 35)"] },
+      "coral-warm-deep": { "role": "secondary", "displayName": "Coral Warm Deep", "canonical": "oklch(50% 0.16 35)" },
+      "coral-warm-subtle": { "role": "secondary", "displayName": "Coral Warm Subtle", "canonical": "oklch(97% 0.01 35)" },
+      "honey-gold": { "role": "secondary", "displayName": "Honey Gold", "canonical": "oklch(75% 0.12 85)", "tonalRamp": ["oklch(30% 0.04 85)", "oklch(45% 0.06 85)", "oklch(55% 0.08 85)", "oklch(65% 0.10 85)", "oklch(75% 0.12 85)", "oklch(82% 0.09 85)", "oklch(90% 0.05 85)", "oklch(97% 0.02 85)"] },
+      "honey-gold-subtle": { "role": "secondary", "displayName": "Honey Gold Subtle", "canonical": "oklch(97% 0.02 85)" },
+      "cream-paper": { "role": "neutral", "displayName": "Cream Paper", "canonical": "oklch(99% 0.005 95)" },
+      "cream-warm": { "role": "neutral", "displayName": "Cream Warm", "canonical": "oklch(97% 0.01 95)" },
+      "ink-primary": { "role": "neutral", "displayName": "Ink Primary", "canonical": "oklch(22% 0.01 160)" },
+      "ink-secondary": { "role": "neutral", "displayName": "Ink Secondary", "canonical": "oklch(45% 0.01 160)" },
+      "ink-muted": { "role": "neutral", "displayName": "Ink Muted", "canonical": "oklch(58% 0.008 160)" },
+      "ink-border": { "role": "neutral", "displayName": "Ink Border", "canonical": "oklch(87% 0.005 160)" },
+      "ink-subtle": { "role": "neutral", "displayName": "Ink Subtle", "canonical": "oklch(98% 0.003 160)" },
+      "surface-white": { "role": "neutral", "displayName": "Surface White", "canonical": "oklch(100% 0.002 160)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles, reader article titles, login brand name." },
+      "headline": { "displayName": "Headline", "purpose": "h1 page headings only." },
+      "title": { "displayName": "Title", "purpose": "Section headers, card titles, dialog titles." },
+      "body": { "displayName": "Body", "purpose": "Primary reading text, labels, paragraphs." },
+      "label": { "displayName": "Label", "purpose": "Nav items, button text, form labels." },
+      "reading-zh": { "displayName": "Reading Chinese", "purpose": "Chinese article body. LXGW WenKai for warmth." },
+      "reading-en": { "displayName": "Reading English", "purpose": "English article body. Fraunces for editorial feel." }
+    },
+    "shadows": [
+      { "name": "elevation-raised", "value": "0 1px 2px rgba(10,27,20,0.04)", "purpose": "Button default, card default. Barely-visible tactile cue." },
+      { "name": "elevation-floating", "value": "0 8px 24px rgba(10,27,20,0.08), 0 0 0 1px rgba(232,234,237,0.5)", "purpose": "Dropdowns, popovers, hover-lift animation end state." },
+      { "name": "elevation-modal", "value": "0 24px 48px rgba(10,27,20,0.12)", "purpose": "Modals, drawers. Large offset + blur = strong top-layer signal." },
+      { "name": "parchment", "value": "0 1px 0 rgba(0,0,0,0.04) inset, 0 -1px 0 rgba(0,0,0,0.04) inset, 0 0 32px rgba(0,0,0,0.06)", "purpose": "Reader cards. Inner shadow for paper thickness, outer for book-open feel." },
+      { "name": "reader-glow", "value": "0 0 20px rgba(86, 171, 145, 0.15)", "purpose": "Reader focus elements." },
+      { "name": "reader-float", "value": "0 8px 32px rgba(10, 27, 20, 0.12), 0 0 0 1px rgba(232, 234, 237, 0.3)", "purpose": "Page-curl cards, reader overlays." }
+    ],
+    "motion": [
+      { "name": "ease-out-custom", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Default easing for button hover, card lift, state transitions." },
+      { "name": "ease-in-out-custom", "value": "cubic-bezier(0.65, 0, 0.35, 1)", "purpose": "Page-turn animation, page curl, large layout transitions." },
+      { "name": "bounce", "value": "cubic-bezier(0.34, 1.56, 0.64, 1)", "purpose": "Stamp-reveal only. Physical overshoot for the stamp-down feel." },
+      { "name": "duration-fast", "value": "150ms", "purpose": "Micro-interactions: hover, focus, active." },
+      { "name": "duration-med", "value": "220ms", "purpose": "Panel open/close, menu expand." },
+      { "name": "duration-slow", "value": "360ms", "purpose": "Stamp reveal, achievement animations." },
+      { "name": "duration-ritual", "value": "600ms", "purpose": "Page turn, level-up reveal. Ritual moments." }
+    ],
+    "breakpoints": [
+      { "name": "lg", "value": "1024px", "purpose": "Switch between sidebar nav and top nav in parent shell." },
+      { "name": "md", "value": "768px", "purpose": "Tablet portrait fallback." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main call-to-action. Forest green background, white text. Used for primary actions per screen.",
+      "html": "<button class=\"ds-btn-primary\">确认</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif; font-weight: 500; font-size: 1rem; line-height: 1.5; background: #56AB91; color: #FFFFFF; padding: 12px 20px; border: none; border-radius: 12px; box-shadow: 0 1px 2px rgba(10,27,20,0.04); transition: background 150ms cubic-bezier(0.16, 1, 0.3, 1), transform 150ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; } .ds-btn-primary:hover { background: #3D8B76; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(10,27,20,0.08), 0 0 0 1px rgba(232,234,237,0.5); } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Secondary action. Subtle forest green surface, darker green text.",
+      "html": "<button class=\"ds-btn-secondary\">取消</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif; font-weight: 500; font-size: 1rem; line-height: 1.5; background: #E5F0E8; color: #2D6B5A; padding: 12px 20px; border: none; border-radius: 12px; transition: background 150ms cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; } .ds-btn-secondary:hover { background: #CADFD0; } .ds-btn-secondary:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Accent Button",
+      "kind": "button",
+      "refersTo": "button-accent",
+      "description": "High-emphasis destructive or attention actions. Coral background. Max 1 per screen.",
+      "html": "<button class=\"ds-btn-accent\">删除</button>",
+      "css": ".ds-btn-accent { display: inline-flex; align-items: center; justify-content: center; font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif; font-weight: 500; font-size: 1rem; line-height: 1.5; background: #F26033; color: #FFFFFF; padding: 12px 20px; border: none; border-radius: 12px; box-shadow: 0 1px 2px rgba(10,27,20,0.04); transition: background 150ms cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; } .ds-btn-accent:hover { background: #D54A1F; } .ds-btn-accent:active { transform: scale(0.98); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis. Table row actions, toolbar icon buttons. Transparent with hover background.",
+      "html": "<button class=\"ds-btn-ghost\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg> 搜索</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif; font-weight: 500; font-size: 0.875rem; background: transparent; color: #5F6368; padding: 8px 16px; border: none; border-radius: 12px; transition: background 150ms cubic-bezier(0.16, 1, 0.3, 1); cursor: pointer; } .ds-btn-ghost:hover { background: #F1F3F4; }"
+    },
+    {
+      "name": "Sidebar Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-sidebar",
+      "description": "Parent shell sidebar navigation item. Active state uses forest green subtle background.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-item-active\" href=\"#\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/></svg>总览</a><a class=\"ds-nav-item\" href=\"#\">作业管理</a></nav>",
+      "css": ".ds-nav { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; } .ds-nav-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 12px; font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif; font-size: 0.875rem; font-weight: 400; color: #5F6368; text-decoration: none; transition: background 150ms cubic-bezier(0.16, 1, 0.3, 1), color 150ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-nav-item:hover { background: #F8F9FA; color: #202124; } .ds-nav-item-active { background: #F4F9F5; color: #2D6B5A; font-weight: 500; }"
+    },
+    {
+      "name": "Bottom Nav Tab",
+      "kind": "nav",
+      "refersTo": "nav-bottom-tab",
+      "description": "Child shell bottom tab bar item. Active state uses forest green.",
+      "html": "<nav class=\"ds-bottom-nav\"><a class=\"ds-bnav-item ds-bnav-item-active\" href=\"#\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2\"/><rect x=\"9\" y=\"3\" width=\"6\" height=\"4\" rx=\"1\"/></svg><span>今日</span></a><a class=\"ds-bnav-item\" href=\"#\"><span>进度</span></a></nav>",
+      "css": ".ds-bottom-nav { display: flex; align-items: center; justify-content: space-around; height: 64px; background: #FFFFFF; border-top: 1px solid #DADCE0; padding-bottom: env(safe-area-inset-bottom, 0px); } .ds-bnav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 44px; min-height: 44px; font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif; font-size: 0.75rem; font-weight: 400; color: #80868B; text-decoration: none; transition: color 150ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-bnav-item:hover { color: #5F6368; } .ds-bnav-item-active { color: #56AB91; }"
+    },
+    {
+      "name": "Achievement Badge",
+      "kind": "chip",
+      "refersTo": "chip-achievement",
+      "description": "Reading title badge. Gradient from honey to coral, pill shape, used for reading achievement display.",
+      "html": "<div class=\"ds-badge\"><svg viewBox=\"0 0 24 24\" width=\"24\" height=\"24\" fill=\"currentColor\" color=\"#F5B41A\"><path d=\"M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z\"/></svg><div><div>阅读大师</div><div>连续7天准确率90%+</div></div></div>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 9999px; background: linear-gradient(135deg, #FFFAEB, #FFF4F0); border: 1px solid #FFE08A; box-shadow: 0 1px 2px rgba(10,27,20,0.04); font-family: 'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif; }"
+    },
+    {
+      "name": "Passcode Input",
+      "kind": "input",
+      "refersTo": "input-passcode",
+      "description": "4-digit passcode entry. Individual cells with filled/active/error states.",
+      "html": "<div class=\"ds-passcode\"><input class=\"ds-passcode-cell\" type=\"text\" inputmode=\"numeric\" maxlength=\"1\" value=\"\" autocomplete=\"one-time-code\" style=\"-webkit-text-security:disc\"><input class=\"ds-passcode-cell ds-passcode-filled\" type=\"text\" inputmode=\"numeric\" maxlength=\"1\" value=\"\" autocomplete=\"one-time-code\" style=\"-webkit-text-security:disc\"><input class=\"ds-passcode-cell\" type=\"text\" inputmode=\"numeric\" maxlength=\"1\" value=\"\" autocomplete=\"one-time-code\" style=\"-webkit-text-security:disc\"><input class=\"ds-passcode-cell ds-passcode-error\" type=\"text\" inputmode=\"numeric\" maxlength=\"1\" value=\"\" autocomplete=\"one-time-code\" style=\"-webkit-text-security:disc\"></div>",
+      "css": ".ds-passcode { display: flex; gap: 12px; } .ds-passcode-cell { width: 56px; height: 56px; text-align: center; font-family: 'Inter', sans-serif; font-size: 1.5rem; font-weight: 700; background: #FDFCF8; border: 2px solid #CADFD0; border-radius: 24px; outline: none; transition: border-color 150ms; } .ds-passcode-cell:focus { border-color: #56AB91; } .ds-passcode-filled { border-color: #56AB91; } .ds-passcode-error { border-color: #F26033; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Growing Notebook — 成长手账",
+    "overview": "A companion notebook that grows with the child. Not a school workbook — an open journal on a desk, recording each day's learning. Warm but structured, playful but not noisy. Visual system avoids cartoonish children's aesthetics (ABCmouse) and cold SaaS dashboards equally. Colors extracted from natural objects: forest, honey, coral. The reader is an independent visual world within the notebook.",
+    "keyCharacteristics": [
+      "Paper texture comes from cream-50 warmth and subtle shadow layering, not bitmap textures",
+      "Forest green carries navigation + primary actions at 30-40% surface, coral for emphasis, honey for reward moments only",
+      "Radius tightened to 8-12px to span G4-G7 age range — G7 kids won't feel talked down to",
+      "Reader is an independent visual world: 3 themes, dedicated fonts, immersive fullscreen"
+    ],
+    "rules": [
+      { "name": "The Reward-Only Rule", "body": "Honey gold never appears in navigation, forms, or regular buttons. It is for points, badges, check-in success. Scarcity is the incentive.", "section": "colors" },
+      { "name": "The One-Green Rule", "body": "Forest green is the sole system function color. No blue links, no green success states — forest green carries primary + success, coral carries emphasis + danger. Keeps color vocabulary at 3 semantic roles.", "section": "colors" },
+      { "name": "The Reading Separation Rule", "body": "Reader body fonts never share with UI. Entering an article switches from Inter to LXGW WenKai / Fraunces — the font switch is the 'now you are reading' signal.", "section": "typography" },
+      { "name": "The Single Sans Rule", "body": "Inter is the only sans font in product UI. Inter Tight only for brand titles (Display level). Fraunces only for English reading. No third sans family.", "section": "typography" },
+      { "name": "The Grounded-By-Default Rule", "body": "At rest, elements are separated by tonal layering. Shadows are reserved for interaction feedback (hover/focus/active) and intentional overlays (menu/modal/reader-card). 'Shadow = something is happening.'", "section": "elevation" }
+    ],
+    "dos": [
+      "Use forest green as the sole system function color (nav + actions + success), ≤40% screen area",
+      "Reserve honey gold for reward moments only — points, achievements, check-in completion animations",
+      "Use tonal layering (cream bottom → white card → forest-subtle selected) for hierarchy; shadows only for floating layers and interaction feedback",
+      "Keep radii 8-12px for navigation/buttons/inputs; reader cards can use 18-32px",
+      "Use LXGW WenKai / Fraunces for reader body, Inter only for UI. The font switch signals reading mode.",
+      "Provide hover + focus-visible + active states for every interactive element; touch targets ≥44pt",
+      "Use cubic-bezier(0.16, 1, 0.3, 1) as default easing; page-turn uses cubic-bezier(0.65, 0, 0.35, 1); only stamp-reveal uses bounce easing"
+    ],
+    "donts": [
+      "Don't use anthropomorphic animal mascots, bouncing emoji, or flat-block children's illustration style (ABCmouse) — G6-G7 kids feel insulted",
+      "Don't stack data metrics on the child-facing side (daily minutes, completion rate percentage) — this is a notebook, not a CRM dashboard",
+      "Don't use gradient text (background-clip: text), glass cards, hero metrics templates, or identical card grids — SaaS cliché prohibited",
+      "Don't build dark sidebar + data table 'admin system' — parent side should feel warm too; parents are family members not admin operators",
+      "Don't use border-left/right greater than 1px as colored decorative stripes",
+      "Don't mix reader fonts (LXGW WenKai / Fraunces) into UI components — font roles are strictly separated",
+      "Don't use red/green alone to convey success/failure — always pair with icon or text for color-blind accessibility",
+      "Don't use pure black (#000) or pure white (#FFF) — all neutrals are micro-warm-tinted toward forest green hue"
+    ]
+  }
+}

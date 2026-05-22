@@ -344,8 +344,10 @@ export default function ParentDashboardPage() {
 
       {dashboard.summaries.length === 0 ? (
         <div className="py-12 text-center">
-          <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-gradient-to-br from-honey-50 to-orange-100 shadow-elevation-floating ring-1 ring-honey-200/40">
-            <span className="text-7xl">🦊</span>
+          <div className="mx-auto mb-5 flex h-32 w-32 items-center justify-center rounded-full bg-cream-warm shadow-elevation-floating ring-1 ring-cream-300/40">
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-20 h-20">
+              <path d="M12 2C9.5 2 7.5 4 7 6.5C5.5 6.5 4 8 4 10c0 1.5.8 2.8 2 3.5-1 1-1.5 2.5-1.5 4C4.5 19 6 21 8 21c1 0 1.8-.5 2.3-1.2L10 22h4l-.3-2.2C14.2 20.5 15 21 16 21c2 0 3.5-2 3.5-3.5 0-1.5-.5-3-1.5-4 1.2-.7 2-2 2-3.5 0-2-1.5-3.5-3-3.5C16.5 4 14.5 2 12 2zM9 10c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm6 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1z"/>
+            </svg>
           </div>
           <h2 className="text-xl font-bold text-forest-700">
             {t('parent.dashboard.noChildren')}

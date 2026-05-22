@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/Toast";
 import { useReaderTheme, resolveTheme, type FontSize } from "./ReaderThemeContext";
 import { GestureOverlay } from "./GestureOverlay";
 import { useTranslations } from "next-intl";
@@ -51,6 +52,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 ) {
   const router = useRouter();
   const t = useTranslations();
+  const { toast } = useToast();
   const supabase = createClient();
   const { theme: readerThemeContext, setTheme, fontSize: fontSizeContext, setFontSize, lineHeight, setLineHeight } = useReaderTheme();
   const resolvedTheme = resolveTheme(readerThemeContext);
@@ -160,7 +162,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     try {
       // Check for secure context (HTTPS or localhost)
       if (!window.isSecureContext) {
-        alert('录音功能需要在安全的网络环境下使用（请使用 HTTPS 或 localhost）');
+        toast("error", "录音功能需要在安全的网络环境下使用（请使用 HTTPS 或 localhost）");
         return;
       }
 
@@ -195,11 +197,11 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       console.error('录音失败:', error);
       const err = error as Error & { name?: string };
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        alert('麦克风权限被拒绝，请在浏览器设置中允许访问麦克风。\n设置路径：浏览器设置 → 隐私与安全 → 麦克风');
+        toast("error", "麦克风权限被拒绝，请在浏览器设置中允许访问麦克风。设置路径：浏览器设置 → 隐私与安全 → 麦克风");
       } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        alert('未找到麦克风设备，请连接麦克风后重试。');
+        toast("error", "未找到麦克风设备，请连接麦克风后重试。");
       } else {
-        alert('无法访问麦克风，请检查权限设置或刷新页面重试。');
+        toast("error", "无法访问麦克风，请检查权限设置或刷新页面重试。");
       }
     }
   };
@@ -483,15 +485,16 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
   // Measure actual content container height for pagination
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
     const measureContainer = () => {
-      if (containerRef.current) {
-        const h = containerRef.current.getBoundingClientRect().height;
-        setContentContainerHeight(h);
-      }
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) setContentContainerHeight(h);
     };
     measureContainer();
-    window.addEventListener('resize', measureContainer);
-    return () => window.removeEventListener('resize', measureContainer);
+    const ro = new ResizeObserver(measureContainer);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [measured]);
 
   const pageBreaks = useMemo(() => {
@@ -954,7 +957,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           style={{ color: "var(--reader-text)" }}
           aria-label={t("reading.articleReader.backHome")}
         >
-          <span className="text-lg">🏠</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
           <span>{t("reading.articleReader.backHome")}</span>
         </button>
 
@@ -969,7 +975,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         <div className="flex items-center gap-2">
           {recordingSubmitted && (
             <span className="text-sm font-semibold text-green-600">
-              ✅ {t("reading.articleReader.checkedIn")}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 inline-block mr-1"><polyline points="20 6 9 17 4 12"/></svg> {t("reading.articleReader.checkedIn")}
             </span>
           )}
           {recordingState !== 'idle' && (
@@ -992,7 +998,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5">
-                  <span>✅</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12"/></svg>
                   {formatDuration(recordingDuration)}
                 </span>
               )}
@@ -1045,7 +1051,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               fontSize: `${fontSizePx}px`,
               lineHeight: lineHeightValue,
               fontFamily: isChineseArticle
-                ? "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif"
+                ? "'LXGW WenKai', 'PingFang SC', serif"
                 : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
             }}
           >
@@ -1093,7 +1099,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         {/* Page content with transition */}
         <div
           ref={containerRef}
-          className={`h-[calc(100vh-44px-56px)] overflow-y-auto hide-scrollbar px-8 py-6 ${isTransitioning ? 'page-transition' : 'page-transition-enter'}`}
+          className={`h-[calc(100dvh-44px-56px)] overflow-y-auto hide-scrollbar px-8 py-6 ${isTransitioning ? 'page-transition' : 'page-transition-enter'}`}
         >
           <div
             className="max-w-3xl mx-auto space-y-1.5"
@@ -1102,7 +1108,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               fontSize: `${fontSizePx}px`,
               lineHeight: lineHeightValue,
               fontFamily: isChineseArticle
-                ? "'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', serif"
+                ? "'LXGW WenKai', 'PingFang SC', serif"
                 : "'Inter', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif",
             }}
           >
@@ -1152,6 +1158,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                       <img
                         src={`${illustrationMap.get(globalIndex)!.image_url}?width=600`}
                         alt={illustrationMap.get(globalIndex)!.scene_description || "段落配图"}
+                        loading="lazy"
                         className="w-full max-h-48 object-cover"
                       />
                       {illustrationMap.get(globalIndex)!.scene_description && (
@@ -1409,7 +1416,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       {/* Recording menu modal */}
       {showRecordingMenu && recordingUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/50"
           onClick={() => setShowRecordingMenu(false)}
         >
           <div
@@ -1438,12 +1445,12 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
                   if (result.success) {
                     setRecordingSubmitted(true);
-                    alert('打卡成功！获得 10 积分');
+                    toast("success", "打卡成功！获得 10 积分");
                     setTimeout(() => {
                       void resetRecording();
                     }, 2000);
                   } else {
-                    alert(result.error || '打卡失败，请重试');
+                    toast("error", result.error || "打卡失败，请重试");
                   }
                 }}
                 disabled={uploading}

@@ -54,14 +54,15 @@ export function PasscodeInput({
             ref={(el) => {
               inputRefs.current[index] = el;
             }}
-            type="password"
+            type="text"
             inputMode="numeric"
+            autoComplete="one-time-code"
             maxLength={1}
             value={value}
             onChange={(e) => handleChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             className={`w-14 h-14 text-center text-2xl font-bold rounded-xl border-2
-              transition-all bg-cream-50
+              transition-all bg-cream-50 [-webkit-text-security:disc]
               ${
                 error
                   ? "border-red-500"

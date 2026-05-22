@@ -34,7 +34,7 @@ export function IncompleteHomeworkAlert({
 
       {items.length === 0 ? (
         <p className="py-6 text-center text-sm text-forest-600">
-          今天所有作业都完成了！🎉
+          今天所有作业都完成了！
         </p>
       ) : (
         <div className="space-y-2">

@@ -3,6 +3,7 @@
 import React from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { IconStar, IconMapPin, IconClock } from "@/components/ui/icons";
 import type { Database } from "@/lib/supabase/types";
 
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
@@ -74,11 +75,11 @@ export function HomeworkCard({
           )}
           <div className="flex items-center gap-3 mt-2 text-ui-xs text-ink-400">
             {homework.estimated_minutes != null ? (
-              <span>⏱️ {homework.estimated_minutes} 分钟</span>
+              <span className="inline-flex items-center gap-0.5"><IconClock className="w-3 h-3" /> {homework.estimated_minutes} 分钟</span>
             ) : null}
-            <span>⭐ {homework.point_value} 积分</span>
+            <span className="inline-flex items-center gap-0.5"><IconStar className="w-3 h-3" /> {homework.point_value} 积分</span>
             {homework.daily_cutoff_time && (
-              <span>📍 截止 {homework.daily_cutoff_time}</span>
+              <span className="inline-flex items-center gap-0.5"><IconMapPin className="w-3 h-3" /> 截止 {homework.daily_cutoff_time}</span>
             )}
           </div>
           {hasDetailMeta && (

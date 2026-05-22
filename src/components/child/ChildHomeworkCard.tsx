@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
+import { IconStar, IconClock, IconMapPin, IconPaperclip, IconBookOpen } from "@/components/ui/icons";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
@@ -185,18 +186,18 @@ export function ChildHomeworkCard({
               {/* Meta 行：时间 + 积分 */}
               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-ink-500">
                 {homework.estimated_minutes != null ? (
-                  <span className="rounded-full bg-cream-100/80 px-2.5 py-0.5 shadow-elevation-raised shrink-0">
-                    ⏱️ {homework.estimated_minutes}分钟
+                  <span className="rounded-full bg-cream-100/80 px-2.5 py-0.5 shadow-elevation-raised shrink-0 inline-flex items-center gap-1">
+                    <IconClock className="w-3.5 h-3.5" /> {homework.estimated_minutes}分钟
                   </span>
                 ) : null}
-                <span className="rounded-full bg-cream-100/80 px-2.5 py-0.5 shadow-elevation-raised shrink-0">
-                  ⭐ {homework.point_value}积分
+                <span className="rounded-full bg-cream-100/80 px-2.5 py-0.5 shadow-elevation-raised shrink-0 inline-flex items-center gap-1">
+                  <IconStar className="w-3.5 h-3.5" /> {homework.point_value}积分
                 </span>
               </div>
 
               {/* 截止时间 & 附件提示 */}
               {homework.daily_cutoff_time && (
-                <p className="mt-1.5 text-xs text-ink-400">📍 截止 {homework.daily_cutoff_time}</p>
+                <p className="mt-1.5 text-xs text-ink-400 inline-flex items-center gap-1"><IconMapPin className="w-3 h-3" /> 截止 {homework.daily_cutoff_time}</p>
               )}
               {homework.required_checkpoint_type && attachments.length === 0 && (
                 <p className="mt-0.5 text-xs text-ink-400">
@@ -211,7 +212,7 @@ export function ChildHomeworkCard({
                   onClick={() => void handleViewAttachments()}
                   className="mt-2 inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary shadow-elevation-raised transition hover:bg-primary/15"
                 >
-                  📎 查看已提交附件
+                  <IconPaperclip className="w-4 h-4" /> 查看已提交附件
                 </button>
               )}
 
@@ -260,8 +261,8 @@ export function ChildHomeworkCard({
           {/* 右侧：操作按钮 / 完成状态 */}
           <div className="shrink-0 w-full sm:w-auto flex items-center justify-end">
             {isCompleted ? (
-              <div className="rounded-xl bg-primary/10 px-4 py-2 text-center text-base font-bold text-primary shadow-elevation-raised">
-                ✓ 完成
+              <div className="rounded-xl bg-primary/10 px-4 py-2 text-center text-base font-bold text-primary shadow-elevation-raised inline-flex items-center gap-1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-5 h-5"><polyline points="20 6 9 17 4 12"/></svg> 完成
               </div>
             ) : isOverdue ? (
               <Button
@@ -298,6 +299,7 @@ export function ChildHomeworkCard({
                 key={attachment.url}
                 src={attachment.url}
                 alt={`${homework.title} 附件 ${index + 1}`}
+                loading="lazy"
                 className="w-full rounded-2xl object-cover"
               />
             ) : (

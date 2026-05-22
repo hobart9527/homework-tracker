@@ -162,7 +162,17 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
         <div className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
           streakMet ? "bg-honey-100 text-honey-700" : "bg-ink-100 text-ink-600"
         }`}>
-          <span>{streakMet ? "✨" : "🔥"}</span>
+          <span>
+            {streakMet ? (
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 inline-block">
+                <path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 inline-block">
+                <path d="M12 2c-1.5 3-4 5-5 8-1 3 0 6 2 8 1 1 2 2 3 2s2-1 3-2c2-2 3-5 2-8-1-3-3.5-5-5-8z" />
+              </svg>
+            )}
+          </span>
           <span>{t("reading.levelProgress.streakLabel", { streak })}</span>
         </div>
       </div>

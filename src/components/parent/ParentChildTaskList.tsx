@@ -149,7 +149,12 @@ export function ParentChildTaskList({
 
       {tasks.length === 0 ? (
         <div className="rounded-radius-xl border border-dashed border-ink-300 bg-white py-10 text-center text-ink-400">
-          <span className="text-4xl">🎉</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-12 h-12 mx-auto mb-2 text-ink-300">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+            <line x1="9" y1="9" x2="9.01" y2="9" />
+            <line x1="15" y1="9" x2="15.01" y2="9" />
+          </svg>
           <p className="mt-2">今天没有任务</p>
         </div>
       ) : (
@@ -177,7 +182,8 @@ export function ParentChildTaskList({
                         className="text-ui-xs h-7 px-space-2"
                         onClick={() => handleAttachmentPreview(task)}
                       >
-                        📎 预览
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 mr-1"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>{" "}
+                        预览
                       </Button>
                     ) : (
                       <span className="text-ui-xs text-ink-400">打卡后可查看</span>
@@ -242,6 +248,7 @@ export function ParentChildTaskList({
                     <img
                       src={attachment.previewUrl}
                       alt={`${previewTaskTitle} 附件 ${index + 1}`}
+                      loading="lazy"
                       className="h-64 w-full rounded-xl object-cover"
                     />
                   ) : (

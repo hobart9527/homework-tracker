@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ui/Toast";
 import { SettingsShell } from "@/components/parent/SettingsShell";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -41,6 +42,7 @@ export default function SettingsIntegrationsPage() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { toast } = useToast();
   const selectedChildIdFromQuery = searchParams.get("childId");
   const [loading, setLoading] = useState(true);
   const [parentId, setParentId] = useState<string | null>(null);
@@ -255,16 +257,16 @@ export default function SettingsIntegrationsPage() {
           );
           return;
         }
-        alert(mapAuthError(body.error || "刷新 Session 失败"));
+        toast("error", mapAuthError(body.error || "刷新 Session 失败"));
         return;
       }
 
       if (parentId) {
         await refreshData(parentId);
       }
-      alert("Session 刷新成功");
+      toast("success", "Session 刷新成功");
     } catch {
-      alert("刷新 Session 时发生网络错误");
+      toast("error", "刷新 Session 时发生网络错误");
     }
   };
 
@@ -273,7 +275,7 @@ export default function SettingsIntegrationsPage() {
     try {
       payload = JSON.parse(takeoverPayload);
     } catch {
-      alert("JSON 格式不正确");
+      toast("error", "JSON 格式不正确");
       return;
     }
 
@@ -290,7 +292,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        alert(body.error || "保存失败");
+        toast("error", body.error || "保存失败");
         return;
       }
 
@@ -300,7 +302,7 @@ export default function SettingsIntegrationsPage() {
         await refreshData(parentId);
       }
     } catch {
-      alert("保存时发生网络错误");
+      toast("error", "保存时发生网络错误");
     } finally {
       setTakeoverLoading(false);
     }
@@ -315,7 +317,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        alert(body.error || "删除账号失败");
+        toast("error", body.error || "删除账号失败");
         return;
       }
 
@@ -324,7 +326,7 @@ export default function SettingsIntegrationsPage() {
         await refreshData(parentId);
       }
     } catch {
-      alert("删除时发生网络错误");
+      toast("error", "删除时发生网络错误");
     } finally {
       setDeleteLoading(false);
     }
@@ -332,7 +334,7 @@ export default function SettingsIntegrationsPage() {
 
   const handleEditCredentialSave = async (accountId: string) => {
     if (!editCredentialPassword) {
-      alert("请输入新密码");
+      toast("error", "请输入新密码");
       return;
     }
     setEditCredentialLoading(true);
@@ -352,7 +354,7 @@ export default function SettingsIntegrationsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        alert(mapAuthError(body.error || "更新凭据失败"));
+        toast("error", mapAuthError(body.error || "更新凭据失败"));
         return;
       }
 
@@ -363,7 +365,7 @@ export default function SettingsIntegrationsPage() {
         await refreshData(parentId);
       }
     } catch {
-      alert("更新凭据时发生网络错误");
+      toast("error", "更新凭据时发生网络错误");
     } finally {
       setEditCredentialLoading(false);
     }

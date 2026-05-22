@@ -51,18 +51,21 @@ export function CompletionStamp({
         const sx = Math.cos((star.angle * Math.PI) / 180) * star.distance;
         const sy = Math.sin((star.angle * Math.PI) / 180) * star.distance;
         return (
-          <div
+          <svg
             key={star.id}
+            viewBox="0 0 24 24"
+            fill="currentColor"
             className="absolute text-honey-400 animate-star-burst"
             style={{
               animationDelay: `${star.delay}s`,
-              fontSize: star.size,
+              width: star.size,
+              height: star.size,
               left: `calc(50% + ${sx}px)`,
               top: `calc(50% + ${sy}px)`,
             }}
           >
-            ✦
-          </div>
+            <path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" />
+          </svg>
         );
       })}
 
@@ -76,7 +79,11 @@ export function CompletionStamp({
         <div className="absolute inset-2 rounded-full border-2 border-dashed border-forest-400" />
 
         {/* Star icon */}
-        <div className="mb-1 text-2xl text-honey-400">✦</div>
+        <div className="mb-1 text-2xl text-honey-400">
+          <svg viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7">
+            <path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" />
+          </svg>
+        </div>
 
         {/* Message */}
         <div className="text-center">

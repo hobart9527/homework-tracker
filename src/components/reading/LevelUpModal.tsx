@@ -103,18 +103,21 @@ export function LevelUpModal({ isOpen, newLevel, previousLevel, onClose, onConti
             const sx = Math.cos((star.angle * Math.PI) / 180) * star.distance;
             const sy = Math.sin((star.angle * Math.PI) / 180) * star.distance;
             return (
-              <div
+              <svg
                 key={star.id}
-                className="absolute left-1/2 top-1/2 text-2xl"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="absolute left-1/2 top-1/2 text-honey-400"
                 style={{
                   "--sx": `${sx}px`,
                   "--sy": `${sy}px`,
                   animation: `star-burst 1s ${star.delay}s ease-out forwards`,
-                  fontSize: star.size,
+                  width: star.size,
+                  height: star.size,
                 } as React.CSSProperties}
               >
-                ✨
-              </div>
+                <path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z" />
+              </svg>
             );
           })}
         </div>
