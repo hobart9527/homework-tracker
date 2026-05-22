@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 
 interface ReadingStats {
   child_id: string;
@@ -80,6 +81,7 @@ const LEVEL_DESCRIPTIONS: Record<string, string> = {
 const ARTICLES_PER_LEVEL = 15;
 
 export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) {
+  const t = useTranslations();
   const [stats, setStats] = useState<ReadingStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +152,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
           </div>
           <div>
             <h3 className={`text-lg font-bold ${textColor}`}>
-              当前级别
+              {t("reading.levelProgress.currentLevel")}
             </h3>
             <p className="text-xs text-ink-500">{description}</p>
           </div>
@@ -161,7 +163,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
           streakMet ? "bg-honey-100 text-honey-700" : "bg-ink-100 text-ink-600"
         }`}>
           <span>{streakMet ? "✨" : "🔥"}</span>
-          <span>连续正确率: {streak}/3</span>
+          <span>{t("reading.levelProgress.streakLabel", { streak })}</span>
         </div>
       </div>
 
@@ -169,7 +171,7 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
       <div className="mb-3">
         <div className="mb-1.5 flex justify-between text-sm">
           <span className="text-ink-600">
-            已读 {articlesAtLevel}/{ARTICLES_PER_LEVEL} 篇
+            {t("reading.levelProgress.readCount", { count: articlesAtLevel, total: ARTICLES_PER_LEVEL })}
           </span>
           <span className={`font-medium ${textColor}`}>
             {Math.round(progressPercent)}%
@@ -186,20 +188,20 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
       {/* Upgrade hint */}
       {articlesNeeded > 0 ? (
         <p className="text-sm text-ink-500">
-          再读 <span className="font-semibold text-ink-700">{articlesNeeded}</span> 篇即可升级！
+          {t("reading.levelProgress.upgradeHint", { needed: articlesNeeded })}
           {streakMet ? (
-            <span className="ml-1 text-honey-600">（连续正确率已达标）</span>
+            <span className="ml-1 text-honey-600">{t("reading.levelProgress.streakMet")}</span>
           ) : (
-            <span className="ml-1 text-ink-400">（需连续 {3 - streak} 篇≥80%）</span>
+            <span className="ml-1 text-ink-400">{t("reading.levelProgress.streakNeeded", { needed: 3 - streak })}</span>
           )}
         </p>
       ) : streakMet ? (
         <p className="text-sm font-medium text-success">
-          恭喜！已达到升级条件，等待自动升级中...
+          {t("reading.levelProgress.levelUpPending")}
         </p>
       ) : (
         <p className="text-sm text-ink-500">
-          再连续 <span className="font-semibold text-ink-700">{3 - streak}</span> 篇≥80%即可升级！
+          {t("reading.levelProgress.consecutiveNeeded", { needed: 3 - streak })}
         </p>
       )}
 
@@ -207,15 +209,15 @@ export function LevelProgressBar({ childId, onLevelUp }: LevelProgressBarProps) 
       <div className="mt-4 flex items-center gap-4 border-t border-ink-300/50 pt-3">
         <div className="flex items-center gap-1.5">
           <div className="h-2 w-2 rounded-full bg-success" />
-          <span className="text-xs text-ink-500">L1-L3</span>
+          <span className="text-xs text-ink-500">{t("reading.levelProgress.levelRange1")}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-2 w-2 rounded-full bg-info" />
-          <span className="text-xs text-ink-500">L4-L6</span>
+          <span className="text-xs text-ink-500">{t("reading.levelProgress.levelRange2")}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-2 w-2 rounded-full bg-purple-500" />
-          <span className="text-xs text-ink-500">L7-L12</span>
+          <span className="text-xs text-ink-500">{t("reading.levelProgress.levelRange3")}</span>
         </div>
       </div>
     </div>

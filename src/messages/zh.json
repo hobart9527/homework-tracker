@@ -269,5 +269,66 @@
       "notifications": "通知设置",
       "language": "语言"
     }
+  },
+  "reading": {
+    "levelProgress": {
+      "currentLevel": "当前级别",
+      "streakLabel": "连续正确率: {streak}/3",
+      "readCount": "已读 {count}/{total} 篇",
+      "upgradeHint": "再读 {needed} 篇即可升级！",
+      "streakMet": "（连续正确率已达标）",
+      "streakNeeded": "（需连续 {needed} 篇≥80%）",
+      "levelUpPending": "恭喜！已达到升级条件，等待自动升级中...",
+      "consecutiveNeeded": "再连续 {needed} 篇≥80%即可升级！",
+      "levelRange1": "L1-L3",
+      "levelRange2": "L4-L6",
+      "levelRange3": "L7-L12"
+    },
+    "readerSettings": {
+      "closeSettings": "关闭设置",
+      "theme": "主题",
+      "fontSize": "字体大小",
+      "lineHeight": "行高",
+      "light": "浅色",
+      "sepia": "护眼",
+      "dark": "深色",
+      "switchToTheme": "切换到{theme}主题",
+      "fontSizeLabel": "字体大小：{size}",
+      "lineHeightLabel": "行高：{level}",
+      "small": "小",
+      "medium": "中",
+      "large": "大",
+      "xlarge": "特大",
+      "compact": "紧凑",
+      "standard": "标准",
+      "loose": "宽松"
+    },
+    "articleReader": {
+      "backHome": "返回",
+      "checkedIn": "已打卡",
+      "recording": "录音",
+      "pause": "暂停",
+      "resume": "继续",
+      "done": "完成",
+      "readAloud": "朗读",
+      "quiz": "答题",
+      "settings": "设置",
+      "prevPage": "上一页",
+      "nextPage": "下一页",
+      "fontSizeSetting": "字体大小",
+      "readingTheme": "阅读主题",
+      "ttsSpeed": "朗读速度: {rate}x",
+      "pinyinAnnotation": "拼音注音",
+      "on": "已开启",
+      "off": "已关闭",
+      "slow": "慢",
+      "normal": "正常",
+      "fast": "快",
+      "recordingActions": "录音操作",
+      "upload": "上传",
+      "uploading": "上传中 {progress}%",
+      "reRecord": "重新录音",
+      "close": "关闭"
+    }
   }
 }

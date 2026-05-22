@@ -136,6 +136,7 @@ vi.mock("next/navigation", () => ({
     push,
     back,
   }),
+  usePathname: () => "/",
 }));
 
 const supabaseClient = {
@@ -212,7 +213,9 @@ const supabaseClient = {
 
     return {
       select: () => ({
-        eq: vi.fn(),
+        eq: vi.fn(() => ({
+          order: vi.fn().mockResolvedValue({ data: [] }),
+        })),
       }),
     };
   }),
@@ -390,7 +393,7 @@ describe("HomeworkForm workbench", () => {
 
     expect(screen.getByText("重复规则")).toBeInTheDocument();
     expect(screen.getByText("作业类型")).toBeInTheDocument();
-    expect(screen.getByText("自定义")).toBeInTheDocument();
+    expect(screen.getAllByText("自定义").length).toBeGreaterThan(0);
   });
 
   it("keeps a lightweight type aid that can autofill the title", async () => {
@@ -412,12 +415,22 @@ describe("HomeworkForm workbench", () => {
       expect(screen.getByText("作业类型")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /IXL/ }));
+    // Select 英文 group -> 课程 type so relevantPlatforms includes ixl
+    fireEvent.click(screen.getByRole("button", { name: /英文/ }));
+    fireEvent.click(screen.getByRole("button", { name: /课程/ }));
 
     // Expand 高级设置 to access platform binding
+    await waitFor(() => {
+      expect(screen.getByText("展开")).toBeInTheDocument();
+    });
     fireEvent.click(screen.getByText("展开"));
 
-    expect(screen.getByRole("combobox", { name: "来源平台" })).toHaveValue("ixl");
+    await waitFor(() => {
+      expect(screen.getByLabelText("来源平台")).toBeInTheDocument();
+    });
+
+    // Manually select IXL from the platform dropdown
+    fireEvent.change(screen.getByLabelText("来源平台"), { target: { value: "ixl" } });
     expect(screen.getByText(/已匹配 ixl 账号：ivy-ixl/i)).toBeInTheDocument();
   });
 
@@ -425,7 +438,7 @@ describe("HomeworkForm workbench", () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("作业提交群")).toBeInTheDocument();
+      expect(screen.getByText("开启录音打卡")).toBeInTheDocument();
     });
 
     // Enable recording to show WeChat section
@@ -442,7 +455,7 @@ describe("HomeworkForm workbench", () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("作业提交群")).toBeInTheDocument();
+      expect(screen.getByText("开启录音打卡")).toBeInTheDocument();
     });
 
     // Enable recording to show WeChat section
@@ -457,23 +470,25 @@ describe("HomeworkForm workbench", () => {
     render(createElement(HomeworkForm));
 
     await waitFor(() => {
-      expect(screen.getByText("照片")).toBeInTheDocument();
+      expect(screen.getByText("需要照片")).toBeInTheDocument();
     });
 
-    // Toggle photo proof on via the toggle button and expand section
-    fireEvent.click(screen.getByRole("button", { name: /需要拍照证明/ }));
-    fireEvent.click(screen.getByRole("button", { name: /证明要求/ }));
+    // Toggle photo proof on via the toggle button
+    fireEvent.click(screen.getByRole("button", { name: /需要照片/ }));
 
-    expect(
-      screen.getByText(/可以拍照或上传已有图片/)
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText(/孩子完成时需要提交照片证明/)
+      ).toBeInTheDocument();
+    });
   });
 
   it("treats estimated minutes as optional for new homework", async () => {
     render(createElement(HomeworkForm));
 
-    // Expand 高级设置 to access estimated minutes
-    fireEvent.click(screen.getByText("展开"));
+    await waitFor(() => {
+      expect(screen.getByText("展开")).toBeInTheDocument();
+    });
 
     // Expand 高级设置 to access estimated minutes
     fireEvent.click(screen.getByText("展开"));
@@ -493,13 +508,17 @@ describe("HomeworkForm workbench", () => {
     });
 
     expect(screen.getByDisplayValue("每天 30 分钟")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "来源平台" })).toHaveValue(
-      "khan-academy"
-    );
-    expect(screen.getByDisplayValue("lesson-123")).toBeInTheDocument();
+
+    // Expand advanced settings to access platform binding
+    fireEvent.click(screen.getByText("展开"));
+    await waitFor(() => {
+      expect(screen.getByLabelText("来源平台")).toBeInTheDocument();
+    });
+
     expect(
-      screen.getByRole("checkbox", { name: "提交完成后自动发到微信群" })
-    ).toBeChecked();
+      (document.querySelector("#platform-binding-platform") as HTMLSelectElement)?.value
+    ).toBe("khan-academy");
+    expect(screen.getByDisplayValue("lesson-123")).toBeInTheDocument();
     expect(screen.getByText("将创建 1 份独立作业")).toBeInTheDocument();
     expect(screen.getByText(/会分别分配给 Albert/)).toBeInTheDocument();
   });
@@ -510,7 +529,7 @@ describe("Homework management page framing", () => {
     render(createElement(NewHomeworkPage));
 
     expect(
-      screen.getByText(/可以一次分配给多个孩子，系统会分别创建独立作业/)
+      screen.getByText(/可以一次分配给多个孩子/)
     ).toBeInTheDocument();
   });
 

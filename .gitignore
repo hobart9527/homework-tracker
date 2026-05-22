@@ -11,3 +11,6 @@ tsconfig.tsbuildinfo
 supabase/.temp/
 playwright-report/
 test-results/
+.omc/
+docs/omc/
+

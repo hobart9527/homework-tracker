@@ -269,5 +269,66 @@
       "notifications": "Notifications",
       "language": "Language"
     }
+  },
+  "reading": {
+    "levelProgress": {
+      "currentLevel": "Current Level",
+      "streakLabel": "Accuracy Streak: {streak}/3",
+      "readCount": "Read {count}/{total} articles",
+      "upgradeHint": "Read {needed} more to level up!",
+      "streakMet": "(Accuracy streak met)",
+      "streakNeeded": "(Need {needed} consecutive ≥80%)",
+      "levelUpPending": "Congrats! Level-up condition met, awaiting auto-upgrade...",
+      "consecutiveNeeded": "Need {needed} more consecutive ≥80% to level up!",
+      "levelRange1": "L1-L3",
+      "levelRange2": "L4-L6",
+      "levelRange3": "L7-L12"
+    },
+    "readerSettings": {
+      "closeSettings": "Close Settings",
+      "theme": "Theme",
+      "fontSize": "Font Size",
+      "lineHeight": "Line Height",
+      "light": "Light",
+      "sepia": "Sepia",
+      "dark": "Dark",
+      "switchToTheme": "Switch to {theme} theme",
+      "fontSizeLabel": "Font size: {size}",
+      "lineHeightLabel": "Line height: {level}",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large",
+      "xlarge": "Extra Large",
+      "compact": "Compact",
+      "standard": "Standard",
+      "loose": "Loose"
+    },
+    "articleReader": {
+      "backHome": "Back",
+      "checkedIn": "Checked In",
+      "recording": "Record",
+      "pause": "Pause",
+      "resume": "Resume",
+      "done": "Done",
+      "readAloud": "Read Aloud",
+      "quiz": "Quiz",
+      "settings": "Settings",
+      "prevPage": "Previous",
+      "nextPage": "Next",
+      "fontSizeSetting": "Font Size",
+      "readingTheme": "Reading Theme",
+      "ttsSpeed": "TTS Speed: {rate}x",
+      "pinyinAnnotation": "Pinyin",
+      "on": "On",
+      "off": "Off",
+      "slow": "Slow",
+      "normal": "Normal",
+      "fast": "Fast",
+      "recordingActions": "Recording Actions",
+      "upload": "Upload",
+      "uploading": "Uploading {progress}%",
+      "reRecord": "Re-record",
+      "close": "Close"
+    }
   }
 }

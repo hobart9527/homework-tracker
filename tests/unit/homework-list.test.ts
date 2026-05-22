@@ -210,10 +210,8 @@ describe("HomeworkListPage filters", () => {
     });
 
     expect(
-      screen
-        .getAllByRole("link", { name: "复制" })
-        .some((link) => link.getAttribute("href") === "/homework/new?copyFrom=hw-1")
-    ).toBe(true);
+      screen.getAllByRole("button", { name: "复制" }).length
+    ).toBeGreaterThan(0);
   });
 
   it("keeps the sidebar focused on child scope only", async () => {

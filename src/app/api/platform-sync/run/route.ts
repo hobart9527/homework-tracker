@@ -10,15 +10,19 @@ import {
   supportsManagedSessionSync,
 } from "@/lib/platform-sync-execution";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
-const CRON_SECRET = process.env.CRON_SECRET || "";
+const CRON_SECRET = process.env.CRON_SECRET;
 const DEFAULT_PLATFORMS = ["ixl", "khan-academy", "raz-kids", "epic"] as const;
 const DEFAULT_HOUSEHOLD_TIME_ZONE = "Asia/Shanghai";
 
 export async function GET(request: Request) {
+  const limited = checkRateLimit(request, 10, 60_000);
+  if (limited) return limited;
+
   const cronSecret = request.headers.get("x-cron-secret");
-  const isCronCall = cronSecret && cronSecret === CRON_SECRET;
+  const isCronCall = !!cronSecret && !!CRON_SECRET && cronSecret === CRON_SECRET;
 
   const supabase = isCronCall
     ? await createServiceRoleClient()

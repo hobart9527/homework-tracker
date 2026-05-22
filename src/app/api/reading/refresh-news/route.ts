@@ -388,8 +388,8 @@ async function runPipeline(
 
 export async function GET(request: Request) {
   const cronSecret = request.headers.get("x-cron-secret");
-  const isCronCall =
-    !!cronSecret && cronSecret === (process.env.CRON_SECRET || "");
+  const cronSecretEnv = process.env.CRON_SECRET;
+  const isCronCall = !!cronSecret && !!cronSecretEnv && cronSecret === cronSecretEnv;
 
   const supabase = isCronCall
     ? await createServiceRoleClient()

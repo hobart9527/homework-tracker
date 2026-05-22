@@ -1,9 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { createHash } from "node:crypto";
+import bcrypt from "bcrypt";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, 10, 60_000);
+  if (limited) return limited;
   const supabase = await createClient();
 
   const {
@@ -53,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   // Create child profile
-  const passwordHash = createHash("sha256").update(rawPassword).digest("hex");
+  const passwordHash = await bcrypt.hash(rawPassword, 10);
   const { data: child, error: profileError } = await supabase.from("children").insert({
     id: authData.user.id,
     parent_id: session.user.id,

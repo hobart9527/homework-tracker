@@ -60,7 +60,7 @@ describe("ReminderSettings", () => {
     fireEvent.change(screen.getByPlaceholderText("例如 家长通知"), {
       target: { value: "家长通知" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "保存设置" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await waitFor(() => {
       expect(updateMock).toHaveBeenCalledWith(

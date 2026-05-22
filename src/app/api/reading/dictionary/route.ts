@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { lookupChineseWord } from "@/lib/reading/dictionary-cccedict";
 
 const CHINESE_CHAR_PATTERN = /^[一-龥]+$/;
 
 export async function GET(request: Request) {
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(request.url);
   const word = searchParams.get("word");
 

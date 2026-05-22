@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Frozen contract for downstream W0b consumers; do not break props shape.
 // Forward-compatibility note (W2/W3): when `alignment` is provided, this
 // component will eventually highlight characters in sync with playback.
-// For now we only store it in state. TODO(W2): render character highlight.
+// For now we only store it in state. Future(W2): render character highlight.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ReadAlongAlignment {
@@ -51,7 +51,7 @@ export function ReadAlong({
   const [speed, setSpeed] = useState<SpeedOption>(1);
 
   // Forward-compat: store alignment for future character-level highlighting.
-  // TODO(W2/W3): drive a highlighted char index from currentTime + alignment.chars.
+  // Future(W2/W3): drive a highlighted char index from currentTime + alignment.chars.
   const [, setStoredAlignment] = useState<ReadAlongAlignment | null>(
     alignment ?? null,
   );

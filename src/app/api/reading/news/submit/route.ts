@@ -30,6 +30,7 @@ import {
   NewsFetchError,
   type NewsFetchErrorCode,
 } from "@/lib/reading/news-fetcher";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -139,6 +140,9 @@ function truncate(s: string, max = 500): string {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, 5, 60_000);
+  if (limited) return limited;
+
   try {
     // --- 1. Auth (SSR client; do NOT use service role for the auth read) ---
     const supabase = await createClient();
@@ -281,7 +285,7 @@ export async function POST(request: Request) {
 
     const { error: topicErr } = await service
       .from("reading_topics")
-      .upsert(topicRow as never, { onConflict: "topic_key,language" });
+      .upsert(topicRow as Record<string, unknown>, { onConflict: "topic_key,language" });
 
     if (topicErr) {
       console.error(`[news/submit] topic upsert failed: ${topicErr.message}`);
@@ -345,7 +349,7 @@ export async function POST(request: Request) {
 
         const { data: articleData, error: articleErr } = await service
           .from("reading_articles")
-          .upsert(articleRow as never, { onConflict: "topic_key,grade_level" })
+          .upsert(articleRow as Record<string, unknown>, { onConflict: "topic_key,grade_level" })
           .select("id")
           .single();
 
@@ -378,7 +382,7 @@ export async function POST(request: Request) {
 
           const { error: qErr } = await service
             .from("reading_questions")
-            .insert(questionRows as never);
+            .insert(questionRows as unknown[]);
 
           if (qErr) {
             // Question insert failure should NOT lose the article — log and

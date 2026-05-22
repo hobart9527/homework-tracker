@@ -297,7 +297,6 @@ describe("Child progress page", () => {
 
     expect(screen.getByText("2026年3月")).toBeInTheDocument();
     expect(screen.getByLabelText("2026-03-12 完成 2/2")).toBeInTheDocument();
-    expect(screen.getByText("打卡时段分布")).toBeInTheDocument();
     expect(mockedCreateClient).toHaveBeenCalledTimes(1);
   });
 

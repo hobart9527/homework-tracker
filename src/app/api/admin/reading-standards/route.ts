@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
 import { readFile, writeFile } from "fs/promises";
 import { join } from "path";
+import { timingSafeEqual } from "crypto";
 
 const CONFIG_PATH = join(process.cwd(), "config", "reading-standards.json");
 
 // Basic auth check via ADMIN_SECRET header
 function authorize(request: Request): boolean {
   const secret = request.headers.get("x-admin-secret");
-  return secret === process.env.ADMIN_SECRET;
+  const expected = process.env.ADMIN_SECRET;
+  if (!expected || expected.length === 0) return false;
+  if (!secret) return false;
+  try {
+    return timingSafeEqual(Buffer.from(secret), Buffer.from(expected));
+  } catch {
+    return false;
+  }
 }
 
 export async function GET(request: Request) {

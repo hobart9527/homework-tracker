@@ -11,7 +11,7 @@
 //   4. Interest signal (clamp(interest * 10, 0, 10))       +0..10
 //   5. Variety penalty (1 occurrence -7, 2+ occurrences -15) -0..15
 //   6. Freshness bonus (≥14d +10, 7..13 +6, 1..6 +3, evergreen 0) +0..10
-//   7. Pack continuity bonus — TODO v2 (not implemented; see notes)
+//   7. Pack continuity bonus — Future v2 (not implemented; see notes)
 //   8. Audio readiness bonus (zh + audio_zh_url) → +3       +0..3
 //
 // Exclusion rules (the article is still returned in the result with
@@ -337,7 +337,7 @@ function scoreOne(
     reasons.push(freshness.reason);
   }
 
-  // 7. Pack continuity — v1 TODO. We do not have recent pack_ids in ctx.
+  // 7. Pack continuity — v1 Future. We do not have recent pack_ids in ctx.
   // Skipped intentionally; revisit in W3 when ctx is extended.
 
   // 8. Audio readiness

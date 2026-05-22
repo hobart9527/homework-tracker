@@ -21,7 +21,7 @@ export function ReminderActionButton({
   if (state?.status === "escalated_call") {
     return (
       <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-600 whitespace-nowrap">
-        已电话
+        已电话提醒
       </span>
     );
   }

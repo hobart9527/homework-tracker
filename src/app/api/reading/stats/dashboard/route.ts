@@ -279,7 +279,7 @@ export async function GET(request: Request) {
         en: langArticleSets.en.size,
       },
       recent_activity,
-      auto_level_history: [] as never[],
+      auto_level_history: [] as unknown[],
     };
 
     console.log(

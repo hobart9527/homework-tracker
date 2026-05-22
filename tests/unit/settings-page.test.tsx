@@ -253,6 +253,7 @@ vi.mock("next/navigation", async () => {
       refresh: vi.fn(),
     }),
     useSearchParams: () => searchParamsState,
+    usePathname: () => "/",
   };
 });
 
@@ -279,7 +280,7 @@ describe("Settings IA pages", () => {
       screen.getByRole("link", { name: /学习平台与路由/i })
     ).toHaveAttribute("href", "/settings/integrations");
     expect(
-      screen.getByText(/系统运维/)
+      screen.getByRole("heading", { name: /系统运维/ })
     ).toBeInTheDocument();
   });
 

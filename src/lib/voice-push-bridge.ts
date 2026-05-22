@@ -10,7 +10,7 @@ type VoicePushDeliveryRequest = {
   deliveryKey: string;
 };
 
-type VoicePushDeliveryResult =
+export type VoicePushDeliveryResult =
   | {
       status: "sent" | "duplicate";
       remoteMessageId?: string | null;
@@ -221,11 +221,7 @@ export async function deliverVoicePushToTelegram(request: {
   recipientRef: string;
   deliveryKey: string;
   caption?: string;
-}): Promise<{
-  status: "sent" | "duplicate" | "failed";
-  remoteMessageId?: string | null;
-  error?: string;
-}> {
+}): Promise<VoicePushDeliveryResult> {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) {
     return { status: "failed", error: "TELEGRAM_BOT_TOKEN not configured" };

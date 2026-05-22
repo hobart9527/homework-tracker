@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const { data: parentRow } = await supabase.from("parents").select("id").eq("id", session.user.id).maybeSingle();
+  if (!parentRow) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const { articleId, title, category } = await req.json();
 

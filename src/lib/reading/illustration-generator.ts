@@ -333,22 +333,22 @@ export async function generateIllustrations(
       }
     }
 
-    const { positive } = buildCoverPrompt(
-      opts.category,
-      scene.sceneDescription
-    );
-
-    // DALL-E fallback (opt-in)
-    const dalleResult = await generateViaDalle({
-      articleId: opts.articleId,
-      positive,
-    });
-    if (dalleResult) {
-      results.push({ ...dalleResult, paragraph_index: idx });
-      continue;
-    }
-
     try {
+      const { positive } = buildCoverPrompt(
+        opts.category,
+        scene.sceneDescription
+      );
+
+      // DALL-E fallback (opt-in)
+      const dalleResult = await generateViaDalle({
+        articleId: opts.articleId,
+        positive,
+      });
+      if (dalleResult) {
+        results.push({ ...dalleResult, paragraph_index: idx });
+        continue;
+      }
+
       const seed = Math.floor(Math.random() * 1_000_000);
       const externalUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
         positive

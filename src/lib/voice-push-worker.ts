@@ -7,22 +7,13 @@ import {
   markVoicePushTaskSent,
   type VoicePushTaskRecord,
 } from "@/lib/voice-push-tasks";
+import type { VoicePushDeliveryResult } from "@/lib/voice-push-bridge";
 
 type VoicePushDeliveryRequest = ReturnType<typeof buildVoicePushDeliveryRequest>;
 
-type VoicePushDeliverResult =
-  | {
-      status: "sent" | "duplicate";
-      remoteMessageId?: string | null;
-    }
-  | {
-      status: "failed";
-      error: string;
-    };
-
 export async function runVoicePushDeliveryBatch(input: {
   supabase: any;
-  deliver: (request: VoicePushDeliveryRequest) => Promise<VoicePushDeliverResult>;
+  deliver: (request: VoicePushDeliveryRequest) => Promise<VoicePushDeliveryResult>;
   resolveTarget?: (task: VoicePushTaskRecord) => Promise<{
     channel: "wechat_group" | "telegram_chat";
     recipientRef: string;

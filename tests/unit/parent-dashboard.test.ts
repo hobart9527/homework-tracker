@@ -637,7 +637,7 @@ describe("TodayOverview mixed detail panels", () => {
     );
 
     expect(screen.getByText("2026年4月8日")).toBeInTheDocument();
-    expect(screen.getAllByText("当天任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("今日任务").length).toBeGreaterThan(0);
   });
 
   it("shows proof requirement and task status per row", () => {
@@ -650,18 +650,32 @@ describe("TodayOverview mixed detail panels", () => {
 
     expect(screen.getByText("需要照片")).toBeInTheDocument();
     expect(screen.getByText("逾期完成")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "📎 附件" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "📎 预览" })).toBeInTheDocument();
   });
 });
 
 describe("ParentDashboardPage wiring", () => {
+  const MOCK_DATE = new Date("2026-04-08T09:00:00.000Z");
+  const OriginalDate = global.Date;
+
+  beforeEach(() => {
+    (global as any).Date = class extends OriginalDate {
+      constructor(...args: any[]) {
+        if (args.length === 0) {
+          super(MOCK_DATE);
+        } else {
+          super(...args);
+        }
+      }
+    };
+    (global.Date as any).now = () => MOCK_DATE.getTime();
+  });
+
   afterEach(() => {
-    vi.useRealTimers();
+    global.Date = OriginalDate;
   });
 
   it("renders the linked task overview, compact calendar, and side-by-side analysis blocks", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
 
     const mockSupabase = {
       auth: {
@@ -829,16 +843,13 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    await act(async () => {
-      render(createElement(ParentDashboardPage));
-      await vi.runAllTimersAsync();
-    });
+    render(createElement(ParentDashboardPage));
 
     await waitFor(() => {
       expect(screen.getByText("Ivy")).toBeInTheDocument();
     });
     expect(screen.getByText("Albert")).toBeInTheDocument();
-    const todayHeading = screen.getAllByText("当天任务")[0];
+    const todayHeading = screen.getAllByText("今日任务")[0];
     const calendarHeading = screen.getByText("本月进度日历");
     const heatmapHeading = screen.getByText("本月时段热力图");
     const weakestTypesHeading = screen.getByText("本月薄弱类型");
@@ -866,8 +877,6 @@ describe("ParentDashboardPage wiring", () => {
   });
 
   it("switches months from the calendar controls and refreshes monthly labels", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
 
     const mockSupabase = {
       auth: {
@@ -1001,27 +1010,19 @@ describe("ParentDashboardPage wiring", () => {
 
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
-    await act(async () => {
-      render(createElement(ParentDashboardPage));
-      await vi.runAllTimersAsync();
-    });
+    render(createElement(ParentDashboardPage));
 
     await waitFor(() => {
       expect(screen.getByText("2026年4月")).toBeInTheDocument();
     });
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "下个月" }));
-      await vi.runAllTimersAsync();
-    });
+    fireEvent.click(screen.getByRole("button", { name: "下个月" }));
 
     expect(screen.getByText("2026年5月")).toBeInTheDocument();
     expect(screen.getByText("2026年5月1日")).toBeInTheDocument();
   });
 
   it("shows all child summaries above the selected child detail", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
 
     const mockSupabase = {
       auth: {
@@ -1260,18 +1261,14 @@ describe("ParentDashboardPage wiring", () => {
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
     render(createElement(ParentDashboardPage));
-    await vi.runAllTimersAsync();
 
-    expect(screen.getByText("Ivy")).toBeInTheDocument();
+    await screen.findByText("Ivy");
     expect(screen.getByText("Albert")).toBeInTheDocument();
     expect(screen.getByText("本月进度日历")).toBeInTheDocument();
-    expect(screen.getAllByText("当天任务").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("今日任务").length).toBeGreaterThan(0);
   });
 
   it("recovers the selected child when the current id disappears from the summaries", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-04-08T09:00:00.000Z"));
-
     let childrenFetchCount = 0;
     const mockSupabase = {
       auth: {
@@ -1459,16 +1456,14 @@ describe("ParentDashboardPage wiring", () => {
     vi.mocked(createClient).mockReturnValue(mockSupabase as any);
 
     render(createElement(ParentDashboardPage));
-    await vi.runAllTimersAsync();
 
-    expect(screen.getByRole("button", { name: /Ivy/ })).toHaveAttribute("aria-selected", "true");
+    await screen.findByRole("tab", { name: /Ivy/ });
+    expect(screen.getByRole("tab", { name: /Ivy/ })).toHaveAttribute("aria-selected", "true");
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "下个月" }));
-      await vi.runAllTimersAsync();
-    });
+    fireEvent.click(screen.getByRole("button", { name: "下个月" }));
 
-    expect(screen.getByRole("button", { name: /Albert/ })).toHaveAttribute("aria-selected", "true");
+    await screen.findByRole("tab", { name: /Albert/ });
+    expect(screen.getByRole("tab", { name: /Albert/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Albert")).toBeInTheDocument();
   });
 
@@ -1668,7 +1663,7 @@ describe("Parent attachment previews and monthly cluster", () => {
       })
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "📎 附件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "📎 预览" }));
 
     expect(await screen.findByText("附件预览")).toBeInTheDocument();
     expect(screen.getByAltText("钢琴练习 附件 1")).toBeInTheDocument();
@@ -1694,7 +1689,7 @@ describe("Parent attachment previews and monthly cluster", () => {
       } as any)
     );
 
-    expect(screen.queryByRole("button", { name: "📎 附件" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "📎 预览" })).not.toBeInTheDocument();
   });
 
   it("matches reminder state by homework and target date", () => {
@@ -1793,7 +1788,7 @@ describe("Parent attachment previews and monthly cluster", () => {
       } as any)
     );
 
-    fireEvent.click(await screen.findByRole("button", { name: "📎 附件" }));
+    fireEvent.click(await screen.findByRole("button", { name: "📎 预览" }));
 
     expect(await screen.findByText("附件预览")).toBeInTheDocument();
     expect(screen.getByAltText("钢琴练习 附件 1")).toBeInTheDocument();

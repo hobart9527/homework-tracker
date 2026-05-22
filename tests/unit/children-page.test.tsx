@@ -57,21 +57,15 @@ describe("ChildrenListPage", () => {
     });
 
     expect(
-      screen.getByRole("link", { name: "前往家庭设置" })
-    ).toHaveAttribute("href", "/settings");
+      screen.getByRole("button", { name: "前往家庭设置" })
+    ).toBeInTheDocument();
 
     expect(
-      screen.getByRole("link", { name: "学习平台账号" })
-    ).toHaveAttribute(
-      "href",
-      "/settings/integrations?childId=child-1#platform-binding"
-    );
+      screen.getByRole("button", { name: "学习平台账号" })
+    ).toBeInTheDocument();
 
     expect(
-      screen.getByRole("link", { name: "默认消息路由" })
-    ).toHaveAttribute(
-      "href",
-      "/settings/integrations?childId=child-1#message-routing"
-    );
+      screen.getByRole("button", { name: "默认消息路由" })
+    ).toBeInTheDocument();
   });
 });

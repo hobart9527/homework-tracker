@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useReaderTheme, resolveTheme, type FontSize } from "./ReaderThemeContext";
 import { GestureOverlay } from "./GestureOverlay";
+import { useTranslations } from "next-intl";
 
 export interface ArticleReaderArticle {
   id: string;
@@ -49,6 +50,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
   ref
 ) {
   const router = useRouter();
+  const t = useTranslations();
   const supabase = createClient();
   const { theme: readerThemeContext, setTheme, fontSize: fontSizeContext, setFontSize, lineHeight, setLineHeight } = useReaderTheme();
   const resolvedTheme = resolveTheme(readerThemeContext);
@@ -936,60 +938,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
   };
 
   return (
-    <div className="flex flex-col">
-      {/* Ruby text alignment fix */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          ruby {
-            ruby-position: over;
-            ruby-align: center;
-            margin-right: 0.12em;
-          }
-          ruby:last-child {
-            margin-right: 0;
-          }
-          rt {
-            font-size: 0.55em;
-            color: var(--reader-text-muted);
-            text-align: center;
-            white-space: nowrap;
-            letter-spacing: 0;
-            line-height: 1.3;
-            font-family: 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', system-ui, sans-serif;
-            margin-bottom: 0.05em;
-          }
-          .ruby-pinyin {
-            ruby-position: over;
-          }
-          .ruby-pinyin rt {
-            font-size: 0.55em;
-            color: var(--reader-text-muted);
-          }
-          .page-transition {
-            opacity: 0;
-            transform: translateX(12px);
-          }
-          .page-transition-enter {
-            opacity: 1;
-            transform: translateX(0);
-            transition: opacity 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-          }
-          .reader-paragraph {
-            text-indent: 2em;
-            word-spacing: 0.08em;
-          }
-          .reader-paragraph + .reader-paragraph {
-            margin-top: 0;
-          }
-          mark {
-            background-color: transparent;
-            color: inherit;
-          }
-          .hide-scrollbar::-webkit-scrollbar { display: none; }
-          .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        `
-      }} />
-
+    <div className="flex flex-col article-reader-root">
       {/* Top bar - minimal, fades into background */}
       <div
         className="sticky top-0 z-20 min-h-11 backdrop-blur-md flex items-center justify-between px-4"
@@ -1003,10 +952,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           onClick={() => router.back()}
           className="flex items-center gap-2 min-h-11 px-2 text-base font-semibold active:scale-95 transition-transform"
           style={{ color: "var(--reader-text)" }}
-          aria-label="返回首页"
+          aria-label={t("reading.articleReader.backHome")}
         >
           <span className="text-lg">🏠</span>
-          <span>返回</span>
+          <span>{t("reading.articleReader.backHome")}</span>
         </button>
 
         {/* Center: Page indicator */}
@@ -1020,7 +969,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         <div className="flex items-center gap-2">
           {recordingSubmitted && (
             <span className="text-sm font-semibold text-green-600">
-              ✅ 已打卡
+              ✅ {t("reading.articleReader.checkedIn")}
             </span>
           )}
           {recordingState !== 'idle' && (
@@ -1129,14 +1078,14 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               style={{ width: '20%', cursor: 'w-resize' }}
               onClick={(e) => { e.stopPropagation(); goToPage(currentPage - 1); }}
               role="button"
-              aria-label="上一页"
+              aria-label={t("reading.articleReader.prevPage")}
             />
             <div
               className="absolute right-0 top-0 bottom-0 z-10"
               style={{ width: '20%', cursor: 'e-resize' }}
               onClick={(e) => { e.stopPropagation(); goToPage(currentPage + 1); }}
               role="button"
-              aria-label="下一页"
+              aria-label={t("reading.articleReader.nextPage")}
             />
           </>
         )}
@@ -1273,7 +1222,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               </svg>
             )}
             <span className="text-base">
-              {ttsPlaying && !ttsPaused ? '暂停' : ttsPaused ? '继续' : '朗读'}
+              {ttsPlaying && !ttsPaused ? t('reading.articleReader.pause') : ttsPaused ? t('reading.articleReader.resume') : t('reading.articleReader.readAloud')}
             </span>
           </button>
 
@@ -1302,10 +1251,10 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               <line x1="12" y1="19" x2="12" y2="23"/>
             </svg>
             <span className="text-base">
-              {recordingState === 'idle' ? '录音' :
-               recordingState === 'recording' ? '暂停' :
-               recordingState === 'paused' ? '继续' :
-               '完成'}
+              {recordingState === 'idle' ? t('reading.articleReader.recording') :
+               recordingState === 'recording' ? t('reading.articleReader.pause') :
+               recordingState === 'paused' ? t('reading.articleReader.resume') :
+               t('reading.articleReader.done')}
             </span>
           </button>
 
@@ -1321,7 +1270,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
               <path d="M9 11l3 3L22 4"/>
               <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
             </svg>
-            <span className="text-base">答题</span>
+            <span className="text-base">{t('reading.articleReader.quiz')}</span>
           </button>
 
           {/* Settings button - minimal icon */}
@@ -1329,7 +1278,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             onClick={() => setShowMoreMenu(!showMoreMenu)}
             className="flex items-center justify-center w-12 h-12 rounded-full transition-all"
             style={{ color: "var(--reader-text-muted)" }}
-            aria-label="设置"
+            aria-label={t('reading.articleReader.settings')}
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3"/>
@@ -1366,7 +1315,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             {/* Font size */}
             <div>
               <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>
-                字体大小
+                {t('reading.articleReader.fontSizeSetting')}
               </label>
               <div className="flex gap-2">
                 {([
@@ -1392,7 +1341,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
 
             {/* Theme */}
             <div>
-              <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>阅读主题</label>
+              <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>{t('reading.articleReader.readingTheme')}</label>
               <div className="flex gap-2">
                 {(['light', 'sepia', 'dark'] as const).map((theme) => (
                   <button
@@ -1417,7 +1366,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             {/* TTS Speed */}
             <div>
               <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>
-                朗读速度: {ttsRate.toFixed(1)}x
+                {t('reading.articleReader.ttsSpeed', { rate: ttsRate.toFixed(1) })}
               </label>
               <input
                 type="range"
@@ -1429,9 +1378,9 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-forest-500"
               />
               <div className="flex justify-between text-xs mt-1" style={{ color: "var(--reader-text-muted)" }}>
-                <span>慢</span>
-                <span>正常</span>
-                <span>快</span>
+                <span>{t('reading.articleReader.slow')}</span>
+                <span>{t('reading.articleReader.normal')}</span>
+                <span>{t('reading.articleReader.fast')}</span>
               </div>
             </div>
 
@@ -1439,7 +1388,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             {isChineseArticle && (
               <div>
                 <label className="text-sm font-medium mb-2 block" style={{ color: "var(--reader-text)" }}>
-                  拼音注音
+                  {t('reading.articleReader.pinyinAnnotation')}
                 </label>
                 <button
                   onClick={() => onTogglePinyin?.()}
@@ -1449,7 +1398,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                       : 'bg-gray-200 text-gray-600'
                   }`}
                 >
-                  {pinyinEnabled ? '已开启' : '已关闭'}
+                  {pinyinEnabled ? t('reading.articleReader.on') : t('reading.articleReader.off')}
                 </button>
               </div>
             )}
@@ -1467,7 +1416,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             className="bg-white rounded-2xl p-6 w-80 shadow-xl"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold mb-4">录音操作</h3>
+            <h3 className="text-lg font-bold mb-4">{t('reading.articleReader.recordingActions')}</h3>
 
             {/* Recording duration */}
             <div className="text-center mb-4">
@@ -1503,11 +1452,11 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 {uploading ? (
                     <>
                       <span className="animate-spin">...</span>
-                      <span>上传中 {uploadProgress}%</span>
+                      <span>{t('reading.articleReader.uploading', { progress: uploadProgress })}%</span>
                     </>
                   ) : (
                     <>
-                      上传
+                      {t('reading.articleReader.upload')}
                     </>
                   )}
               </button>
@@ -1518,13 +1467,13 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                 }}
                 className="w-full py-3 rounded-xl bg-coral-100 text-coral-700 font-medium"
               >
-                重新录音
+                {t('reading.articleReader.reRecord')}
               </button>
               <button
                 onClick={() => setShowRecordingMenu(false)}
                 className="w-full py-3 rounded-xl bg-gray-100 text-gray-700 font-medium"
               >
-                关闭
+                {t('reading.articleReader.close')}
               </button>
             </div>
           </div>

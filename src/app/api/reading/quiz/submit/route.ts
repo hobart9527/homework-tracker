@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit } from "@/lib/rate-limit";
 import {
   evaluateAutoLevel,
   recomputeStats,
@@ -10,6 +11,9 @@ const BASE_READING_POINTS = 10;
 const RECENT_ATTEMPTS_LIMIT = 25;
 
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, 20, 60_000);
+  if (limited) return limited;
+
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
 
@@ -212,7 +216,7 @@ export async function POST(request: Request) {
               };
               const { error: statsErr } = await supabase
                 .from("reading_stats")
-                .upsert(upsertPayload as never, { onConflict: "child_id" });
+                .upsert(upsertPayload as Record<string, unknown>, { onConflict: "child_id" });
               if (statsErr) {
                 console.warn(
                   "[auto-level] failed to upsert reading_stats",
@@ -222,7 +226,7 @@ export async function POST(request: Request) {
 
               // 7. Apply the per-language level bump if any.
               if (willBump) {
-                const update = { [levelCol]: decision.to } as unknown as never;
+                const update = { [levelCol]: decision.to } as Record<string, string>;
                 const { error: bumpErr } = await supabase
                   .from("children")
                   .update(update)

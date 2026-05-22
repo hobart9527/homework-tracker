@@ -9,9 +9,12 @@ import {
 } from "@/lib/tasks/check-in-submission";
 import type { ProofType } from "@/lib/tasks/daily-task";
 import { getLocalDayBounds } from "@/lib/homework-utils";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
+  const limited = checkRateLimit(request, 20, 60_000);
+  if (limited) return limited;
   const supabase = await createClient();
 
   const {

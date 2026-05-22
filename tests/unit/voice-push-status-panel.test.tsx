@@ -51,7 +51,7 @@ describe("VoicePushStatusPanel", () => {
       />
     );
 
-    expect(screen.getByText("语音桥接状态")).toBeInTheDocument();
+    expect(screen.getByText("语音推送队列")).toBeInTheDocument();
     expect(screen.getByText("待发送")).toBeInTheDocument();
     expect(screen.getByText("重试中")).toBeInTheDocument();
     expect(screen.getByText("已发送")).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe("VoicePushStatusPanel", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "处理发送队列" }));
+    fireEvent.click(screen.getByRole("button", { name: "刷新队列" }));
 
     await waitFor(() => {
       expect(onRunQueue).toHaveBeenCalled();

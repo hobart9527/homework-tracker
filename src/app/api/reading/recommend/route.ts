@@ -36,7 +36,11 @@ function buildLevelWindow(target: number): string[] {
   return out;
 }
 
+import { checkRateLimit } from "@/lib/rate-limit";
+
 export async function GET(request: Request) {
+  const limited = checkRateLimit(request, 30, 60_000);
+  if (limited) return limited;
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
 
@@ -185,9 +189,9 @@ export async function GET(request: Request) {
       .from("reading_articles")
       .select("*")
       .eq("status", "published")
-      .eq("language", language as never)
+      .eq("language", language as string)
       .not("raz_level", "is", null)
-      .in("raz_level", levelWindow as never)
+      .in("raz_level", levelWindow as string[])
       .limit(CANDIDATE_POOL_LIMIT);
 
     if (poolRes.error) {
