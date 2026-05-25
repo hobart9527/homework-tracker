@@ -73,6 +73,9 @@ export function matchesPlatformHomeworkType(input: {
   title: string;
   homeworkTypeName: string | null | undefined;
   homeworkGroupName?: string | null | undefined;
+  homeworkTypeId?: string | null | undefined;
+  subjectMappings?: Array<{ platform: string; platform_subject: string; type_id: string; confidence: number }> | null;
+  typeBinding?: { match_keywords: string[] } | null;
 }) {
   if (!input.homeworkTypeName?.trim()) {
     return true;
@@ -89,6 +92,26 @@ export function matchesPlatformHomeworkType(input: {
     return true;
   }
 
+  // Stage 1 (L1): platform_subject_mappings exact match
+  if (input.subjectMappings && input.homeworkTypeId) {
+    const exactMatch = input.subjectMappings.find(
+      (m) =>
+        m.platform === input.platform &&
+        m.platform_subject.toLowerCase() === normalizeMatchText(input.subject || "") &&
+        m.type_id === input.homeworkTypeId
+    );
+    if (exactMatch) return true;
+  }
+
+  // Stage 2 (L2): match_keywords from homework_type_bindings
+  if (input.typeBinding?.match_keywords?.length) {
+    const normalizedKeywords = input.typeBinding.match_keywords.map(normalizeMatchText);
+    if (haystack.some((value) => normalizedKeywords.some((k) => value.includes(k)))) {
+      return true;
+    }
+  }
+
+  // Stage 3 (L3): existing fallback logic
   const aliasEntry = Object.entries(HOMEWORK_TYPE_ALIASES).find(
     ([category, aliases]) =>
       normalizedTypeName.includes(category) ||
@@ -143,6 +166,16 @@ export function matchesDirectPlatformBinding(input: {
     input.homeworkBindingPlatform === input.eventPlatform &&
     input.homeworkBindingSourceRef === input.eventSourceRef
   );
+}
+
+export function matchesTypePlatformBinding(input: {
+  eventPlatform: string;
+  homeworkTypeId: string | null | undefined;
+  homeworkTypeBinding: { allowed_platforms: string[] } | null | undefined;
+}): boolean {
+  if (!input.homeworkTypeBinding) return true; // no binding config = allow all
+  if (input.homeworkTypeBinding.allowed_platforms.length === 0) return false; // explicitly empty = none allowed
+  return input.homeworkTypeBinding.allowed_platforms.includes(input.eventPlatform);
 }
 
 export function resolveAutoCheckinDecision(input: {

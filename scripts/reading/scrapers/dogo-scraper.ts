@@ -22,6 +22,67 @@ import { extractImages } from "../../../src/lib/reading/source-image-extractor";
 config({ path: ".env.local" });
 
 // ---------------------------------------------------------------------------
+// fetchWithRetry — anti-blocking HTTP helper
+// ---------------------------------------------------------------------------
+
+const USER_AGENTS = [
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:127.0) Gecko/20100101 Firefox/127.0",
+  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 Edg/125.0.0.0",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+];
+
+async function fetchWithRetry(url: string, maxAttempts = 3): Promise<string> {
+  const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // Random pre-request delay: 500ms–2000ms
+    await new Promise((r) => setTimeout(r, 500 + Math.random() * 1500));
+
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": ua,
+          Accept: "text/html",
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
+        const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+        console.log(`[retry] attempt ${attempt} for ${url} — HTTP ${res.status}, backing off ${backoff}ms`);
+        if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, backoff));
+        continue;
+      }
+
+      if (!res.ok) {
+        console.log(`  HTTP ${res.status} for ${url}`);
+        return "";
+      }
+
+      return await res.text();
+    } catch (err) {
+      const msg = (err as Error).message;
+      const isNetworkError = /ETIMEDOUT|ECONNRESET|The operation was aborted|fetch failed/i.test(msg);
+      if (isNetworkError && attempt < maxAttempts) {
+        const backoff = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+        console.log(`[retry] attempt ${attempt} for ${url} — network error, backing off ${backoff}ms`);
+        await new Promise((r) => setTimeout(r, backoff));
+        continue;
+      }
+      console.log(`  Fetch failed: ${msg}`);
+      if (attempt === maxAttempts) throw err;
+    }
+  }
+
+  throw new Error(`fetchWithRetry exhausted after ${maxAttempts} attempts for ${url}`);
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -100,6 +161,8 @@ async function discoverDogoArticles(scraper: StealthScraper): Promise<DogoArticl
     } catch (err) {
       console.warn(`[dogo] category page failed: ${cat.url} — ${(err as Error).message}`);
     }
+    // Jitter delay between categories: 800–2000ms
+    await new Promise((r) => setTimeout(r, 800 + Math.random() * 1200));
   }
   return articles.length > 0 ? articles : DOGO_ARTICLES; // fallback to hardcoded list
 }
@@ -213,6 +276,24 @@ function contentCompleteness(text: string): "full" | "partial" | "excerpt" {
   return "excerpt";
 }
 
+function cleanAttribution(text: string): string {
+  let s = text;
+  // Remove image/video credit lines like "(Credit: DOGOnews.com)" or "(Credit: NASA/ Public Domain)"
+  s = s.replace(/\(Credit:[^)]*\)/gi, "");
+  // Remove Resources footer lines
+  s = s.replace(/Resources?:\s*[^\n]+/gi, "");
+  // Remove video player artifacts
+  s = s.replace(/PausePlay%\s+buffered[\w%:\d]+/gi, "");
+  s = s.replace(/UnmuteMute/gi, "");
+  s = s.replace(/\bVolume\s*\d+%?/gi, "");
+  // Remove standalone URLs that are attribution sources
+  s = s.replace(/^\s*(https?:\/\/[^\s]+)\s*$/gim, "");
+  // Clean up multiple spaces and empty lines
+  s = s.replace(/[ \t]+/g, " ");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s.trim();
+}
+
 // ---------------------------------------------------------------------------
 // Concurrency helper
 // ---------------------------------------------------------------------------
@@ -227,6 +308,10 @@ async function runInBatches<T, R>(
     const batch = items.slice(i, i + batchSize);
     const batchResults = await Promise.all(batch.map(fn));
     results.push(...batchResults);
+    // Jitter delay between batches: 1–3s to avoid rate-limit patterns
+    if (i + batchSize < items.length) {
+      await new Promise((r) => setTimeout(r, 1000 + Math.random() * 2000));
+    }
   }
   return results;
 }
@@ -309,33 +394,24 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
       console.log(`  Stealth fetch failed: ${(err as Error).message}`);
     }
 
-    // Try raw HTML fetch for better extraction
+    // Try raw HTML fetch for better extraction (with retry + rotating UA)
     try {
-      const rawRes = await fetch(article.url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-          Accept: "text/html",
-        },
-        signal: AbortSignal.timeout(15000),
-      });
-      pageHtml = await rawRes.text();
+      pageHtml = await fetchWithRetry(article.url);
     } catch (err) {
       console.log(`  Raw fetch failed: ${(err as Error).message}`);
     }
 
     if (pageHtml) {
       const extracted = extractBody(pageHtml);
-      sourceText = extracted.text;
-      console.log(`  Extracted (${extracted.strategy}): ${sourceText.length} chars`);
+      sourceText = cleanAttribution(extracted.text);
+      console.log(`  Extracted (${extracted.strategy}): ${extracted.text.length} chars → cleaned: ${sourceText.length} chars`);
     }
 
     // Extract cover image from page HTML (best-effort)
     let source_image_url: string | null = null;
-    let source_inline_image_urls: string[] | null = null;
     try {
       const images = extractImages(pageHtml);
       source_image_url = images.cover;
-      source_inline_image_urls = images.inline;
     } catch {
       // best-effort — leave null
     }
@@ -351,7 +427,6 @@ async function scrapeDogoArticles(args: CliArgs): Promise<{ success: number; ski
       source_url: article.url,
       source_text: sourceText || null,
       source_image_url,
-      source_inline_image_urls,
       content_completeness: completeness,
       status: "active",
       target_grades: [3, 6],

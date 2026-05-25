@@ -181,6 +181,12 @@ async function runPipeline(
     target_grades: topic.target_grades,
   });
 
+  // Force Route C when generating for a non-base grade to prevent
+  // reusing short source_text across multiple grade levels.
+  const baseGrade = topic.target_grades?.[0] ?? grade;
+  const effectiveRoute: "A" | "B" | "C" =
+    routeDecision.route === "A" && grade !== baseGrade ? "C" : routeDecision.route;
+
   // 1. Generate article + questions + illustration scenes
   const { article, questions, illustrations: generatedIllustrations } =
     await generateReadingContent({
@@ -189,7 +195,7 @@ async function runPipeline(
       category,
       gradeLevel: grade,
       sourceText,
-      route: routeDecision.route,
+      route: effectiveRoute,
     });
 
   // 2. Quality gates
@@ -234,7 +240,12 @@ async function runPipeline(
         category,
         grade_level: grade,
         language,
-        word_count: article.word_count,
+        word_count: (() => {
+          if (language === "en") {
+            return article.content.trim().split(/\s+/).filter(Boolean).length;
+          }
+          return (article.content.match(/[一-鿿]/g) || []).length;
+        })(),
         estimated_minutes: article.estimated_minutes,
         difficulty: article.difficulty,
         status: articleStatus,
@@ -284,8 +295,8 @@ async function runPipeline(
       const { error: coverUpdateError } = await supabase
         .from("reading_articles")
         .update({
-          cover_url: coverUrl,
-          cover_source: coverSource,
+          cover_image_url: coverUrl,
+          cover_source: coverSource === "source-website" ? "pollinations" : coverSource,
           cover_source_url: coverSourceUrl,
         })
         .eq("id", articleId);
@@ -351,7 +362,7 @@ async function runPipeline(
             paragraph_index: ill.paragraph_index,
             image_url: ill.url,
             source_url: ill.source_url,
-            source: ill.source,
+            source: ill.source === "source-website" || ill.source === "dalle" ? "pollinations" : ill.source,
             scene_description:
               generatedIllustrations.find(
                 (g) => g.paragraph_index === ill.paragraph_index

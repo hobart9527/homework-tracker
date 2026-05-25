@@ -72,9 +72,9 @@ function runScraper(args: string[]): Promise<{ success: boolean; output: string;
 }
 
 function parseCount(output: string): number {
-  // Try to parse insert counts from Supabase output
-  // Format: "inserted: N" or "N rows inserted"
-  const match = output.match(/(\d+)\s*(rows?\s*)?(inserted|upserted|processed)/i);
+  // Try to parse insert counts from Supabase or scraper output
+  // Common formats: "inserted: N", "N rows inserted", "N added", "Done: X added"
+  const match = output.match(/(\d+)\s*(rows?\s*)?(inserted|upserted|processed|added)/i);
   return match ? parseInt(match[1], 10) : 0;
 }
 
@@ -107,9 +107,8 @@ export async function scrapeAllSources(options: ScrapeOptions = { dryRun: false,
   // Run all scrapers in parallel
   const scraperJobs = [
     { source: "icdl", args: ["scripts/reading/scrapers/icdl-scraper.ts", "--lang", options.lang, "--limit", "50", ...(options.dryRun ? ["--dry-run"] : [])] },
-    { source: "commonlit", args: ["scripts/reading/scrapers/commonlit-scraper.ts", "--limit", "30", ...(options.dryRun ? ["--dry-run"] : [])] },
-    { source: "news-in-levels", args: ["scripts/reading/scrapers/news-in-levels.ts", ...(options.dryRun ? ["--dry-run"] : [])] },
     { source: "dogo", args: ["scripts/reading/scrapers/dogo-scraper.ts", "--limit", "20", ...(options.dryRun ? ["--dry-run"] : [])] },
+    { source: "bbc-newsround", args: ["scripts/reading/scrapers/bbc-newsround-scraper.ts", "--limit", "20", ...(options.dryRun ? ["--dry-run"] : [])] },
   ];
 
   const jobPromises = scraperJobs.map(async (job) => {

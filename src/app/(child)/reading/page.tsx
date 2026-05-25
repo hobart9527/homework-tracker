@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArticleCard } from "@/components/reading/ArticleCard";
+import { IconBook } from "@/components/ui/icons";
 import { useTranslation } from "@/hooks/useTranslation";
 
 interface Article {
@@ -21,6 +22,7 @@ interface Article {
   created_at?: string;
   status?: string;
   isCompleted?: boolean;
+  isInProgress?: boolean;
   score?: number;
 }
 
@@ -92,6 +94,8 @@ export default function ReadingBrowserPage() {
   const [activeLanguage, setActiveLanguage] = useState<"zh" | "en">("en");
   const [sortMode, setSortMode] = useState<"default" | "unread" | "latest">("default");
   const [searchQuery, setSearchQuery] = useState("");
+  const [userGradeLevel, setUserGradeLevel] = useState<number | null>(null);
+  const [gradeFilter, setGradeFilter] = useState<"suitable" | "challenge" | "all">("suitable");
 
   const fetchReadingData = useCallback(async () => {
     setLoading(true);
@@ -108,6 +112,14 @@ export default function ReadingBrowserPage() {
       }
 
       const childId = session.user.id;
+
+      // Fetch child's reading grade level
+      const { data: childProfile } = await supabase
+        .from("children")
+        .select("reading_grade_level")
+        .eq("id", childId)
+        .single();
+      setUserGradeLevel(childProfile?.reading_grade_level ?? null);
 
       // Fetch articles and assignments in parallel
       const [articlesRes, assignmentsRes] = await Promise.all([
@@ -169,13 +181,19 @@ export default function ReadingBrowserPage() {
       const langMatch = lang === activeLanguage;
       const categoryMatch = !activeCategory || a.category === activeCategory;
       const searchMatch = !searchQuery || a.title.toLowerCase().includes(searchQuery.toLowerCase());
-      return langMatch && categoryMatch && searchMatch;
+      const gradeMatch = (() => {
+        if (!userGradeLevel || gradeFilter === "all") return true;
+        if (gradeFilter === "challenge") return a.grade_level > userGradeLevel + 1;
+        // "suitable" — default
+        return Math.abs(a.grade_level - userGradeLevel) <= 1;
+      })();
+      return langMatch && categoryMatch && searchMatch && gradeMatch;
     })
     .sort((a, b) => {
       switch (sortMode) {
         case "unread": {
-          const aOrder = a.isCompleted ? 2 : (a as any).isInProgress ? 1 : 0;
-          const bOrder = b.isCompleted ? 2 : (b as any).isInProgress ? 1 : 0;
+          const aOrder = a.isCompleted ? 2 : a.isInProgress ? 1 : 0;
+          const bOrder = b.isCompleted ? 2 : b.isInProgress ? 1 : 0;
           return aOrder - bOrder;
         }
         case "latest": {
@@ -184,7 +202,9 @@ export default function ReadingBrowserPage() {
           return bTime - aTime;
         }
         default:
-          return 0;
+          return b.created_at && a.created_at
+            ? new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            : 0;
       }
     });
 
@@ -253,6 +273,44 @@ export default function ReadingBrowserPage() {
           </div>
         </div>
 
+        {/* Grade filter */}
+        {userGradeLevel !== null && (
+          <div className="mb-4">
+            <div className="inline-flex rounded-xl bg-white shadow-elevation-raised ring-1 ring-cream-200/40 p-1">
+              <button
+                onClick={() => setGradeFilter("suitable")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  gradeFilter === "suitable"
+                    ? "bg-forest-100 text-forest-700 ring-1 ring-forest-200"
+                    : "text-ink-600 hover:bg-cream-50"
+                }`}
+              >
+                适合我 (G{userGradeLevel})
+              </button>
+              <button
+                onClick={() => setGradeFilter("challenge")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  gradeFilter === "challenge"
+                    ? "bg-coral-100 text-coral-700 ring-1 ring-coral-200"
+                    : "text-ink-600 hover:bg-cream-50"
+                }`}
+              >
+                挑战
+              </button>
+              <button
+                onClick={() => setGradeFilter("all")}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  gradeFilter === "all"
+                    ? "bg-cream-200 text-ink-700"
+                    : "text-ink-600 hover:bg-cream-50"
+                }`}
+              >
+                全部
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* --- Category pills - SECONDARY --- */}
         <div className="mb-6 flex flex-wrap gap-2">
           {categoriesForLanguage.map((cat) => (
@@ -294,7 +352,7 @@ export default function ReadingBrowserPage() {
                   : "text-ink-600 hover:bg-cream-50"
               }`}
             >
-              🆕 {t('reading.browser.sortUnread')}
+              <IconBook className="w-4 h-4 inline-block mr-1" /> {t('reading.browser.sortUnread')}
             </button>
             <button
               onClick={() => setSortMode("latest")}
@@ -362,7 +420,7 @@ export default function ReadingBrowserPage() {
                 coverImageUrl={article.cover_image_url}
                 language={article.language}
                 isCompleted={article.isCompleted}
-                isInProgress={(article as any).isInProgress}
+                isInProgress={article.isInProgress}
                 score={article.score}
                 onClick={() => router.push(`/reading/${article.id}`)}
               />

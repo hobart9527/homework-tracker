@@ -1064,7 +1064,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                     <p className="reader-paragraph" style={{ color: 'transparent' }}>{para}</p>
                     {hasIll && ill && (
                       <div style={{ marginTop: '16px', marginBottom: '24px' }}>
-                        <div style={{ width: '100%', height: '192px' }} />
+                        <div style={{ width: '100%', height: '320px' }} />
                         {ill.scene_description && (
                           <div style={{ fontSize: '12px', marginTop: '8px', height: '16px' }} />
                         )}
@@ -1154,12 +1154,12 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
                   )}
                   <p className="reader-paragraph">{renderParagraph(text, globalIndex)}</p>
                   {hasIllustration && (
-                    <figure className="mt-4 mb-6 rounded-xl overflow-hidden shadow-sm">
+                    <figure className="mt-4 mb-6 rounded-xl bg-gray-50 overflow-hidden shadow-sm">
                       <img
                         src={`${illustrationMap.get(globalIndex)!.image_url}?width=600`}
                         alt={illustrationMap.get(globalIndex)!.scene_description || "段落配图"}
                         loading="lazy"
-                        className="w-full max-h-48 object-cover"
+                        className="w-full max-h-80 object-contain"
                       />
                       {illustrationMap.get(globalIndex)!.scene_description && (
                         <figcaption className="text-xs mt-2 text-center" style={{ color: "var(--reader-text-muted)" }}>

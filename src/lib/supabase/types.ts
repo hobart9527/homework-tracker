@@ -347,6 +347,69 @@ export type Database = {
           },
         ]
       }
+      homework_type_bindings: {
+        Row: {
+          allowed_platforms: string[]
+          created_at: string
+          group_id: string
+          id: string
+          is_builtin: boolean
+          match_keywords: string[]
+          sort_order: number
+          type_id: string
+        }
+        Insert: {
+          allowed_platforms?: string[]
+          created_at?: string
+          group_id: string
+          id?: string
+          is_builtin?: boolean
+          match_keywords?: string[]
+          sort_order?: number
+          type_id: string
+        }
+        Update: {
+          allowed_platforms?: string[]
+          created_at?: string
+          group_id?: string
+          id?: string
+          is_builtin?: boolean
+          match_keywords?: string[]
+          sort_order?: number
+          type_id?: string
+        }
+        Relationships: []
+      }
+      platform_subject_mappings: {
+        Row: {
+          confidence: number
+          created_at: string
+          id: string
+          is_builtin: boolean
+          platform: string
+          platform_subject: string
+          type_id: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          is_builtin?: boolean
+          platform: string
+          platform_subject: string
+          type_id: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          id?: string
+          is_builtin?: boolean
+          platform?: string
+          platform_subject?: string
+          type_id?: string
+        }
+        Relationships: []
+      }
       homework_type_groups: {
         Row: {
           created_at: string | null

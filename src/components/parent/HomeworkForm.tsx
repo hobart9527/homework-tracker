@@ -16,6 +16,7 @@ import {
   type HomeworkFormState,
 } from "@/lib/homework-form";
 import type { Database } from "@/lib/supabase/types";
+import { DEFAULT_TYPE_GROUPS, DEFAULT_TYPES } from "@/lib/homework-types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
 type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
@@ -30,31 +31,7 @@ type TypeGroup = {
   sort_order: number;
 };
 
-const DEFAULT_TYPE_GROUPS: TypeGroup[] = [
-  { id: "group_english", name: "英文", icon: "🔤", sort_order: 0 },
-  { id: "group_chinese", name: "中文", icon: "🇨🇳", sort_order: 1 },
-  { id: "group_math", name: "数学", icon: "📐", sort_order: 2 },
-  { id: "group_interest", name: "兴趣", icon: "🎨", sort_order: 3 },
-  { id: "group_custom", name: "自定义", icon: "✨", sort_order: 4 },
-];
 
-const DEFAULT_TYPES = [
-  { id: "english_reading", name: "阅读", icon: "📚", default_points: 5, group_id: "group_english" },
-  { id: "english_course", name: "课程", icon: "💻", default_points: 4, group_id: "group_english" },
-  { id: "english_practice", name: "练习", icon: "📝", default_points: 4, group_id: "group_english" },
-  { id: "english_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_english" },
-  { id: "chinese_reading", name: "阅读", icon: "📖", default_points: 3, group_id: "group_chinese" },
-  { id: "chinese_practice", name: "练习", icon: "📝", default_points: 3, group_id: "group_chinese" },
-  { id: "chinese_course", name: "课程", icon: "💻", default_points: 4, group_id: "group_chinese" },
-  { id: "chinese_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_chinese" },
-  { id: "math_practice", name: "练习", icon: "🧮", default_points: 4, group_id: "group_math" },
-  { id: "math_course", name: "课程", icon: "💻", default_points: 4, group_id: "group_math" },
-  { id: "math_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_math" },
-  { id: "interest_piano", name: "钢琴", icon: "🎹", default_points: 6, group_id: "group_interest" },
-  { id: "interest_vocal", name: "声乐", icon: "🎤", default_points: 4, group_id: "group_interest" },
-  { id: "interest_ea", name: "EA", icon: "🎭", default_points: 4, group_id: "group_interest" },
-  { id: "interest_custom", name: "自定义", icon: "📝", default_points: 3, group_id: "group_interest" },
-];
 
 interface HomeworkFormProps {
   homework?: Database["public"]["Tables"]["homeworks"]["Row"];
@@ -78,6 +55,7 @@ export function HomeworkForm({
   const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
   const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [typeGroups, setTypeGroups] = useState<TypeGroup[]>([]);
+  const [typeBindings, setTypeBindings] = useState<Record<string, { allowed_platforms: string[]; match_keywords: string[] }>>({});
   const [loading, setLoading] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [readingArticles, setReadingArticles] = useState<
@@ -85,6 +63,9 @@ export function HomeworkForm({
   >([]);
   const [hasLoadedCopySource, setHasLoadedCopySource] = useState(false);
   const [customSecondaryTypes, setCustomSecondaryTypes] = useState<
+    Array<{ id: string; name: string; icon: string; default_points: number; group_id: string; is_custom: boolean }>
+  >([]);
+  const [apiTypes, setApiTypes] = useState<
     Array<{ id: string; name: string; icon: string; default_points: number; group_id: string; is_custom: boolean }>
   >([]);
   const [newCustomTypeName, setNewCustomTypeName] = useState("");
@@ -182,34 +163,34 @@ export function HomeworkForm({
         }
       }
 
-      const { data: groupsData } = await supabase
-        .from("homework_type_groups")
-        .select("*")
-        .eq("parent_id", session.user.id)
-        .order("sort_order", { ascending: true });
 
-      if (groupsData && groupsData.length > 0) {
-        setTypeGroups(groupsData as TypeGroup[]);
-      } else {
+      try {
+        const res = await fetch("/api/homework-types");
+        if (res.ok) {
+          const apiData = await res.json();
+          if (apiData.groups) {
+            setTypeGroups(apiData.groups);
+          }
+          if (apiData.types) {
+            setApiTypes(apiData.types);
+            const apiCustomTypes = apiData.types.filter((t: any) => t.is_custom);
+            setCustomSecondaryTypes(apiCustomTypes);
+            const apiMap: Record<string, { allowed_platforms: string[]; match_keywords: string[] }> = {};
+            for (const t of apiData.types) {
+              if (t.allowed_platforms || t.match_keywords) {
+                apiMap[t.id] = {
+                  allowed_platforms: t.allowed_platforms || [],
+                  match_keywords: t.match_keywords || [],
+                };
+              }
+            }
+            setTypeBindings(apiMap);
+          }
+        } else {
+          setTypeGroups(DEFAULT_TYPE_GROUPS);
+        }
+      } catch {
         setTypeGroups(DEFAULT_TYPE_GROUPS);
-      }
-
-      const { data: customTypesData } = await supabase
-        .from("custom_homework_types")
-        .select("*")
-        .eq("parent_id", session.user.id);
-
-      if (customTypesData && customTypesData.length > 0) {
-        setCustomSecondaryTypes(
-          customTypesData.map((t: any) => ({
-            id: t.id,
-            name: t.name,
-            icon: t.icon || "📝",
-            default_points: t.default_points,
-            group_id: "group_custom",
-            is_custom: true,
-          }))
-        );
       }
 
       if (!homework && !copyFromHomeworkId && childrenData?.length && !prefilledChildId) {
@@ -275,7 +256,7 @@ export function HomeworkForm({
     });
   }, [homework?.id, routingRules]);
 
-  const allTypes = DEFAULT_TYPES.map((t) => ({ ...t, is_custom: false }));
+  const allTypes = apiTypes.length > 0 ? apiTypes : DEFAULT_TYPES.map((t) => ({ ...t, is_custom: false }));
 
   const effectiveTypeGroups = typeGroups.length > 0 ? typeGroups : DEFAULT_TYPE_GROUPS;
 
@@ -306,6 +287,14 @@ export function HomeworkForm({
     }
     return "";
   })();
+  const currentTypeId = formData.type_id || (allTypes.find(t => t.name === formData.type_name)?.id ?? "");
+  const currentBinding = typeBindings[currentTypeId];
+  const relevantPlatforms = currentBinding?.allowed_platforms || [];
+
+  const effectiveAutoMatchedPlatform =
+    autoMatchedPlatform && relevantPlatforms.includes(autoMatchedPlatform)
+      ? autoMatchedPlatform
+      : "";
   const selectedChildPlatformAccounts = platformAccounts.filter(
     (account) => account.child_id === selectedChildId
   );
@@ -330,31 +319,22 @@ export function HomeworkForm({
     (effectiveTypeGroups.find(g => g.id === formData.type_group_id)?.name === "英文" && formData.type_name === "阅读") ||
     (effectiveTypeGroups.find(g => g.id === formData.type_group_id)?.name === "中文" && formData.type_name === "阅读");
 
-  const isCourseOrPracticeType =
-    formData.type_name === "课程" || formData.type_name === "练习";
-
-  const relevantPlatforms = (() => {
-    if (isReadingType) return ["raz-kids", "epic"];
-    if (isCourseOrPracticeType) return ["ixl", "khan-academy"];
-    return ["ixl", "khan-academy", "raz-kids", "epic"];
-  })();
-
   useEffect(() => {
-    if (!autoMatchedPlatform || !canConfigurePlatformBinding) {
+    if (!effectiveAutoMatchedPlatform || !canConfigurePlatformBinding) {
       return;
     }
 
     setFormData((prev) => {
-      if (prev.platform_binding_platform === autoMatchedPlatform) {
+      if (prev.platform_binding_platform === effectiveAutoMatchedPlatform) {
         return prev;
       }
 
       return {
         ...prev,
-        platform_binding_platform: autoMatchedPlatform,
+        platform_binding_platform: effectiveAutoMatchedPlatform,
       };
     });
-  }, [autoMatchedPlatform, canConfigurePlatformBinding]);
+  }, [effectiveAutoMatchedPlatform, canConfigurePlatformBinding]);
 
   useEffect(() => {
     if (!isReadingType) return;
@@ -373,15 +353,21 @@ export function HomeworkForm({
       : null;
     const isAutoTitle = !prevDefaultTitle || formData.title === prevDefaultTitle;
 
-    setFormData((prev) => ({
-      ...prev,
-      type_id: "",
-      type_name: type.name,
-      type_icon: type.icon || "📝",
-      point_value: type.default_points ?? 3,
-      title: isAutoTitle ? type.name + "练习" : prev.title,
-      type_group_id: type.group_id || prev.type_group_id,
-    }));
+    setFormData((prev) => {
+      const newBinding = typeBindings[type.id];
+      const hasPlatforms = newBinding?.allowed_platforms?.length > 0;
+
+      return {
+        ...prev,
+        type_id: type.id,
+        type_name: type.name,
+        type_icon: type.icon || "📝",
+        point_value: type.default_points ?? 3,
+        title: isAutoTitle ? type.name + "练习" : prev.title,
+        type_group_id: type.group_id || prev.type_group_id,
+        ...(!hasPlatforms ? { platform_binding_platform: "", platform_binding_source_ref: "" } : {}),
+      };
+    });
   };
 
   const handleGroupSelect = (groupId: string) => {
@@ -392,6 +378,8 @@ export function HomeworkForm({
       type_group_id: groupId,
       type_name: "",
       type_icon: group.icon || "📝",
+      platform_binding_platform: "",
+      platform_binding_source_ref: "",
     }));
   };
 
@@ -413,10 +401,9 @@ export function HomeworkForm({
       return;
     }
 
-    setCustomSecondaryTypes((prev) => [
-      ...prev,
-      { id: data.id, name, icon: "📝", default_points: 3, group_id: "group_custom", is_custom: true },
-    ]);
+    const newCustomType = { id: data.id, name, icon: "📝", default_points: 3, group_id: "group_custom", is_custom: true };
+    setCustomSecondaryTypes((prev) => [...prev, newCustomType]);
+    setApiTypes((prev) => [...prev, newCustomType]);
     setNewCustomTypeName("");
     setFormData((prev) => ({
       ...prev,
@@ -1076,58 +1063,96 @@ export function HomeworkForm({
                 </p>
               </div>
 
-              <div className="mt-space-4 grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label
-                    htmlFor="platform-binding-platform"
-                    className="mb-1 block text-sm font-medium text-forest-700"
-                  >
-                    {t('parent.homework.sourcePlatform')}
-                  </label>
-                  <select
-                    id="platform-binding-platform"
-                    aria-label={t('parent.homework.sourcePlatform')}
+              {relevantPlatforms.length === 0 && formData.type_group_id !== "group_chinese" ? (
+                <p className="mt-space-4 text-ui-sm text-ink-500">
+                  此作业类型暂不支持平台绑定。
+                </p>
+              ) : formData.type_group_id === "group_chinese" ? (
+                <div className="mt-space-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="platform-binding-platform"
+                      className="mb-1 block text-sm font-medium text-forest-700"
+                    >
+                      {t('parent.homework.sourcePlatform')}
+                    </label>
+                    <select
+                      id="platform-binding-platform"
+                      aria-label={t('parent.homework.sourcePlatform')}
+                      disabled
+                      value=""
+                      className="w-full rounded-radius-xl border-2 border-ink-300 bg-white px-space-4 py-space-2 text-ui-sm text-forest-700 outline-none transition-all focus:border-forest-500 disabled:cursor-not-allowed disabled:bg-ink-100"
+                    >
+                      <option value="">{t('parent.homework.noBinding')}</option>
+                    </select>
+                  </div>
+                  <Input
+                    id="platform-binding-source-ref"
+                    label={t('parent.homework.sourceRef')}
+                    aria-label={t('parent.homework.sourceRef')}
+                    disabled
+                    value=""
+                    placeholder={t('parent.homework.sourceRefPlaceholder')}
+                  />
+                </div>
+              ) : (
+                <div className="mt-space-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      htmlFor="platform-binding-platform"
+                      className="mb-1 block text-sm font-medium text-forest-700"
+                    >
+                      {t('parent.homework.sourcePlatform')}
+                    </label>
+                    <select
+                      id="platform-binding-platform"
+                      aria-label={t('parent.homework.sourcePlatform')}
+                      disabled={!canConfigurePlatformBinding}
+                      value={formData.platform_binding_platform}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          platform_binding_platform: e.target.value,
+                        }))
+                      }
+                      className="w-full rounded-radius-xl border-2 border-ink-300 bg-white px-space-4 py-space-2 text-ui-sm text-forest-700 outline-none transition-all focus:border-forest-500 disabled:cursor-not-allowed disabled:bg-ink-100"
+                    >
+                      <option value="">{t('parent.homework.noBinding')}</option>
+                      {relevantPlatforms.map((p) => {
+                        const labels: Record<string, string> = {
+                          ixl: "IXL",
+                          "khan-academy": "Khan Academy",
+                          "raz-kids": "Raz-Kids",
+                          epic: "EPIC",
+                        };
+                        return <option key={p} value={p}>{labels[p] || p}</option>;
+                      })}
+                    </select>
+                  </div>
+                  <Input
+                    id="platform-binding-source-ref"
+                    label={t('parent.homework.sourceRef')}
+                    aria-label={t('parent.homework.sourceRef')}
                     disabled={!canConfigurePlatformBinding}
-                    value={formData.platform_binding_platform}
+                    value={formData.platform_binding_source_ref}
                     onChange={(e) =>
                       setFormData((prev) => ({
                         ...prev,
-                        platform_binding_platform: e.target.value,
+                        platform_binding_source_ref: e.target.value,
                       }))
                     }
-                    className="w-full rounded-radius-xl border-2 border-ink-300 bg-white px-space-4 py-space-2 text-ui-sm text-forest-700 outline-none transition-all focus:border-forest-500 disabled:cursor-not-allowed disabled:bg-ink-100"
-                  >
-                    <option value="">{t('parent.homework.noBinding')}</option>
-                    {relevantPlatforms.includes("ixl") && <option value="ixl">IXL</option>}
-                    {relevantPlatforms.includes("khan-academy") && <option value="khan-academy">Khan Academy</option>}
-                    {relevantPlatforms.includes("raz-kids") && <option value="raz-kids">Raz-Kids</option>}
-                    {relevantPlatforms.includes("epic") && <option value="epic">EPIC</option>}
-                  </select>
+                    placeholder={t('parent.homework.sourceRefPlaceholder')}
+                  />
                 </div>
+              )}
 
-                <Input
-                  id="platform-binding-source-ref"
-                  label={t('parent.homework.sourceRef')}
-                  aria-label={t('parent.homework.sourceRef')}
-                  disabled={!canConfigurePlatformBinding}
-                  value={formData.platform_binding_source_ref}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      platform_binding_source_ref: e.target.value,
-                    }))
-                  }
-                  placeholder={t('parent.homework.sourceRefPlaceholder')}
-                />
-              </div>
+              {formData.type_group_id === "group_chinese" && (
+                <p className="mt-space-3 text-ui-xs text-ink-500">
+                  平台绑定功能预留中，中文内容暂不支持自动拉取。
+                </p>
+              )}
 
-              <p className="mt-space-3 text-ui-xs text-ink-500">
-                {canConfigurePlatformBinding
-                  ? t('parent.homework.platformHint')
-                  : t('parent.homework.batchPlatformDisabled')}
-              </p>
-
-              {canConfigurePlatformBinding && (
+              {canConfigurePlatformBinding && relevantPlatforms.length > 0 && formData.type_group_id !== "group_chinese" && (
                 <div className="mt-3 rounded-radius-xl border border-ink-300 bg-white px-space-3 py-space-3 text-ui-sm text-ink-600">
                   <p className="font-medium text-forest-700">
                     {t('parent.homework.autoMatchTitle')}
@@ -1137,9 +1162,9 @@ export function HomeworkForm({
                       已匹配 {matchedPlatformAccount.platform} 账号：
                       {matchedPlatformAccount.external_account_ref}
                     </p>
-                  ) : autoMatchedPlatform ? (
+                  ) : effectiveAutoMatchedPlatform ? (
                     <p className="mt-1 text-amber-700">
-                      当前作业类型已自动匹配到平台 {autoMatchedPlatform}
+                      当前作业类型已自动匹配到平台 {effectiveAutoMatchedPlatform}
                       ，但这个孩子还没有绑定对应的平台账号。
                     </p>
                   ) : (

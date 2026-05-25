@@ -100,7 +100,7 @@ function checkWordCount(
       : countChineseChars(article.content);
   const dev = rangeDeviation(actual, range);
   if (dev <= 0.2) return; // within tolerance
-  const severity: QualityGateSeverity = dev > 0.5 ? "error" : "warn";
+  const severity: QualityGateSeverity = dev > 0.3 ? "error" : "warn";
   const unit = language === "en" ? "words" : "Chinese characters";
   issues.push({
     code: "word-count-out-of-range",

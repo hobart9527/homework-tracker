@@ -11,6 +11,7 @@ import {
 import {
   matchesDirectPlatformBinding,
   matchesPlatformHomeworkType,
+  matchesTypePlatformBinding,
 } from "@/lib/learning-sync";
 import type { Database } from "@/lib/supabase/types";
 
@@ -44,6 +45,7 @@ type CandidateHomework = Pick<
   | "id"
   | "child_id"
   | "type_name"
+  | "type_id"
   | "point_value"
   | "estimated_minutes"
   | "required_checkpoint_type"
@@ -119,6 +121,7 @@ export async function loadAutoCheckinContext(input: {
     id: homework.id,
     child_id: homework.child_id,
     type_name: homework.type_name,
+    type_id: homework.type_id,
     point_value: homework.point_value,
     estimated_minutes: homework.estimated_minutes,
     required_checkpoint_type: homework.required_checkpoint_type,
@@ -150,6 +153,42 @@ export async function loadAutoCheckinContext(input: {
     );
   }
 
+  // Fetch type bindings for all candidate homework types
+  const typeIds = [...new Set(candidateHomeworks.map((h) => h.type_id).filter(Boolean))];
+  let typeBindingsById: Record<string, { allowed_platforms: string[]; match_keywords: string[] }> = {};
+  if (typeIds.length > 0) {
+    const bindingsSelect = input.supabase.from("homework_type_bindings")
+      .select as unknown as (columns?: string) => {
+      in: (column: string, values: string[]) => Promise<{
+        data: Record<string, unknown>[] | null;
+        error: { message: string } | null;
+      }>;
+    };
+    const { data: bindingsData } = await bindingsSelect("type_id, allowed_platforms, match_keywords")
+      .in("type_id", typeIds as string[]);
+    typeBindingsById = Object.fromEntries(
+      (bindingsData ?? []).map((b) => [
+        String(b.type_id),
+        { allowed_platforms: (b.allowed_platforms as string[]) || [], match_keywords: (b.match_keywords as string[]) || [] },
+      ])
+    );
+  }
+
+  // Fetch all subject mappings (small table, ~9 rows)
+  let subjectMappings: Array<{ platform: string; platform_subject: string; type_id: string; confidence: number }> = [];
+  const mappingsSelect = input.supabase.from("platform_subject_mappings")
+    .select as unknown as (columns?: string) => Promise<{
+    data: Record<string, unknown>[] | null;
+    error: { message: string } | null;
+  }>;
+  const { data: allMappingsData } = await mappingsSelect("platform, platform_subject, type_id, confidence");
+  subjectMappings = (allMappingsData ?? []).map((m) => ({
+    platform: String(m.platform),
+    platform_subject: String(m.platform_subject),
+    type_id: String(m.type_id),
+    confidence: Number(m.confidence),
+  }));
+
   const existingCheckInsByHomeworkId = Object.fromEntries(
     ((checkIns ?? []) as ExistingCheckIn[]).map((checkIn) => [
       checkIn.homework_id,
@@ -161,6 +200,8 @@ export async function loadAutoCheckinContext(input: {
     candidateHomeworks,
     existingCheckInsByHomeworkId,
     groupNamesById,
+    typeBindingsById,
+    subjectMappings,
   };
 }
 
@@ -171,6 +212,8 @@ export async function syncLearningEventAutoCheckins(input: {
   candidateHomeworks: CandidateHomework[];
   existingCheckInsByHomeworkId: Record<string, { id: string } | null>;
   groupNamesById?: Record<string, string>;
+  typeBindingsById?: Record<string, { allowed_platforms: string[]; match_keywords: string[] }>;
+  subjectMappings?: Array<{ platform: string; platform_subject: string; type_id: string; confidence: number }>;
 }) {
   const ingestResult = await ingestLearningEvent({
     supabase: input.supabase as any,
@@ -199,6 +242,17 @@ export async function syncLearningEventAutoCheckins(input: {
   );
 
   for (const homework of input.candidateHomeworks) {
+    const typeBinding = input.typeBindingsById?.[homework.type_id || ""];
+
+    // Check if event platform is allowed for this homework type
+    if (!matchesTypePlatformBinding({
+      eventPlatform: input.event.platform,
+      homeworkTypeId: homework.type_id,
+      homeworkTypeBinding: typeBinding,
+    })) {
+      continue;
+    }
+
     const hasDirectBinding =
       !!homework.platform_binding_platform &&
       !!homework.platform_binding_source_ref;
@@ -229,6 +283,9 @@ export async function syncLearningEventAutoCheckins(input: {
         title: input.event.title,
         homeworkTypeName: homework.type_name,
         homeworkGroupName,
+        homeworkTypeId: homework.type_id,
+        subjectMappings: input.subjectMappings,
+        typeBinding,
       })
     ) {
       continue;

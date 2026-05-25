@@ -35,11 +35,11 @@ if (!url || !key) {
 const supabase = createClient(url, key);
 
 const PRESET_GROUPS = [
-  { name: "英文", icon: "🇬🇧", sort_order: 1 },
-  { name: "中文", icon: "🇨🇳", sort_order: 2 },
-  { name: "数学", icon: "🔢", sort_order: 3 },
-  { name: "兴趣", icon: "🎨", sort_order: 4 },
-  { name: "自定义", icon: "✨", sort_order: 5 },
+  { name: "英文", icon: "🔤", sort_order: 0 },
+  { name: "中文", icon: "🇨🇳", sort_order: 1 },
+  { name: "数学", icon: "📐", sort_order: 2 },
+  { name: "兴趣", icon: "🎨", sort_order: 3 },
+  { name: "自定义", icon: "✨", sort_order: 4 },
 ];
 
 async function seed() {
