@@ -1,0 +1,36 @@
+name: Reading Content Pipeline
+
+on:
+  schedule:
+    # 08:00 CST = 00:00 UTC — 每天按 topic 生成阅读文章
+    - cron: "0 0 * * *"
+    # 09:00 CST Sun = 01:00 UTC Sun — 每周回填封面/插图
+    - cron: "0 1 * * 0"
+  workflow_dispatch:
+
+jobs:
+  refresh-news:
+    name: Generate articles from topics
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    if: github.event_name == 'schedule' && github.event.schedule == '0 0 * * *' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Trigger refresh-news
+        run: |
+          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reading/refresh-news?concurrency=3" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -o /dev/null -w "%{http_code}"
+
+  backfill-images:
+    name: Backfill cover images & illustrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    if: github.event_name == 'schedule' && github.event.schedule == '0 1 * * 0' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Trigger backfill-images
+        run: |
+          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reading/backfill-images?limit=10" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -o /dev/null -w "%{http_code}"

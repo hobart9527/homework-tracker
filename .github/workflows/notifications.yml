@@ -1,0 +1,36 @@
+name: Notifications
+
+on:
+  schedule:
+    # 每 15 分钟轮询录音推送队列
+    - cron: "*/15 * * * *"
+    # 23:00 CST = 15:00 UTC — 每晚未完成作业提醒
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+jobs:
+  voice-push:
+    name: Deliver voice recordings
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Trigger voice-push delivery
+        run: |
+          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/voice-push/run?limit=20" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -o /dev/null -w "%{http_code}"
+
+  nightly-reminders:
+    name: Nightly homework reminders
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'schedule' && github.event.schedule == '0 15 * * *' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Trigger nightly reminders
+        run: |
+          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reminders/nightly" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -o /dev/null -w "%{http_code}"

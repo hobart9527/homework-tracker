@@ -1,0 +1,43 @@
+name: Sync Learning Data
+
+on:
+  schedule:
+    # 07:30 CST = 23:30 UTC — 每天同步 IXL/Khan/RAZ/Epic
+    - cron: "30 23 * * *"
+    # 16:00 CST Mon = 08:00 UTC Mon — 每周刷新平台登录态
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+jobs:
+  platform-sync:
+    name: Platform daily sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'schedule' && github.event.schedule == '30 23 * * *' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Trigger platform sync
+        run: |
+          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/platform-sync/run" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -o /dev/null -w "%{http_code}"
+
+  refresh-sessions:
+    name: Refresh platform sessions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'schedule' && github.event.schedule == '0 8 * * 1' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/refresh-managed-sessions.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PLATFORM_CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.PLATFORM_CREDENTIALS_ENCRYPTION_KEY }}
