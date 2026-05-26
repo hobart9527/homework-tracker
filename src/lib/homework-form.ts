@@ -144,6 +144,10 @@ export function buildHomeworkDraftFromSource(
   };
 }
 
+function isUUID(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 export function buildHomeworkInsertRows(
   form: HomeworkFormState,
   createdBy: string
@@ -171,7 +175,7 @@ export function buildHomeworkInsertRows(
 
   return form.child_ids.map((childId) => ({
     child_id: childId,
-    type_id: form.type_id || null,
+    type_id: form.type_id && isUUID(form.type_id) ? form.type_id : null,
     type_name: form.type_name,
     type_icon: form.type_icon,
     title: form.title,
@@ -188,7 +192,7 @@ export function buildHomeworkInsertRows(
     required_checkpoint_type: checkpointType || null,
     send_to_wechat: effectiveSendToWechat,
     wechat_group_id: effectiveWechatGroupId || null,
-    type_group_id: form.type_group_id || null,
+    type_group_id: form.type_group_id && isUUID(form.type_group_id) ? form.type_group_id : null,
     platform_binding_platform: form.platform_binding_platform || null,
     platform_binding_source_ref: form.platform_binding_source_ref || null,
   }));

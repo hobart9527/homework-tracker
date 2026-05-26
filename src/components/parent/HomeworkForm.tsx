@@ -184,7 +184,7 @@ export function HomeworkForm({
                 };
               }
             }
-            setTypeBindings(apiMap);
+            setTypeBindings((prev) => ({ ...prev, ...apiMap }));
           }
         } else {
           setTypeGroups(DEFAULT_TYPE_GROUPS);
@@ -269,8 +269,8 @@ export function HomeworkForm({
   const selectedChildren = children.filter((child) =>
     formData.child_ids.includes(child.id)
   );
-  const canConfigurePlatformBinding = formData.child_ids.length === 1;
-  const selectedChildId = canConfigurePlatformBinding ? formData.child_ids[0] : null;
+  const canConfigurePlatformBinding = true;
+  const selectedChildId = formData.child_ids.length > 0 ? formData.child_ids[0] : null;
   const autoMatchedPlatform = (() => {
     const normalizedType = formData.type_name.trim().toLowerCase();
     if (normalizedType === "ixl") {
