@@ -173,8 +173,18 @@ describe("applyAutoCheckinMatches", () => {
     });
   });
 
-  it("does not create a second auto check-in when the homework was already completed earlier", async () => {
-    const checkInInsertMock = vi.fn();
+  it("creates a new check-in even when an earlier check-in from a different event exists on the same homework", async () => {
+    const checkInInsertMock = vi.fn(() => ({
+      select: vi.fn(() => ({
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: "check-2",
+            homework_id: "hw-1",
+          },
+          error: null,
+        }),
+      })),
+    }));
     const matchInsertMock = vi.fn((payload: Record<string, unknown>) => ({
       select: vi.fn(() => ({
         single: vi.fn().mockResolvedValue({
@@ -213,8 +223,8 @@ describe("applyAutoCheckinMatches", () => {
       },
       matches: [
         {
-          learningEventId: "event-1",
-          matchedAt: "2026-04-20T15:50:00.000Z",
+          learningEventId: "event-2",
+          matchedAt: "2026-04-20T16:10:00.000Z",
           matchRule: "duration_threshold",
           durationMinutes: 25,
         },
@@ -224,20 +234,28 @@ describe("applyAutoCheckinMatches", () => {
       },
     });
 
-    expect(checkInInsertMock).not.toHaveBeenCalled();
+    // Should still create a new check-in (no longer blocked by existingCheckIn)
+    expect(checkInInsertMock).toHaveBeenCalledTimes(1);
+    expect(checkInInsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        homework_id: "hw-1",
+        child_id: "child-1",
+      })
+    );
+    // New check-in ID is used as triggered_check_in_id, not the old one
     expect(matchInsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         homework_id: "hw-1",
-        learning_event_id: "event-1",
-        match_result: "already_completed",
+        learning_event_id: "event-2",
+        match_result: "auto_completed",
         is_primary: true,
-        triggered_check_in_id: "manual-check-1",
+        triggered_check_in_id: "check-2",
       })
     );
     expect(result).toMatchObject({
-      decision: "already_completed",
-      createdCheckInId: null,
-      primaryLearningEventId: "event-1",
+      decision: "auto_completed",
+      createdCheckInId: "check-2",
+      primaryLearningEventId: "event-2",
     });
   });
 });

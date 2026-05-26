@@ -213,18 +213,19 @@ export default function ReadingArticlePage({
                 .gte("completed_at", todayStart.toISOString())
                 .lte("completed_at", todayEnd.toISOString());
 
-              const newNoteLine = `${targetGroupName}阅读自动打卡 — 文章: ${params.id}, 得分: ${result.score}/${result.total}`;
+              const articleRef = `文章: ${params.id}`;
+              const sameArticleCheckIn = existingCheckIns?.find(
+                (ci) => ci.note?.includes(articleRef)
+              );
 
-              if (existingCheckIns && existingCheckIns.length > 0) {
-                // Update existing check-in: append new reading info to note
-                const existing = existingCheckIns[0];
-                const updatedNote = existing.note
-                  ? `${existing.note}\n${newNoteLine}`
-                  : newNoteLine;
+              const noteLine = `${targetGroupName}阅读自动打卡 — 文章: ${params.id}, 得分: ${result.score}/${result.total}`;
+
+              if (sameArticleCheckIn) {
+                // Same article re-read → update score line
                 await supabase
                   .from("check_ins")
-                  .update({ note: updatedNote })
-                  .eq("id", existing.id);
+                  .update({ note: noteLine })
+                  .eq("id", sameArticleCheckIn.id);
               } else {
                 await createReadingAutoCheckin({
                   supabase,

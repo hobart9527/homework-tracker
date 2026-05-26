@@ -71,9 +71,7 @@ export async function applyAutoCheckinMatches(input: {
       )?.completionState ?? null,
   });
 
-  const decision = input.existingCheckIn
-    ? ("already_completed" as const)
-    : baseDecision;
+  const decision = baseDecision;
 
   let createdCheckInId: string | null = null;
 
