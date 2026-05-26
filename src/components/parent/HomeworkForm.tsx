@@ -16,7 +16,7 @@ import {
   type HomeworkFormState,
 } from "@/lib/homework-form";
 import type { Database } from "@/lib/supabase/types";
-import { DEFAULT_TYPE_GROUPS, DEFAULT_TYPES } from "@/lib/homework-types";
+import { DEFAULT_TYPE_GROUPS, DEFAULT_TYPES, STATIC_TYPE_BINDINGS } from "@/lib/homework-types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
 type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
@@ -55,7 +55,7 @@ export function HomeworkForm({
   const [routingRules, setRoutingRules] = useState<MessageRoutingRule[]>([]);
   const [wechatGroups, setWechatGroups] = useState<WeChatGroup[]>([]);
   const [typeGroups, setTypeGroups] = useState<TypeGroup[]>([]);
-  const [typeBindings, setTypeBindings] = useState<Record<string, { allowed_platforms: string[]; match_keywords: string[] }>>({});
+  const [typeBindings, setTypeBindings] = useState<Record<string, { allowed_platforms: string[]; match_keywords: string[] }>>(STATIC_TYPE_BINDINGS);
   const [loading, setLoading] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [readingArticles, setReadingArticles] = useState<

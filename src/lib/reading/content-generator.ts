@@ -4,10 +4,16 @@ import { getWordCountRange } from "./standards";
 import { parseJsonWithRecovery } from "./json-recovery";
 import type { GeneratedArticle, GeneratedQuestion } from "./types";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "",
-  baseURL: process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1",
-});
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    _openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY || "",
+      baseURL: process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1",
+    });
+  }
+  return _openai;
+}
 
 // ---------------------------------------------------------------------------
 // Legacy types — kept for backward compatibility with existing callers.
@@ -583,7 +589,7 @@ export async function generateArticleContent(
 ): Promise<{ article: LocalGeneratedArticle; questions: LocalGeneratedQuestion[] }> {
   const prompt = buildGenerationPrompt(options);
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: process.env.OPENAI_READING_MODEL || "MiniMax-M2.7",
     messages: [
       {
@@ -641,7 +647,7 @@ export async function generateReadingContent(
     return opts.language === "zh" ? buildChinesePrompt(opts) : buildEnglishPrompt(opts);
   })();
 
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: process.env.OPENAI_READING_MODEL || "MiniMax-M2.7",
     messages: [
       {
