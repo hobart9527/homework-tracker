@@ -6,7 +6,6 @@ import { SettingsShell } from "@/components/parent/SettingsShell";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { PlatformSyncStatusPanel } from "@/components/parent/PlatformSyncStatusPanel";
-import { VoicePushStatusPanel } from "@/components/parent/VoicePushStatusPanel";
 import type { Database } from "@/lib/supabase/types";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
@@ -14,7 +13,6 @@ type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type PlatformAccount = Database["public"]["Tables"]["platform_accounts"]["Row"];
 type PlatformSyncJob = Database["public"]["Tables"]["platform_sync_jobs"]["Row"];
 type LearningEvent = Database["public"]["Tables"]["learning_events"]["Row"];
-type VoicePushTask = Database["public"]["Tables"]["voice_push_tasks"]["Row"];
 
 export default function SettingsSystemPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -37,25 +35,6 @@ export default function SettingsSystemPage() {
       }>;
     }>
   >([]);
-  const [voicePushTasks, setVoicePushTasks] = useState<
-    Array<{
-      id: string;
-      childName: string;
-      homeworkTitle: string;
-      status: "pending" | "retrying" | "sent" | "failed";
-      deliveryAttempts: number;
-      failureReason: string | null;
-      lastAttemptedAt: string | null;
-      sentAt: string | null;
-    }>
-  >([]);
-  const [voicePushRunSummary, setVoicePushRunSummary] = useState<{
-    processedCount: number;
-    sentCount: number;
-    retryingCount: number;
-    failedCount: number;
-    skippedCount: number;
-  } | null>(null);
   const [manualSyncLoading, setManualSyncLoading] = useState(false);
   const [manualSyncMessage, setManualSyncMessage] = useState<string | null>(null);
   const [manualSyncTone, setManualSyncTone] = useState<"success" | "danger" | "neutral">("neutral");
@@ -80,7 +59,6 @@ export default function SettingsSystemPage() {
     const childRows = (children ?? []) as Child[];
     if (!childRows.length) {
       setPlatformAccounts([]);
-      setVoicePushTasks([]);
       return;
     }
 
@@ -89,24 +67,11 @@ export default function SettingsSystemPage() {
       childRows.map((child) => [child.id, child.name])
     );
 
-    const [{ data: accounts }, { data: homeworks }, { data: tasks }] = await Promise.all([
+    const [{ data: accounts }] = await Promise.all([
       supabase.from("platform_accounts").select("*").in("child_id", childIds),
-      supabase.from("homeworks").select("*").in("child_id", childIds),
-      supabase
-        .from("voice_push_tasks")
-        .select("*")
-      .in("child_id", childIds)
-      .order("created_at", { ascending: false })
-      .limit(10),
     ]);
 
     const accountRows = (accounts ?? []) as PlatformAccount[];
-    const homeworkTitleById = Object.fromEntries(
-      ((homeworks ?? []) as Homework[]).map((homework) => [
-        homework.id,
-        homework.title,
-      ])
-    );
 
     if (!accountRows.length) {
       setPlatformAccounts([]);
@@ -176,18 +141,6 @@ export default function SettingsSystemPage() {
       );
     }
 
-    setVoicePushTasks(
-      ((tasks ?? []) as VoicePushTask[]).map((task) => ({
-        id: task.id,
-        childName: childNameById[task.child_id] ?? "未命名孩子",
-        homeworkTitle: homeworkTitleById[task.homework_id] ?? "录音作业",
-        status: task.status as "failed" | "sent" | "retrying" | "pending",
-        deliveryAttempts: task.delivery_attempts,
-        failureReason: task.failure_reason,
-        lastAttemptedAt: task.last_attempted_at,
-        sentAt: task.sent_at,
-      }))
-    );
   };
 
   useEffect(() => {
@@ -219,7 +172,7 @@ export default function SettingsSystemPage() {
   return (
     <SettingsShell
       title="系统运维"
-      description="查看平台同步状态、语音推送队列和执行日志。"
+      description="查看平台同步状态和执行日志。"
     >
       <Card>
         <PlatformSyncStatusPanel
@@ -394,40 +347,6 @@ export default function SettingsSystemPage() {
         </div>
       </Card>
 
-      <Card id="voice-push-status" className="scroll-mt-4">
-        <VoicePushStatusPanel
-          tasks={voicePushTasks}
-          lastRunSummary={voicePushRunSummary}
-          onRunQueue={async () => {
-            const response = await fetch("/api/voice-push/run", {
-              method: "GET",
-            });
-            const body = await response.json();
-
-            if (response.ok) {
-              setVoicePushRunSummary({
-                processedCount: Number(body.processedCount ?? 0),
-                sentCount: Number(body.sentCount ?? 0),
-                retryingCount: Number(body.retryingCount ?? 0),
-                failedCount: Number(body.failedCount ?? 0),
-                skippedCount: Number(body.skippedCount ?? 0),
-              });
-            } else {
-              setVoicePushRunSummary({
-                processedCount: 0,
-                sentCount: 0,
-                retryingCount: 0,
-                failedCount: 1,
-                skippedCount: 0,
-              });
-            }
-
-            if (parentId) {
-              await refreshStatus(parentId);
-            }
-          }}
-        />
-      </Card>
     </SettingsShell>
   );
 }

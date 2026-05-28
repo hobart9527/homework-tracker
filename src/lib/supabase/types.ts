@@ -1380,6 +1380,41 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_push_attempts: {
+        Row: {
+          id: string
+          voice_push_task_id: string
+          attempt_number: number
+          status: string
+          failure_reason: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          voice_push_task_id: string
+          attempt_number: number
+          status: string
+          failure_reason?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          voice_push_task_id?: string
+          attempt_number?: number
+          status?: string
+          failure_reason?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_push_attempts_voice_push_task_id_fkey"
+            columns: ["voice_push_task_id"]
+            isOneToOne: false
+            referencedRelation: "voice_push_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_push_tasks: {
         Row: {
           attachment_id: string
