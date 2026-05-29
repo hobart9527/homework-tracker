@@ -15,7 +15,7 @@ import {
   markPlatformSyncJobFailed,
   markPlatformAccountAttentionRequired,
 } from "@/lib/platform-sync";
-import { decryptCredential } from "@/lib/crypto";
+import { decryptCredential, getPlatformCredentialsKey } from "@/lib/crypto";
 import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
 import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
 import { sendTelegramTextMessage } from "@/lib/telegram";
@@ -161,8 +161,10 @@ async function tryAutoLoginRefresh(
     return false;
   }
 
-  const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
-  if (!key) {
+  let key: string;
+  try {
+    key = getPlatformCredentialsKey();
+  } catch {
     return false;
   }
 
@@ -416,14 +418,35 @@ export async function executeManagedSessionSync(input: {
     const retryCount = 1;
     const nextRetryAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-    await markPlatformSyncJobFailed({
-      supabase: input.supabase as any,
-      jobId: input.jobId,
-      platformAccountId: input.account.id,
-      errorSummary,
-      retryCount,
-      nextRetryAt,
-    });
+    try {
+      await markPlatformSyncJobFailed({
+        supabase: input.supabase as any,
+        jobId: input.jobId,
+        platformAccountId: input.account.id,
+        errorSummary,
+        retryCount,
+        nextRetryAt,
+      });
+    } catch (recordErr) {
+      // Fallback direct update if markPlatformSyncJobFailed also fails
+      try {
+        await (input.supabase as any)
+          .from("platform_sync_jobs")
+          .update({
+            status: "failed",
+            error_summary: errorSummary,
+            retry_count: retryCount,
+            next_retry_at: nextRetryAt,
+            finished_at: new Date().toISOString(),
+          })
+          .eq("id", input.jobId);
+      } catch {
+        // Last resort — log and continue; job row may remain running
+        console.error(
+          `[sync-execution] Failed to record failure for job ${input.jobId}: ${recordErr}`
+        );
+      }
+    }
 
     return {
       status: "failed" as const,

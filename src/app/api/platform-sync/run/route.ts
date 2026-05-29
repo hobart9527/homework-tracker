@@ -117,12 +117,31 @@ export async function GET(request: Request) {
     }
 
     if (account.status === "active" && supportsManagedSessionSync(account as any)) {
-      const executionResult = await executeManagedSessionSync({
-        supabase: supabase as any,
-        account: account as any,
-        householdTimeZone,
-        jobId: String(claimResult.job?.id),
-      });
+      let executionResult;
+      try {
+        executionResult = await executeManagedSessionSync({
+          supabase: supabase as any,
+          account: account as any,
+          householdTimeZone,
+          jobId: String(claimResult.job?.id),
+        });
+      } catch (error) {
+        const errorSummary =
+          error instanceof Error ? error.message : "Managed session sync crashed";
+        try {
+          await (supabase as any)
+            .from("platform_sync_jobs")
+            .update({
+              status: "failed",
+              error_summary: errorSummary,
+              finished_at: new Date().toISOString(),
+            })
+            .eq("id", claimResult.job?.id);
+        } catch {
+          // Best-effort
+        }
+        executionResult = { status: "crashed", error: errorSummary };
+      }
 
       results.push({
         platformAccountId: account.id,
@@ -197,6 +216,8 @@ export async function GET(request: Request) {
       householdTimeZone,
       jobId: String(retryJob.id),
     });
+    // retry loop wrapped in try/catch — errors from executeManagedSessionSync are handled by inner try/catch above.
+    // This await is safe because the inner catch always returns a result object rather than throwing.
 
     results.push({
       platformAccountId,

@@ -13,12 +13,14 @@ import { autoLoginKhan } from "../src/lib/khan-auto-login.mjs";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const ENCRYPTION_KEY = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !ENCRYPTION_KEY) {
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("Missing required environment variables");
   process.exit(1);
 }
+
+// Derive encryption key from service role key (replaces PLATFORM_CREDENTIALS_ENCRYPTION_KEY)
+const ENCRYPTION_KEY = SUPABASE_SERVICE_ROLE_KEY + "::platform-credentials";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { encryptCredential } from "@/lib/crypto";
+import { encryptCredential, getPlatformCredentialsKey } from "@/lib/crypto";
 import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
 import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
 import { NextResponse } from "next/server";
@@ -55,11 +55,7 @@ function getManualSessionGuide(platform: string) {
 }
 
 function getEncryptionKey(): string {
-  const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
-  if (!key) {
-    throw new Error("PLATFORM_CREDENTIALS_ENCRYPTION_KEY is not configured");
-  }
-  return key;
+  return getPlatformCredentialsKey();
 }
 
 export async function POST(request: Request) {

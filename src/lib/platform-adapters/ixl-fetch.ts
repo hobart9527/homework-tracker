@@ -384,7 +384,18 @@ export async function fetchIxlManagedSessionActivities(input: {
       fetchImpl
     );
 
-    const body = await response.text();
+    if (response.status === 403) {
+      throw new IxlManagedSessionError("Managed IXL session expired (403)");
+    }
+
+    let body: string;
+    try {
+      body = await response.text();
+    } catch (err) {
+      throw new IxlManagedSessionError(
+        `IXL response body read failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
 
     if (response.status === 401 || isIxlLoginPage(body)) {
       throw new IxlManagedSessionError("Managed IXL session expired");
@@ -394,10 +405,17 @@ export async function fetchIxlManagedSessionActivities(input: {
       throw new Error("IXL usage details page was not found");
     }
 
-    const subjectActivities = parseIxlActivityResponse(body).map((activity) => ({
-      ...activity,
-      subject: subject.label,
-    }));
+    let subjectActivities: IxlFetchedActivity[];
+    try {
+      subjectActivities = parseIxlActivityResponse(body).map((activity) => ({
+        ...activity,
+        subject: subject.label,
+      }));
+    } catch (err) {
+      throw new IxlManagedSessionError(
+        `IXL activity parse failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
 
     activities.push(...subjectActivities);
   }

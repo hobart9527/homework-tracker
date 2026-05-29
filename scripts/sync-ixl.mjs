@@ -29,11 +29,17 @@ function decryptCredential(encryptedData, secretKey) {
   return decrypted;
 }
 
+function getPlatformCredentialsKey() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return null;
+  return key + "::platform-credentials";
+}
+
 function getDbCredentials(account) {
   if (!account.auto_login_enabled || !account.login_credentials_encrypted) {
     return null;
   }
-  const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
+  const key = getPlatformCredentialsKey();
   if (!key) return null;
   try {
     return JSON.parse(decryptCredential(account.login_credentials_encrypted, key));
@@ -52,6 +58,7 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// Fallback credentials (use DB credentials first, then these)
 const IXL_CREDENTIALS = {
   username: process.env.IXL_USERNAME,
   password: process.env.IXL_PASSWORD,

@@ -35,11 +35,17 @@ function decryptCredential(encryptedData, secretKey) {
   return decrypted;
 }
 
+function getPlatformCredentialsKey() {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return null;
+  return key + "::platform-credentials";
+}
+
 function getDbCredentials(account) {
   if (!account.auto_login_enabled || !account.login_credentials_encrypted) {
     return null;
   }
-  const key = process.env.PLATFORM_CREDENTIALS_ENCRYPTION_KEY;
+  const key = getPlatformCredentialsKey();
   if (!key) return null;
   try {
     return JSON.parse(decryptCredential(account.login_credentials_encrypted, key));

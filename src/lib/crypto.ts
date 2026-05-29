@@ -4,9 +4,23 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 const KEY_LENGTH = 32;
+const PLATFORM_CREDENTIALS_NAMESPACE = "::platform-credentials";
 
 function deriveKey(secret: string): Buffer {
   return createHash("sha256").update(secret).digest();
+}
+
+/**
+ * Derive platform-credentials encryption key from SUPABASE_SERVICE_ROLE_KEY.
+ * Replaces the previous PLATFORM_CREDENTIALS_ENCRYPTION_KEY env var.
+ * Namespace salt prevents cross-use if the service role key is used for other encryption.
+ */
+export function getPlatformCredentialsKey(): string {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
+  }
+  return key + PLATFORM_CREDENTIALS_NAMESPACE;
 }
 
 export function encryptCredential(plainText: string, secretKey: string): string {
