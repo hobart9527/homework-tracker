@@ -2,10 +2,8 @@ name: Reading Content Pipeline
 
 on:
   schedule:
-    # 08:00 CST = 00:00 UTC — 每天按 topic 生成阅读文章
+    # 08:00 CST = 00:00 UTC — 每天生成文章 + 回填封面/插图
     - cron: "0 0 * * *"
-    # 09:00 CST Sun = 01:00 UTC Sun — 每周回填封面/插图
-    - cron: "0 1 * * 0"
   workflow_dispatch:
 
 jobs:
@@ -13,7 +11,7 @@ jobs:
     name: Generate articles from topics
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'schedule' && github.event.schedule == '0 0 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Trigger refresh-news
@@ -26,7 +24,8 @@ jobs:
     name: Backfill cover images & illustrations
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'schedule' && github.event.schedule == '0 1 * * 0' || github.event_name == 'workflow_dispatch'
+    needs: [refresh-news]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Trigger backfill-images
