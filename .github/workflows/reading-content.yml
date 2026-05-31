@@ -28,8 +28,14 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Trigger backfill-images
-        run: |
-          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reading/backfill-images?limit=10" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-            -o /dev/null -w "%{http_code}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx tsx scripts/backfill-reading-images.ts --limit=10
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
