@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
@@ -38,7 +38,7 @@ function getManualSessionLoginUrl(platform: string) {
   return "https://www.raz-kids.com/";
 }
 
-export default function SettingsIntegrationsPage() {
+function SettingsIntegrationsContent() {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -1021,5 +1021,17 @@ export default function SettingsIntegrationsPage() {
         </Card>
       )}
     </SettingsShell>
+  );
+}
+
+export default function SettingsIntegrationsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-12">
+        <div className="text-ui-lg">加载中...</div>
+      </div>
+    }>
+      <SettingsIntegrationsContent />
+    </Suspense>
   );
 }

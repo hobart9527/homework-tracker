@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ArticleReader } from "@/components/reading/ArticleReader";
@@ -55,7 +55,7 @@ interface FetchResult {
   illustrations: ApiIllustration[];
 }
 
-export default function ReadingArticlePage({
+function ReadingArticleContent({
   params,
 }: {
   params: { id: string };
@@ -399,5 +399,37 @@ export default function ReadingArticlePage({
         </div>
       )}
     </>
+  );
+}
+
+export default function ReadingArticlePage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-2xl space-y-6">
+        <div className="h-5 w-16 animate-pulse rounded-full" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.3 }} />
+        <div className="space-y-3">
+          <div className="h-8 w-3/4 animate-pulse rounded-lg" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.25 }} />
+          <div className="flex gap-2">
+            <div className="h-6 w-16 animate-pulse rounded-full" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.2 }} />
+            <div className="h-6 w-12 animate-pulse rounded-full" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.2 }} />
+            <div className="h-6 w-36 animate-pulse rounded-full" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.2 }} />
+          </div>
+        </div>
+        <div className="space-y-4 rounded-2xl p-6 shadow-sm" style={{ backgroundColor: "var(--reader-surface)", border: "1px solid var(--reader-border)" }}>
+          <div className="h-4 w-full animate-pulse rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+          <div className="h-4 w-5/6 animate-pulse rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+          <div className="h-4 w-4/5 animate-pulse rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+          <div className="h-4 w-full animate-pulse rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+          <div className="h-4 w-3/4 animate-pulse rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+          <div className="h-4 w-2/3 animate-pulse rounded" style={{ backgroundColor: "var(--reader-text-muted)", opacity: 0.15 }} />
+        </div>
+      </div>
+    }>
+      <ReadingArticleContent params={params} />
+    </Suspense>
   );
 }
