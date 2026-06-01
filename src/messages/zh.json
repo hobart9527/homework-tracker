@@ -209,7 +209,8 @@
       "statusUploading": "上传中",
       "statusUploaded": "已保存",
       "statusFailed": "上传失败",
-      "proofRequired": "需要{proof}"
+      "proofRequired": "需要{proof}",
+      "unsavedConfirm": "录音/附件未提交，确认关闭将丢失所有未保存的数据？"
     }
   },
   "parent": {

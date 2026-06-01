@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -61,11 +61,24 @@ export function CheckInModal({
   const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
   const [uploadStatus, setUploadStatus] = useState<AttachmentUploadStatus | null>(null);
   const [createdCheckInId, setCreatedCheckInId] = useState<string | null>(null);
+  const [unsavedConfirmPending, setUnsavedConfirmPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const maxRecordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
   const MAX_RECORDING_SECONDS = 3600;
+
+  const hasUnsaved = (attachments.length > 0 || recording) && !createdCheckInId;
+
+  const handleClose = useCallback(() => {
+    if (hasUnsaved) {
+      // If unsavedConfirmPending already showing, ignore additional close attempts
+      if (unsavedConfirmPending) return;
+      setUnsavedConfirmPending(true);
+      return;
+    }
+    onClose();
+  }, [hasUnsaved, unsavedConfirmPending, onClose]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -242,55 +255,50 @@ export function CheckInModal({
       return;
     }
 
-    setAttachments((prev) => {
-      const nextAudioAttachment = nextAttachments.find(
-        (attachment) => attachment.type === "audio"
-      );
+    const nextAudioAttachment = nextAttachments.find(
+      (attachment) => attachment.type === "audio"
+    );
 
-      if (nextAudioAttachment) {
-        prev
-          .filter((attachment) => attachment.type === "audio")
-          .forEach((attachment) => {
-            if (attachment.previewUrl) {
-              URL.revokeObjectURL(attachment.previewUrl);
-            }
-          });
+    // Audio: replace previous audio attachment; revoke old preview
+    if (nextAudioAttachment) {
+      attachments
+        .filter((prev) => prev.type === "audio")
+        .forEach((prev) => {
+          if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+        });
+      setAttachments([
+        ...attachments.filter((prev) => prev.type !== "audio"),
+        nextAudioAttachment,
+      ]);
+      setFeedback(t('child.checkin.recordingSaved'));
+      setSubmissionState("success");
+      return;
+    }
 
-        setFeedback(t('child.checkin.recordingSaved'));
-        setSubmissionState("success");
-        return [
-          ...prev.filter((attachment) => attachment.type !== "audio"),
-          nextAudioAttachment,
-        ];
-      }
-
-      const existingFingerprints = new Set(
-        prev.map((attachment) => buildAttachmentFingerprint(attachment.file))
-      );
-      const uniqueAttachments = nextAttachments.filter((attachment) => {
-        const fingerprint = buildAttachmentFingerprint(attachment.file);
-        if (existingFingerprints.has(fingerprint)) {
-          return false;
-        }
-
-        existingFingerprints.add(fingerprint);
-        return true;
-      });
-
-      if (uniqueAttachments.length !== nextAttachments.length) {
-        setFeedback(t('child.checkin.fileAlreadyAdded'));
-        setSubmissionState("error");
-      } else {
-        setFeedback(
-          expectedType === "audio"
-            ? t('child.checkin.recordingSaved')
-            : t('child.checkin.photoAddedFeedback')
-        );
-        setSubmissionState("success");
-      }
-
-      return [...prev, ...uniqueAttachments];
+    // Photo: deduplicate by fingerprint
+    const existingFingerprints = new Set(
+      attachments.map((prev) => buildAttachmentFingerprint(prev.file))
+    );
+    const uniqueAttachments = nextAttachments.filter((attachment) => {
+      const fingerprint = buildAttachmentFingerprint(attachment.file);
+      if (existingFingerprints.has(fingerprint)) return false;
+      existingFingerprints.add(fingerprint);
+      return true;
     });
+
+    if (uniqueAttachments.length !== nextAttachments.length) {
+      setFeedback(t('child.checkin.fileAlreadyAdded'));
+      setSubmissionState("error");
+    } else {
+      setFeedback(
+        expectedType === "audio"
+          ? t('child.checkin.recordingSaved')
+          : t('child.checkin.photoAddedFeedback')
+      );
+      setSubmissionState("success");
+    }
+
+    setAttachments((prev) => [...prev, ...uniqueAttachments]);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -695,7 +703,7 @@ export function CheckInModal({
     (!homework.required_checkpoint_type || attachments.length > 0);
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t('child.checkin.title')}>
+    <Modal isOpen={isOpen} onClose={handleClose} title={t('child.checkin.title')}>
       <div className="space-y-3">
         <div className="text-center">
           <span className="text-5xl">{homework.type_icon}</span>
@@ -916,7 +924,32 @@ export function CheckInModal({
             </div>
           </div>
         ) : null}
-        </div>
+
+        {/* Unsaved changes confirmation */}
+        {unsavedConfirmPending && (
+          <div className="rounded-xl border-2 border-coral-200 bg-coral-50 p-4 text-center">
+            <p className="text-sm font-medium text-coral-700">
+              {t('child.checkin.unsavedConfirm')}
+            </p>
+            <div className="mt-3 flex gap-3 justify-center">
+              <Button
+                variant="ghost"
+                onClick={() => setUnsavedConfirmPending(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="accent"
+                onClick={() => {
+                  setUnsavedConfirmPending(false);
+                  onClose();
+                }}
+              >
+                {t('common.confirm')}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Submit */}
         <Button className="w-full" onClick={handleSubmit} disabled={!canSubmit}>
@@ -936,6 +969,7 @@ export function CheckInModal({
             {t('child.checkin.retryUpload')}
           </Button>
         )}
+      </div>
     </Modal>
   );
 }

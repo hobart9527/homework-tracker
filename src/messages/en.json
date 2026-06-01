@@ -162,7 +162,8 @@
       "statusUploading": "Uploading",
       "statusUploaded": "Saved",
       "statusFailed": "Upload failed",
-      "proofRequired": "{proof} required"
+      "proofRequired": "{proof} required",
+      "unsavedConfirm": "Recording/attachment not submitted. Closing will lose all unsaved data."
     },
     "rewards": {
       "title": "Rewards",

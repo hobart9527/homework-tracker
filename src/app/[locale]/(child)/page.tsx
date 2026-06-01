@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CheckInModal } from "@/components/child/CheckInModal";
 import { ChildWeekSummaryCard } from "@/components/child/ChildWeekSummaryCard";
@@ -38,6 +38,8 @@ function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
 export default function ChildLandingPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const params = useParams();
+  const locale = params.locale as string;
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -259,7 +261,11 @@ export default function ChildLandingPage() {
             <PriorityHomeworkCard
               task={priorityTask}
               onOpen={() => {
-                if (!priorityTask) {
+                if (!priorityTask) return;
+
+                // 阅读类型任务直接跳转到阅读页
+                if (priorityTask.typeIcon === "📚") {
+                  router.push(`/${locale}/reading`);
                   return;
                 }
 
