@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ArticleCard } from "@/components/reading/ArticleCard";
 import { IconBook } from "@/components/ui/icons";
@@ -84,6 +85,7 @@ function SkeletonCard() {
 export default function ReadingBrowserPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const locale = useLocale();
   const [supabase] = useState(() => createClient());
 
   const [loading, setLoading] = useState(true);
@@ -422,7 +424,7 @@ export default function ReadingBrowserPage() {
                 isCompleted={article.isCompleted}
                 isInProgress={article.isInProgress}
                 score={article.score}
-                onClick={() => router.push(`/reading/${article.id}`)}
+                onClick={() => router.push(`/${locale}/reading/${article.id}`)}
               />
             ))}
           </div>

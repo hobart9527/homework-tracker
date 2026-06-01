@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { Card } from "@/components/ui/Card";
 import { IconStar, IconClock, IconMapPin, IconPaperclip, IconBookOpen } from "@/components/ui/icons";
 import { Button } from "@/components/ui/Button";
@@ -48,6 +49,7 @@ export function ChildHomeworkCard({
   } as const;
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const router = useRouter();
+  const locale = useLocale();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [previewUrls, setPreviewUrls] = useState<AttachmentPreview[]>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -268,7 +270,7 @@ export function ChildHomeworkCard({
               <Button
                 variant="accent"
                 size="md"
-                onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}
+                onClick={homework.type_icon === "📚" ? () => router.push(`/${locale}/reading`) : onComplete}
                 className="min-h-[44px] w-full sm:w-auto"
               >
                 {homework.type_icon === "📚" ? "去阅读" : "补打卡"}
@@ -276,7 +278,7 @@ export function ChildHomeworkCard({
             ) : (
               <Button
                 size="md"
-                onClick={homework.type_icon === "📚" ? () => router.push("/reading") : onComplete}
+                onClick={homework.type_icon === "📚" ? () => router.push(`/${locale}/reading`) : onComplete}
                 className="min-h-[44px] w-full sm:w-auto"
               >
                 {homework.type_icon === "📚" ? "去阅读" : "完成"}

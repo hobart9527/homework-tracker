@@ -40,11 +40,7 @@ export async function middleware(request: NextRequest) {
   // Run next-intl middleware first
   const intlResponse = intlMiddleware(request);
 
-  // Create supabase client that can modify cookies
-  const supabaseResponse = NextResponse.next({
-    request,
-  });
-
+  // Create supabase client that can modify cookies on intlResponse
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -59,7 +55,7 @@ export async function middleware(request: NextRequest) {
             value,
             ...options,
           });
-          supabaseResponse.cookies.set({
+          intlResponse.cookies.set({
             name,
             value,
             ...options,
@@ -71,7 +67,7 @@ export async function middleware(request: NextRequest) {
             value: "",
             ...options,
           });
-          supabaseResponse.cookies.set({
+          intlResponse.cookies.set({
             name,
             value: "",
             ...options,
@@ -130,20 +126,19 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // If intl middleware redirected, we need to apply the redirect with cookies
+  // If intl middleware redirected, attach auth cookies to the redirect
   if (intlResponse.status !== 200) {
     const redirectResponse = NextResponse.redirect(
       intlResponse.headers.get("location") || "/",
       intlResponse.status
     );
-    // Copy cookies from supabaseResponse to redirectResponse
-    supabaseResponse.cookies.getAll().forEach((cookie) => {
+    intlResponse.cookies.getAll().forEach((cookie) => {
       redirectResponse.cookies.set(cookie.name, cookie.value);
     });
     return redirectResponse;
   }
 
-  return supabaseResponse;
+  return intlResponse;
 }
 
 export const config = {

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { CompletionStamp } from "./CompletionStamp";
 
 export interface QuizViewQuestion {
@@ -335,6 +336,7 @@ export function QuizView({
   onComplete,
 }: QuizViewProps) {
   const router = useRouter();
+  const locale = useLocale();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [phase, setPhase] = useState<
@@ -735,7 +737,7 @@ export function QuizView({
           )}
           <button
             type="button"
-            onClick={() => router.push("/reading")}
+            onClick={() => router.push(`/${locale}/reading`)}
             className="rounded-full bg-cream-50 px-6 py-3 text-base font-medium text-ink-700 transition hover:bg-cream-100 active:scale-95"
           >
             {"返回文章列表"}
@@ -781,7 +783,7 @@ export function QuizView({
 
         <button
           type="button"
-          onClick={() => router.push("/reading")}
+          onClick={() => router.push(`/${locale}/reading`)}
           className="rounded-full bg-cream-50 px-6 py-3 text-base font-medium text-ink-700 transition hover:bg-cream-100 active:scale-95"
         >
           {"返回文章列表"}
