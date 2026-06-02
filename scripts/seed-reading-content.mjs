@@ -702,6 +702,10 @@ async function main() {
   let successCount = 0;
   let failCount = 0;
 
+  // Dynamic import for cover generation (inside main() to avoid module-top-level env issues)
+  const readingMod = await import("@/lib/reading/index.ts");
+  const { generateCover } = readingMod;
+
   for (let i = 0; i < filteredTopics.length; i++) {
     const topic = filteredTopics[i];
     const mapKey = `${topic.topicKey}|G${topic.gradeLevel}`;
@@ -741,6 +745,30 @@ async function main() {
       });
 
       await insertQuestions(supabase, articleId, result.questions);
+
+      // Generate cover image (non-blocking — warn on failure, continue)
+      try {
+        const isChinese = /[一-鿿]/.test(result.article.content);
+        const language = isChinese ? "zh" : "en";
+        const cover = await generateCover({
+          articleId,
+          language,
+          category: topic.category,
+          scene: result.article.title,
+          title: result.article.title,
+        });
+        await supabase
+          .from("reading_articles")
+          .update({
+            cover_image_url: cover.url,
+            cover_source: cover.source,
+            cover_source_url: cover.source_url,
+          })
+          .eq("id", articleId);
+        console.log(`  Cover: OK (${cover.source})`);
+      } catch (coverErr) {
+        console.warn(`  Cover: SKIP — ${coverErr instanceof Error ? coverErr.message : String(coverErr)}`);
+      }
 
       console.log(
         `OK — "${result.article.title}" (${result.questions.length} questions)`

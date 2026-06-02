@@ -1,0 +1,21 @@
+{
+  "reading": {
+    "browser": {
+      "title": "阅读",
+      "subtitle": "探索文章和故事",
+      "loadError": "加载文章失败",
+      "loadGenericError": "加载时出错",
+      "sortDefault": "默认",
+      "sortUnread": "未读优先",
+      "sortLatest": "最新优先",
+      "searchPlaceholder": "搜索文章...",
+      "enEmpty": "暂无英文文章",
+      "zhEmpty": "暂无中文文章",
+      "switchHintEn": "切换到英文查看更多文章",
+      "switchHintZh": "切换到中文查看更多文章"
+    }
+  },
+  "common": {
+    "retry": "重试"
+  }
+}

@@ -24,7 +24,6 @@ jobs:
     name: Backfill cover images & illustrations
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    needs: [refresh-news]
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
@@ -34,7 +33,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: npx tsx scripts/backfill-reading-images.ts --limit=10
+      - run: npx tsx scripts/backfill-reading-images.ts --limit=50
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

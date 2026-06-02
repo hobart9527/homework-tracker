@@ -1,0 +1,21 @@
+{
+  "reading": {
+    "browser": {
+      "title": "Reading",
+      "subtitle": "Explore articles and stories",
+      "loadError": "Failed to load articles",
+      "loadGenericError": "Something went wrong while loading",
+      "sortDefault": "Default",
+      "sortUnread": "Unread first",
+      "sortLatest": "Newest first",
+      "searchPlaceholder": "Search articles...",
+      "enEmpty": "No English articles available",
+      "zhEmpty": "No Chinese articles available",
+      "switchHintEn": "Switch to Chinese to see more articles",
+      "switchHintZh": "Switch to English to see more articles"
+    }
+  },
+  "common": {
+    "retry": "Retry"
+  }
+}
