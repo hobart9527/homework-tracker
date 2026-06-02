@@ -1,5 +1,10 @@
 {
   "reading": {
+    "article": {
+      "notFound": "Article not found",
+      "loadFailed": "Failed to load article",
+      "back": "Go back"
+    },
     "browser": {
       "title": "Reading",
       "subtitle": "Explore articles and stories",

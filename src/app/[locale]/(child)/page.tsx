@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { CheckInModal } from "@/components/child/CheckInModal";
 import { ChildWeekSummaryCard } from "@/components/child/ChildWeekSummaryCard";
@@ -38,8 +39,9 @@ function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
 export default function ChildLandingPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const localeFromHook = useLocale();
   const params = useParams();
-  const locale = params.locale as string;
+  const locale = params.locale as string || localeFromHook;
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -72,7 +74,7 @@ export default function ChildLandingPage() {
         setHomeworks([]);
         setCheckIns([]);
         setLoading(false);
-        router.push("/child-login");
+        router.push(`/${locale}/child-login`);
         return;
       }
 
@@ -260,12 +262,19 @@ export default function ChildLandingPage() {
           ) : (
             <PriorityHomeworkCard
               task={priorityTask}
+              actionLabel={priorityTask?.platformUrl && priorityTask.typeIcon !== "📚" ? "去平台" : undefined}
               onOpen={() => {
                 if (!priorityTask) return;
 
                 // 阅读类型任务直接跳转到阅读页
                 if (priorityTask.typeIcon === "📚") {
                   router.push(`/${locale}/reading`);
+                  return;
+                }
+
+                // 平台链接任务直接打开新窗口
+                if (priorityTask.platformUrl) {
+                  window.open(priorityTask.platformUrl, '_blank', 'noopener,noreferrer');
                   return;
                 }
 

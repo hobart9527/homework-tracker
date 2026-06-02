@@ -19,6 +19,7 @@ export type HomeworkFormState = {
   required_checkpoint_type: HomeworkProofType | "";
   platform_binding_platform: string;
   platform_binding_source_ref: string;
+  platform_url: string;
   send_to_wechat: boolean;
   wechat_group_id: string;
   enable_recording: boolean;
@@ -62,6 +63,7 @@ type SourceHomework = {
   required_checkpoint_type: HomeworkProofType;
   platform_binding_platform: string | null;
   platform_binding_source_ref: string | null;
+  platform_url: string | null;
   send_to_wechat: boolean | null;
   wechat_group_id: string | null;
 };
@@ -137,6 +139,7 @@ export function buildHomeworkDraftFromSource(
     required_checkpoint_type: source.required_checkpoint_type || "",
     platform_binding_platform: source.platform_binding_platform || "",
     platform_binding_source_ref: source.platform_binding_source_ref || "",
+    platform_url: source.platform_url || "",
     send_to_wechat: source.send_to_wechat || false,
     wechat_group_id: source.wechat_group_id || "",
     enable_recording: meta.enable_recording as boolean || false,
@@ -195,6 +198,7 @@ export function buildHomeworkInsertRows(
     type_group_id: form.type_group_id && isUUID(form.type_group_id) ? form.type_group_id : null,
     platform_binding_platform: form.platform_binding_platform || null,
     platform_binding_source_ref: form.platform_binding_source_ref || null,
+    platform_url: form.platform_url || null,
   }));
 }
 

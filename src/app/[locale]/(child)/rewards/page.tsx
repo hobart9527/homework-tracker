@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
@@ -12,6 +13,7 @@ type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 export default function RewardsPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const locale = useLocale();
   const supabase = createClient();
   const [totalPoints, setTotalPoints] = useState(0);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -24,7 +26,7 @@ export default function RewardsPage() {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) {
-        router.push("/child-login");
+        router.push(`/${locale}/child-login`);
         return;
       }
 

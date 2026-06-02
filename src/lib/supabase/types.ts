@@ -457,6 +457,7 @@ export type Database = {
           is_active: boolean | null
           platform_binding_platform: string | null
           platform_binding_source_ref: string | null
+          platform_url: string | null
           point_deduction: number
           point_value: number
           repeat_days: number[] | null
@@ -484,6 +485,7 @@ export type Database = {
           is_active?: boolean | null
           platform_binding_platform?: string | null
           platform_binding_source_ref?: string | null
+          platform_url?: string | null
           point_deduction?: number
           point_value?: number
           repeat_days?: number[] | null
@@ -511,6 +513,7 @@ export type Database = {
           is_active?: boolean | null
           platform_binding_platform?: string | null
           platform_binding_source_ref?: string | null
+          platform_url?: string | null
           point_deduction?: number
           point_value?: number
           repeat_days?: number[] | null

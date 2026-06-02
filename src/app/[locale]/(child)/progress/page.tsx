@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
 import {
@@ -114,6 +115,7 @@ function getCalendarTone(day: {
 export default function ProgressPage() {
   const { t } = useTranslation();
   const router = useRouter();
+  const locale = useLocale();
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -141,7 +143,7 @@ export default function ProgressPage() {
         setHomeworks([]);
         setCheckIns([]);
         setLoading(false);
-        router.push("/child-login");
+        router.push(`/${locale}/child-login`);
         return;
       }
 

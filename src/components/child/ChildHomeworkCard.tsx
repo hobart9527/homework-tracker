@@ -270,18 +270,18 @@ export function ChildHomeworkCard({
               <Button
                 variant="accent"
                 size="md"
-                onClick={homework.type_icon === "📚" ? () => router.push(`/${locale}/reading`) : onComplete}
+                onClick={homework.type_icon === "📚" ? () => router.push(`/${locale}/reading`) : homework.platform_url ? () => window.open(homework.platform_url ?? '', '_blank', 'noopener,noreferrer') : onComplete}
                 className="min-h-[44px] w-full sm:w-auto"
               >
-                {homework.type_icon === "📚" ? "去阅读" : "补打卡"}
+                {homework.type_icon === "📚" ? "去阅读" : homework.platform_url ? "去平台" : "补打卡"}
               </Button>
             ) : (
               <Button
                 size="md"
-                onClick={homework.type_icon === "📚" ? () => router.push(`/${locale}/reading`) : onComplete}
+                onClick={homework.type_icon === "📚" ? () => router.push(`/${locale}/reading`) : homework.platform_url ? () => window.open(homework.platform_url ?? '', '_blank', 'noopener,noreferrer') : onComplete}
                 className="min-h-[44px] w-full sm:w-auto"
               >
-                {homework.type_icon === "📚" ? "去阅读" : "完成"}
+                {homework.type_icon === "📚" ? "去阅读" : homework.platform_url ? "去平台" : "完成"}
               </Button>
             )}
           </div>

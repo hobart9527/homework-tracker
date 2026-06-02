@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import ChildShell from "@/components/ui/ChildShell";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -17,6 +18,7 @@ export default function ChildLayout({
 }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const locale = useLocale();
   const [loading, setLoading] = useState(true);
   const [child, setChild] = useState<Child | null>(null);
   const [totalPoints, setTotalPoints] = useState(0);
@@ -30,7 +32,7 @@ export default function ChildLayout({
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.push("/child-login");
+        router.push(`/${locale}/child-login`);
         return;
       }
 
@@ -47,7 +49,7 @@ export default function ChildLayout({
       ]);
 
       if (!childData) {
-        router.push("/child-login");
+        router.push(`/${locale}/child-login`);
         return;
       }
 
@@ -99,7 +101,7 @@ export default function ChildLayout({
             <button
               onClick={async () => {
                 await supabase.auth.signOut();
-                router.push("/child-login");
+                router.push(`/${locale}/child-login`);
               }}
               className="text-xs bg-rose-500 text-white px-2 py-1 rounded-md"
             >

@@ -1,0 +1,2 @@
+ALTER TABLE homeworks
+ADD COLUMN IF NOT EXISTS platform_url TEXT;

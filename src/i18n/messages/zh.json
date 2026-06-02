@@ -1,5 +1,10 @@
 {
   "reading": {
+    "article": {
+      "notFound": "文章未找到",
+      "loadFailed": "加载文章失败",
+      "back": "返回"
+    },
     "browser": {
       "title": "阅读",
       "subtitle": "探索文章和故事",

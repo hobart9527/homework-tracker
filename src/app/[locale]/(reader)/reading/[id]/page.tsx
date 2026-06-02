@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ArticleReader } from "@/components/reading/ArticleReader";
 import type { ArticleReaderArticle, ArticleReaderRef } from "@/components/reading/ArticleReader";
@@ -62,6 +63,7 @@ function ReadingArticleContent({
 }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const locale = useLocale();
   const searchParams = useSearchParams();
   const assignmentId = searchParams?.get("assignmentId") ?? null;
 
@@ -101,7 +103,7 @@ function ReadingArticleContent({
       } = await supabase.auth.getSession();
 
       if (!session) {
-        router.push("/child-login");
+        router.push(`/${locale}/child-login`);
         return;
       }
 

@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/Button";
 interface PriorityHomeworkCardProps {
   task: DailyTaskStatus | null;
   onOpen: () => void;
+  actionLabel?: string;
 }
 
 export function PriorityHomeworkCard({
   task,
   onOpen,
+  actionLabel,
 }: PriorityHomeworkCardProps) {
   if (!task) {
     return (
@@ -67,7 +69,7 @@ export function PriorityHomeworkCard({
             onClick={onOpen}
             className="min-h-[44px] w-full sm:w-auto"
           >
-            {task.typeIcon === "📚" ? "去阅读" : "去完成"}
+            {actionLabel || (task.typeIcon === "📚" ? "去阅读" : "去完成")}
           </Button>
         </div>
       </div>

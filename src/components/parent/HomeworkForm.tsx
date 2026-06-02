@@ -108,6 +108,7 @@ export function HomeworkForm({
       | ""
       | "photo"
       | "audio",
+    platform_url: homework?.platform_url || "",
     platform_binding_platform: homework?.platform_binding_platform || "",
     platform_binding_source_ref: homework?.platform_binding_source_ref || "",
     send_to_wechat: homework?.send_to_wechat || false,
@@ -1176,6 +1177,20 @@ export function HomeworkForm({
                 </div>
               )}
             </div>
+
+            {/* Platform URL */}
+            <Input
+              label="平台链接 (Platform URL)"
+              type="url"
+              value={formData.platform_url}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  platform_url: e.target.value,
+                }))
+              }
+              placeholder="https://..."
+            />
 
             {/* Estimated minutes */}
             <Input

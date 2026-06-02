@@ -17,6 +17,7 @@ export type DailyTaskStatus = {
   typeIcon: string | null;
   estimatedMinutes: number | null;
   pointValue: number;
+  platformUrl: string | null;
   dailyCutoffTime: string | null;
   requiredCheckpointType: ProofType;
   completed: boolean;
@@ -59,6 +60,7 @@ export function buildDailyTaskStatuses(
       date,
       title: hw.title,
       typeIcon: hw.type_icon,
+      platformUrl: hw.platform_url ?? null,
       estimatedMinutes: hw.estimated_minutes,
       pointValue: hw.point_value ?? 0,
       dailyCutoffTime: hw.daily_cutoff_time,
