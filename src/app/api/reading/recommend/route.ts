@@ -39,7 +39,7 @@ function buildLevelWindow(target: number): string[] {
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 30, 60_000);
+  const limited = await checkRateLimit(request, 30, 60_000);
   if (limited) return limited;
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
     // ------------------------------------------------------------------
     const { data: assignment } = await supabase
       .from("reading_assignments")
-      .select("*, article:article_id(*)")
+      .select("id, article_id, status, assigned_date, article:article_id(id, language)")
       .eq("child_id", childId)
       .neq("status", "completed")
       .order("assigned_date", { ascending: false })
@@ -187,7 +187,7 @@ export async function GET(request: Request) {
     //     may not yet know about.
     const poolRes = await supabase
       .from("reading_articles")
-      .select("*")
+      .select("id, title, category, category_v2, grade_level, word_count, estimated_minutes, difficulty, topic_key, source, cover_image_url, language, raz_level, scene_description")
       .eq("status", "published")
       .eq("language", language as string)
       .not("raz_level", "is", null)
@@ -211,32 +211,26 @@ export async function GET(request: Request) {
     //     article ids ∪ in-progress assignment article ids in OTHER langs.
     const excludeSet = new Set<string>(excludeFromQuery);
 
-    const completedRes = await supabase
+    const assignRes = await supabase
       .from("reading_assignments")
-      .select("article_id")
-      .eq("child_id", childId)
-      .eq("status", "completed");
-    if (!completedRes.error) {
-      for (const row of (completedRes.data as { article_id: string | null }[] | null) ?? []) {
-        if (row.article_id) excludeSet.add(row.article_id);
-      }
-    }
-
-    const inProgressRes = await supabase
-      .from("reading_assignments")
-      .select("article_id, article:article_id(language)")
-      .eq("child_id", childId)
-      .neq("status", "completed");
-    if (!inProgressRes.error) {
-      type IPRow = {
+      .select("article_id, status, article:article_id(language)")
+      .eq("child_id", childId);
+    if (!assignRes.error) {
+      type AssignRow = {
         article_id: string | null;
+        status: string;
         article: { language?: string | null } | null;
       };
-      for (const row of (inProgressRes.data as unknown as IPRow[] | null) ?? []) {
+      for (const row of (assignRes.data as unknown as AssignRow[] | null) ?? []) {
         if (!row.article_id) continue;
-        const otherLang = row.article?.language ?? null;
-        if (otherLang && otherLang !== language) {
+        if (row.status === "completed") {
           excludeSet.add(row.article_id);
+        } else {
+          // In-progress rows: exclude only if in a different language.
+          const otherLang = row.article?.language ?? null;
+          if (otherLang && otherLang !== language) {
+            excludeSet.add(row.article_id);
+          }
         }
       }
     }

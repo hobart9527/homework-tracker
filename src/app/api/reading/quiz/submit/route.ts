@@ -11,7 +11,7 @@ const BASE_READING_POINTS = 10;
 const RECENT_ATTEMPTS_LIMIT = 25;
 
 export async function POST(request: Request) {
-  const limited = checkRateLimit(request, 20, 60_000);
+  const limited = await checkRateLimit(request, 20, 60_000);
   if (limited) return limited;
 
   const supabase = await createClient();

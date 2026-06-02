@@ -37,10 +37,11 @@ async function getArticlesToProcess(
   supabase: SupabaseClient,
   limit: number
 ): Promise<ArticleRow[]> {
-  // 1. Get IDs of articles that already have illustrations
+  // 1. Get IDs of articles that already have illustrations (cap at 1000)
   const { data: illData, error: illErr } = await supabase
     .from("reading_article_illustrations")
-    .select("article_id");
+    .select("article_id")
+    .limit(1000);
 
   if (illErr) {
     throw new Error(
@@ -52,13 +53,23 @@ async function getArticlesToProcess(
     (illData || []).map((r) => r.article_id)
   );
 
-  // 2. Get all articles and filter in application code
-  //    (Supabase JS client does not support NOT IN subqueries in .or())
-  const { data: articles, error: articlesErr } = await supabase
+  // 2. Query articles needing cover backfill, excluding those with illustrations
+  let query = supabase
     .from("reading_articles")
     .select(
       "id, title, language, category, scene_description, cover_image_url"
-    );
+    )
+    .or("cover_image_url.is.null,cover_image_url.ilike.%pending.webp");
+
+  if (idsWithIllustrations.size > 0) {
+    query = query.not("id", "in", [...idsWithIllustrations]);
+  }
+
+  if (limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const { data: articles, error: articlesErr } = await query;
 
   if (articlesErr) {
     throw new Error(
@@ -66,20 +77,7 @@ async function getArticlesToProcess(
     );
   }
 
-  // Filter: needs cover backfill (null or placeholder pending.webp) OR
-  // illustration backfill (no illustrations yet)
-  let result: ArticleRow[] = (articles || []).filter(
-    (a) =>
-      (a.cover_image_url === null ||
-        a.cover_image_url.endsWith("pending.webp")) ||
-      !idsWithIllustrations.has(a.id)
-  );
-
-  if (limit > 0) {
-    result = result.slice(0, limit);
-  }
-
-  return result;
+  return articles || [];
 }
 
 // ---------------------------------------------------------------------------

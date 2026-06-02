@@ -1,1 +1,19 @@
-{}
+{
+  "regions": ["sin1"],
+  "functions": {
+    "api/*.ts": {
+      "maxDuration": 60
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*\\.(svg|png|jpg|jpeg|gif|webp|avif|ico|woff2?|eot|ttf|otf|css|js))",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}

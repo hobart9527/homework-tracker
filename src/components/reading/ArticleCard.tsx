@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Clock } from "lucide-react";
 
 import { IconStar, IconBook, IconPencil } from "@/components/ui/icons";
 
@@ -150,10 +151,7 @@ export function ArticleCard({
             <IconPencil className="w-3 h-3" /> {wordCount}字
           </span>
           <span className="inline-flex items-center gap-1">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>{" "}
+            <Clock className="w-3 h-3" />{" "}
             {estimatedMinutes}分钟
           </span>
         </div>

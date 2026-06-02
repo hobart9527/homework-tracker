@@ -1,5 +1,28 @@
 import type { Metadata } from "next";
 import "../../styles/globals.css";
+import { Inter, Inter_Tight, Fraunces } from "next/font/google";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-inter-tight",
+  display: "swap",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -34,11 +57,7 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      </head>
-      <body className="min-h-screen bg-background">
+      <body className={`${inter.variable} ${interTight.variable} ${fraunces.variable} min-h-screen bg-background`}>
         <a href="#main-content" className="skip-to-content">{messages.app?.skipToContent || "Skip navigation, view content"}</a>
         <main id="main-content">
           <ToastProvider>

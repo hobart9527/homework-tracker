@@ -140,7 +140,7 @@ function truncate(s: string, max = 500): string {
 // ---------------------------------------------------------------------------
 
 export async function POST(request: Request) {
-  const limited = checkRateLimit(request, 5, 60_000);
+  const limited = await checkRateLimit(request, 5, 60_000);
   if (limited) return limited;
 
   try {

@@ -21,27 +21,31 @@ type ReadingStatsRow = {
   accuracy_streak: number | null;
 };
 
-type AttemptRow = {
-  article_id: string | null;
-  score: number | null;
-  total_questions: number | null;
-  time_spent_seconds: number | null;
-  created_at: string | null;
-  article: {
-    id: string | null;
-    title: string | null;
-    category: string | null;
-    category_v2: string | null;
-    raz_level: string | null;
-    language: string | null;
-  } | null;
+type CatLevelItem = {
+  category?: string;
+  level?: string;
+  count: number;
+  avg_accuracy: number;
 };
 
-function toDateKey(iso: string | null): string {
-  if (!iso) return "";
-  // YYYY-MM-DD slice from ISO timestamp.
-  return iso.length >= 10 ? iso.slice(0, 10) : "";
-}
+type RecentAttempt = {
+  date: string;
+  article_id: string | null;
+  title: string | null;
+  score: number;
+  total_questions: number;
+  time_spent_seconds: number;
+};
+
+type DashboardRpcResult = {
+  quizzes_taken: number;
+  articles_read: number;
+  average_accuracy: number;
+  by_category: CatLevelItem[] | null;
+  by_level: CatLevelItem[] | null;
+  by_language: Record<string, number> | null;
+  recent_attempts: RecentAttempt[] | null;
+};
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -138,121 +142,61 @@ export async function GET(request: Request) {
 
     const stats = (statsRes.data as unknown as ReadingStatsRow | null) ?? null;
 
-    // Quiz attempts within the period, joined with their article.
-    const attemptsRes = await supabase
-      .from("reading_quiz_attempts")
-      .select(
-        "article_id, score, total_questions, time_spent_seconds, created_at, article:article_id(id, title, category, category_v2, raz_level, language)",
-      )
-      .eq("child_id", childId)
-      .gte("created_at", startIso)
-      .lt("created_at", endIso)
-      .order("created_at", { ascending: false });
+    // Aggregate via Postgres RPC instead of JS-side.
+    const { data: rpcRaw, error: rpcError } = await supabase.rpc(
+      "get_reading_dashboard_stats",
+      {
+        p_child_id: childId,
+        p_start: startIso,
+        p_end: endIso,
+        p_recent_limit: RECENT_ACTIVITY_LIMIT,
+      },
+    );
 
-    if (attemptsRes.error) {
+    if (rpcError) {
       return NextResponse.json(
-        { error: "Failed to load stats", message: attemptsRes.error.message },
+        { error: "Failed to load stats", message: rpcError.message },
         { status: 500 },
       );
     }
 
-    const attempts = (attemptsRes.data as unknown as AttemptRow[] | null) ?? [];
+    const rpcData = rpcRaw as unknown as DashboardRpcResult;
 
-    // Aggregate counts.
-    const quizzes_taken = attempts.length;
-    const distinctArticleIds = new Set<string>();
-    let totalAccuracySum = 0;
-    let accuracyCount = 0;
+    const articles_read = rpcData.articles_read;
+    const quizzes_taken = rpcData.quizzes_taken;
+    const average_accuracy = rpcData.average_accuracy;
 
-    // by_category: keyed by category_v2 first, fallback to legacy category.
-    type Bucket = { count: number; accSum: number; accN: number };
-    const byCategory = new Map<string, Bucket>();
-    const byLevel = new Map<string, Bucket>();
-
-    // by_language: count of distinct articles per language.
-    const langArticleSets: Record<"zh" | "en", Set<string>> = {
-      zh: new Set<string>(),
-      en: new Set<string>(),
-    };
-
-    for (const a of attempts) {
-      if (a.article_id) distinctArticleIds.add(a.article_id);
-
-      const total = a.total_questions ?? 0;
-      const score = a.score ?? 0;
-      const accuracy = total > 0 ? score / total : null;
-      if (accuracy !== null) {
-        totalAccuracySum += accuracy;
-        accuracyCount += 1;
-      }
-
-      const article = a.article;
-      // Category bucket: prefer category_v2, fallback to legacy category.
-      const catKey =
-        (article?.category_v2 && article.category_v2.length > 0
-          ? article.category_v2
-          : article?.category) || null;
-      if (catKey) {
-        const b = byCategory.get(catKey) ?? { count: 0, accSum: 0, accN: 0 };
-        b.count += 1;
-        if (accuracy !== null) {
-          b.accSum += accuracy;
-          b.accN += 1;
-        }
-        byCategory.set(catKey, b);
-      }
-
-      // Level bucket.
-      const lvl = article?.raz_level ?? null;
-      if (lvl) {
-        const b = byLevel.get(lvl) ?? { count: 0, accSum: 0, accN: 0 };
-        b.count += 1;
-        if (accuracy !== null) {
-          b.accSum += accuracy;
-          b.accN += 1;
-        }
-        byLevel.set(lvl, b);
-      }
-
-      // Language: count DISTINCT articles per language (not quizzes).
-      const lang = article?.language ?? null;
-      if (lang === "zh" || lang === "en") {
-        const articleId = article?.id ?? a.article_id ?? null;
-        if (articleId) langArticleSets[lang].add(articleId);
-      }
-    }
-
-    const articles_read = distinctArticleIds.size;
-    const average_accuracy =
-      accuracyCount > 0 ? totalAccuracySum / accuracyCount : 0;
-
+    // Convert by_category array to Record<string, { count, avg_accuracy }>.
     const by_category: Record<string, { count: number; avg_accuracy: number }> =
       {};
-    for (const [k, v] of byCategory.entries()) {
-      by_category[k] = {
-        count: v.count,
-        avg_accuracy: v.accN > 0 ? v.accSum / v.accN : 0,
-      };
+    for (const item of rpcData.by_category ?? []) {
+      if (item.category) {
+        by_category[item.category] = {
+          count: item.count,
+          avg_accuracy: item.avg_accuracy,
+        };
+      }
     }
 
-    const by_level: Record<string, { count: number; avg_accuracy: number }> =
-      {};
-    for (const [k, v] of byLevel.entries()) {
-      by_level[k] = {
-        count: v.count,
-        avg_accuracy: v.accN > 0 ? v.accSum / v.accN : 0,
-      };
+    // Convert by_level array to Record<string, { count, avg_accuracy }>.
+    const by_level: Record<string, { count: number; avg_accuracy: number }> = {};
+    for (const item of rpcData.by_level ?? []) {
+      if (item.level) {
+        by_level[item.level] = {
+          count: item.count,
+          avg_accuracy: item.avg_accuracy,
+        };
+      }
     }
 
-    // Recent activity: most-recent 10 attempts (already ordered desc).
-    const recent_activity = attempts.slice(0, RECENT_ACTIVITY_LIMIT).map((a) => ({
-      date: toDateKey(a.created_at),
-      article_id: a.article_id,
-      title: a.article?.title ?? null,
-      score: a.score ?? 0,
-      total_questions: a.total_questions ?? 0,
-      time_spent_seconds: a.time_spent_seconds ?? 0,
-    }));
+    // by_language is already a Record from JSONB — extract zh/en.
+    const by_language_app: Record<string, number> = rpcData.by_language ?? {};
+    const by_language = {
+      zh: by_language_app.zh ?? 0,
+      en: by_language_app.en ?? 0,
+    };
+
+    const recent_activity = rpcData.recent_attempts ?? [];
 
     const responseBody = {
       child: {
@@ -274,10 +218,7 @@ export async function GET(request: Request) {
       },
       by_category,
       by_level,
-      by_language: {
-        zh: langArticleSets.zh.size,
-        en: langArticleSets.en.size,
-      },
+      by_language,
       recent_activity,
       auto_level_history: [] as unknown[],
     };
@@ -286,7 +227,9 @@ export async function GET(request: Request) {
       `[reading/stats/dashboard] childId=${childId} days=${days} articles_read=${articles_read} quizzes_taken=${quizzes_taken}`,
     );
 
-    return NextResponse.json(responseBody);
+    const response = NextResponse.json(responseBody);
+    response.headers.set("Cache-Control", "private, max-age=30");
+    return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[reading/stats/dashboard] error:", message);

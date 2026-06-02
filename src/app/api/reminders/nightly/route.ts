@@ -1,5 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
-import { createServiceRoleClient } from "@/lib/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
@@ -66,63 +65,111 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "No parents with auto remind enabled" });
   }
 
+  // --- Batch load all data before looping ---
+
+  const parentIds = parents.map((p) => p.id);
+
+  // 1. Load all children for all parents in one query
+  const { data: allChildren } = await supabase
+    .from("children")
+    .select("id, name, parent_id")
+    .in("parent_id", parentIds);
+
+  const childrenByParentId = new Map<string, typeof allChildren>();
+  const allChildIds: string[] = [];
+
+  if (allChildren) {
+    for (const child of allChildren) {
+      const group = childrenByParentId.get(child.parent_id);
+      if (group) {
+        group.push(child);
+      } else {
+        childrenByParentId.set(child.parent_id, [child]);
+      }
+      allChildIds.push(child.id);
+    }
+  }
+
+  if (allChildIds.length === 0) {
+    return NextResponse.json({ message: "No children found for parents with auto remind enabled" });
+  }
+
+  // 2. Load all active homeworks for all children in one query
+  const { data: allHomeworks } = await supabase
+    .from("homeworks")
+    .select("id, child_id, title, repeat_type, repeat_days, repeat_start_date, repeat_end_date, repeat_interval, is_active")
+    .in("child_id", allChildIds)
+    .eq("is_active", true);
+
+  const homeworksByChildId = new Map<string, NonNullable<typeof allHomeworks>>();
+  if (allHomeworks) {
+    for (const hw of allHomeworks) {
+      const group = homeworksByChildId.get(hw.child_id);
+      if (group) {
+        group.push(hw);
+      } else {
+        homeworksByChildId.set(hw.child_id, [hw]);
+      }
+    }
+  }
+
+  // 3. Load all today's check_ins for all children in one query
+  const startOfDay = `${todayKey}T00:00:00`;
+  const endOfDay = `${todayKey}T23:59:59`;
+
+  const { data: allCheckIns } = await supabase
+    .from("check_ins")
+    .select("homework_id, child_id")
+    .in("child_id", allChildIds)
+    .gte("completed_at", startOfDay)
+    .lte("completed_at", endOfDay);
+
+  // Build set of completed homework IDs for today
+  const completedHomeworkIds = new Set(
+    allCheckIns?.map((ci) => `${ci.homework_id}:${ci.child_id}`) || []
+  );
+
+  // 4. Load all today's reminders for all children in one query
+  const { data: allTodayReminders } = await supabase
+    .from("homework_reminders")
+    .select("homework_id, child_id, target_date")
+    .in("child_id", allChildIds)
+    .eq("target_date", todayKey);
+
+  const existingReminderKeys = new Set(
+    allTodayReminders?.map((r) => `${r.homework_id}:${r.child_id}`) || []
+  );
+
+  // --- Loop with in-memory lookups only (zero per-parent DB queries) ---
+
   const results = [];
 
   for (const parent of parents) {
-    // Get children for this parent
-    const { data: children } = await supabase
-      .from("children")
-      .select("id, name, parent_id")
-      .eq("parent_id", parent.id);
-
+    const children = childrenByParentId.get(parent.id);
     if (!children || children.length === 0) continue;
 
-    const childIds = children.map((c) => c.id);
+    // Collect all homeworks across this parent's children from in-memory map
+    const parentHomeworks: NonNullable<typeof allHomeworks> = [];
+    for (const child of children) {
+      const childHomeworks = homeworksByChildId.get(child.id);
+      if (childHomeworks) {
+        parentHomeworks.push(...childHomeworks);
+      }
+    }
 
-    // Get all active homeworks for these children scheduled for today
-    const { data: homeworks } = await supabase
-      .from("homeworks")
-      .select("*")
-      .in("child_id", childIds)
-      .eq("is_active", true);
+    if (parentHomeworks.length === 0) continue;
 
-    if (!homeworks || homeworks.length === 0) continue;
-
-    // Get check-ins for today to find incomplete homeworks
-    const startOfDay = `${todayKey}T00:00:00`;
-    const endOfDay = `${todayKey}T23:59:59`;
-
-    const { data: checkIns } = await supabase
-      .from("check_ins")
-      .select("homework_id, child_id")
-      .in("child_id", childIds)
-      .gte("completed_at", startOfDay)
-      .lte("completed_at", endOfDay);
-
-    // Build set of completed homework IDs for today
-    const completedHomeworkIds = new Set(
-      checkIns?.map((ci) => `${ci.homework_id}:${ci.child_id}`) || []
-    );
-
-    for (const homework of homeworks) {
+    for (const homework of parentHomeworks) {
       // Check if homework is scheduled for today
       if (!isHomeworkScheduledForDate(homework, today)) continue;
 
       const taskKey = `${homework.id}:${homework.child_id}`;
 
-      // Skip if already completed today
+      // Skip if already completed today (in-memory check)
       if (completedHomeworkIds.has(taskKey)) continue;
 
-      // Check if reminder already sent today
-      const { data: existingReminder } = await supabase
-        .from("homework_reminders")
-        .select("*")
-        .eq("homework_id", homework.id)
-        .eq("target_date", todayKey)
-        .eq("child_id", homework.child_id)
-        .single();
-
-      if (existingReminder) continue; // Already reminded
+      // Check if reminder already sent today (in-memory check)
+      if (existingReminderKeys.has(taskKey)) continue;
 
       const child = children.find((c) => c.id === homework.child_id);
 

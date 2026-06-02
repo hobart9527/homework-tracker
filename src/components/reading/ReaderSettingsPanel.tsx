@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useReaderTheme, type ReaderTheme } from "./ReaderThemeContext";
 import { IconSun, IconMoon, IconType } from "@/components/ui/icons";
+import { Sun, X } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -24,12 +25,7 @@ export default function ReaderSettingsPanel({ onClose }: { onClose?: () => void 
     {
       value: "sepia",
       label: t("reading.readerSettings.sepia"),
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-          <circle cx="12" cy="12" r="5" />
-          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-        </svg>
-      ),
+      icon: <Sun className="w-5 h-5" />,
     },
     {
       value: "dark",
@@ -89,7 +85,7 @@ export default function ReaderSettingsPanel({ onClose }: { onClose?: () => void 
           style={{ backgroundColor: "var(--reader-surface)", border: "1px solid var(--reader-border)" }}
           aria-label={t("reading.readerSettings.closeSettings")}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <X className="w-4 h-4" />
         </button>
       )}
       {/* ── Theme Selection ───────────────────────────────────────── */}

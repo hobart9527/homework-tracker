@@ -95,7 +95,7 @@ const config: Config = {
       // ── Font Families ─────────────────────────────────────────────
       fontFamily: {
         ui: [
-          "'Inter'",
+          "var(--font-inter)",
           "'Source Han Sans SC'",
           "'PingFang SC'",
           "'Microsoft YaHei'",
@@ -104,7 +104,7 @@ const config: Config = {
           "sans-serif",
         ],
         "ui-display": [
-          "'Inter Tight'",
+          "var(--font-inter-tight)",
           "'Source Han Sans SC'",
           "sans-serif",
         ],
@@ -114,13 +114,13 @@ const config: Config = {
           "serif",
         ],
         "reading-en": [
-          "'Fraunces'",
-          "'Inter'",
+          "var(--font-fraunces)",
+          "var(--font-inter)",
           "serif",
         ],
         // Legacy aliases
         sans: [
-          "'Inter'",
+          "var(--font-inter)",
           "'Source Han Sans SC'",
           "'PingFang SC'",
           "'Microsoft YaHei'",
@@ -129,7 +129,7 @@ const config: Config = {
           "sans-serif",
         ],
         display: [
-          "'Inter Tight'",
+          "var(--font-inter-tight)",
           "'Source Han Sans SC'",
           "sans-serif",
         ],

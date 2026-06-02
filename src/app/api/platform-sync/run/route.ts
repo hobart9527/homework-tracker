@@ -18,7 +18,7 @@ const DEFAULT_PLATFORMS = ["ixl", "khan-academy", "raz-kids", "epic"] as const;
 const DEFAULT_HOUSEHOLD_TIME_ZONE = "Asia/Shanghai";
 
 export async function GET(request: Request) {
-  const limited = checkRateLimit(request, 10, 60_000);
+  const limited = await checkRateLimit(request, 10, 60_000);
   if (limited) return limited;
 
   const cronSecret = request.headers.get("x-cron-secret");
@@ -78,9 +78,10 @@ export async function GET(request: Request) {
 
   const { data: accounts, error } = await supabase
     .from("platform_accounts")
-    .select("*")
+    .select("id, child_id, platform, status, username, platform_user_id, managed_session_payload, auto_login_enabled, login_credentials_encrypted, external_account_ref")
     .in("platform", platforms)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .limit(50);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -160,10 +161,11 @@ export async function GET(request: Request) {
 
   const { data: retryJobs, error: retryJobsError } = await supabase
     .from("platform_sync_jobs")
-    .select("*")
+    .select("id, platform_account_id, retry_count")
     .eq("status", "failed")
     .lte("next_retry_at", now.toISOString())
-    .order("next_retry_at", { ascending: true });
+    .order("next_retry_at", { ascending: true })
+    .limit(50);
 
   if (retryJobsError) {
     return NextResponse.json({ error: retryJobsError.message }, { status: 500 });

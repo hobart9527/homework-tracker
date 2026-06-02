@@ -98,34 +98,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Validate role: parent pages require a parent row; child pages require a child row
-  if (user) {
-    if (isProtectedPath) {
-      const { data: parentRow } = await supabase
-        .from("parents")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!parentRow) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/login";
-        return NextResponse.redirect(url);
-      }
-    }
-    if (isProtectedChildPath) {
-      const { data: childRow } = await supabase
-        .from("children")
-        .select("id")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (!childRow) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/child-login";
-        return NextResponse.redirect(url);
-      }
-    }
-  }
-
   // If intl middleware redirected, attach auth cookies to the redirect
   if (intlResponse.status !== 200) {
     const redirectResponse = NextResponse.redirect(
@@ -143,6 +115,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.*|manifest.*|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|json|txt|xml|css|js|woff|woff2|ttf|otf)$).*)",
   ],
 };

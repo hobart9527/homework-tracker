@@ -5,7 +5,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const limited = checkRateLimit(request, 10, 60_000);
+  const limited = await checkRateLimit(request, 10, 60_000);
   if (limited) return limited;
   const supabase = await createClient();
 

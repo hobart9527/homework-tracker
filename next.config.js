@@ -4,6 +4,17 @@ const withNextIntl = createNextIntlPlugin("./src/i18n.ts");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      // Supabase Storage for article cover images & illustrations
+      { protocol: "https", hostname: "*.supabase.co" },
+      // Pollinations AI for generated illustrations
+      { protocol: "https", hostname: "image.pollinations.ai" },
+      // Unsplash for stock cover images (keep if used; remove if not)
+      { protocol: "https", hostname: "images.unsplash.com" },
+      // News source images (add actual domains as needed, e.g. img.bjd.com.cn)
+    ],
+  },
   async headers() {
     return [
       {
