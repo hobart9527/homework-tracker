@@ -401,12 +401,14 @@ export async function GET(request: Request) {
   const cronSecret = request.headers.get("x-cron-secret");
   const cronSecretEnv = process.env.CRON_SECRET;
   const isCronCall = !!cronSecret && !!cronSecretEnv && cronSecret === cronSecretEnv;
+  console.log(`[refresh-news] isCronCall=${isCronCall}, cronSecretHeader=${!!cronSecret}, cronSecretEnv=${!!cronSecretEnv}`);
 
   const supabase = isCronCall
     ? await createServiceRoleClient()
     : await createClient();
 
   if (!isCronCall) {
+    console.log(`[refresh-news] Not a cron call — checking session`);
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -441,6 +443,7 @@ export async function GET(request: Request) {
     skipped = result.skipped;
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
+    console.error(`[refresh-news] buildWorkItems failed:`, reason);
     return NextResponse.json(
       { error: "Failed to build work items", details: reason },
       { status: 500 }
@@ -453,6 +456,8 @@ export async function GET(request: Request) {
     concurrency,
     skipImages
   );
+
+  console.log(`[refresh-news] Completed — total=${results.length}, succeeded=${results.filter((r) => r.status === "ok").length}, failed=${results.filter((r) => r.status === "error").length}, skipped=${skipped}`);
 
   return NextResponse.json({
     total: results.length,
