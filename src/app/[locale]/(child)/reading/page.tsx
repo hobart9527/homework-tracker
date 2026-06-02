@@ -93,7 +93,7 @@ export default function ReadingBrowserPage() {
 
   const [articles, setArticles] = useState<Article[]>([]);
   const [activeCategory, setActiveCategory] = useState("");
-  const [activeLanguage, setActiveLanguage] = useState<"zh" | "en">(locale === "en" ? "en" : "zh");
+  const [activeLanguage, setActiveLanguage] = useState<"zh" | "en">("en");
   const [sortMode, setSortMode] = useState<"default" | "unread" | "latest">("default");
   const [searchQuery, setSearchQuery] = useState("");
   const [userGradeLevel, setUserGradeLevel] = useState<number | null>(null);
