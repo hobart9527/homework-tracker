@@ -757,11 +757,12 @@ async function main() {
           scene: result.article.title,
           title: result.article.title,
         });
+        const coverSource = cover.source === "source-website" ? "pollinations" : cover.source;
         await supabase
           .from("reading_articles")
           .update({
             cover_image_url: cover.url,
-            cover_source: cover.source,
+            cover_source: coverSource,
             cover_source_url: cover.source_url,
           })
           .eq("id", articleId);
