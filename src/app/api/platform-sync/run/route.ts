@@ -78,7 +78,7 @@ export async function GET(request: Request) {
 
   const { data: accounts, error } = await supabase
     .from("platform_accounts")
-    .select("id, child_id, platform, status, username, platform_user_id, managed_session_payload, auto_login_enabled, login_credentials_encrypted, external_account_ref")
+    .select("id, child_id, platform, status, managed_session_payload, auto_login_enabled, login_credentials_encrypted, external_account_ref")
     .in("platform", platforms)
     .order("created_at", { ascending: true })
     .limit(50);
