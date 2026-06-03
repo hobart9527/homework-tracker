@@ -70,6 +70,21 @@ function inferLanguage(article: Article): "zh" | "en" {
   return asciiRatio > 0.7 ? "en" : "zh";
 }
 
+function computeGradeRange(
+  baseGrade: number | null,
+  filter: "suitable" | "challenge" | "all"
+): { minGrade?: number; maxGrade?: number } {
+  if (baseGrade === null) return {};
+  switch (filter) {
+    case "suitable":
+      return { minGrade: baseGrade - 1, maxGrade: baseGrade + 1 };
+    case "challenge":
+      return { minGrade: baseGrade + 2 };
+    case "all":
+      return {};
+  }
+}
+
 function SkeletonCard() {
   return (
     <div className="animate-pulse rounded-xl bg-white shadow-elevation-raised ring-1 ring-cream-200/40 overflow-hidden">
@@ -130,11 +145,16 @@ export default function ReadingBrowserPage() {
         .select("reading_grade_level")
         .eq("id", childId)
         .single();
-      setUserGradeLevel(childProfile?.reading_grade_level ?? null);
+      const userGradeLevelValue = childProfile?.reading_grade_level ?? null;
+      setUserGradeLevel(userGradeLevelValue);
 
       // Fetch articles and assignments in parallel
+      const gradeRange = computeGradeRange(userGradeLevelValue, gradeFilter);
+      const articleParams = new URLSearchParams({ limit: "20" });
+      if (gradeRange.minGrade !== undefined) articleParams.set("minGrade", String(gradeRange.minGrade));
+      if (gradeRange.maxGrade !== undefined) articleParams.set("maxGrade", String(gradeRange.maxGrade));
       const [articlesRes, assignmentsRes] = await Promise.all([
-        fetch("/api/reading/articles"),
+        fetch(`/api/reading/articles?${articleParams.toString()}`),
         supabase
           .from("reading_assignments")
           .select("article_id, status, score")
@@ -176,7 +196,7 @@ export default function ReadingBrowserPage() {
     } finally {
       setLoading(false);
     }
-  }, [router, supabase]);
+  }, [router, supabase, gradeFilter, t]);
 
   useEffect(() => {
     void fetchReadingData();
@@ -206,13 +226,7 @@ export default function ReadingBrowserPage() {
       const langMatch = lang === activeLanguage;
       const categoryMatch = !activeCategory || a.category === activeCategory;
       const searchMatch = !searchQuery || a.title.toLowerCase().includes(searchQuery.toLowerCase());
-      const gradeMatch = (() => {
-        if (!userGradeLevel || gradeFilter === "all") return true;
-        if (gradeFilter === "challenge") return a.grade_level > userGradeLevel + 1;
-        // "suitable" — default
-        return Math.abs(a.grade_level - userGradeLevel) <= 1;
-      })();
-      return langMatch && categoryMatch && searchMatch && gradeMatch;
+      return langMatch && categoryMatch && searchMatch;
     })
     .sort((a, b) => {
       switch (sortMode) {
