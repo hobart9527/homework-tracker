@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
@@ -27,31 +27,40 @@ interface Article {
   score?: number;
 }
 
-const ZH_CATEGORIES = [
-  { key: "时事", label: "时事" },
-  { key: "历史", label: "历史" },
-  { key: "科学", label: "科学" },
-  { key: "人物", label: "人物" },
-  { key: "自然", label: "自然" },
-  { key: "文化", label: "文化" },
-  { key: "成语故事", label: "成语故事" },
-  { key: "寓言", label: "寓言" },
-];
+const CATEGORY_LABELS: Record<string, string> = {
+  // English legacy + v2
+  news: "News", current: "News",
+  history: "History",
+  science: "Science",
+  biography: "Biography", 人物: "Biography",
+  nature: "Nature", 自然生态: "Nature",
+  culture: "Culture", 文化: "Culture",
+  stories: "Stories", 故事: "Stories",
+  // Chinese categories
+  时事: "时事", 历史: "历史", 科学: "科学",
+  自然: "自然", 成语故事: "成语故事", 寓言: "寓言",
+  中国史: "中国史", 美国史: "美国史", 世界史: "世界史",
+  文学: "文学", 诗歌: "诗歌", 艺术: "艺术",
+  "经济与生活": "经济与生活", "数码与AI": "数码与AI",
+  "太空与天文": "太空与天文", 医学健康: "医学健康",
+  体育: "体育", 环保: "环保",
+};
 
-const EN_CATEGORIES = [
+const FALLBACK_EN_CATEGORIES = [
   { key: "news", label: "News" },
   { key: "history", label: "History" },
   { key: "science", label: "Science" },
   { key: "biography", label: "Biography" },
   { key: "nature", label: "Nature" },
   { key: "culture", label: "Culture" },
+  { key: "stories", label: "Stories" },
 ];
 
 // Helper to detect language from article content/title
 function inferLanguage(article: Article): "zh" | "en" {
   if (article.language) return article.language;
-  // If category is in English list, it's English
-  if (["news", "history", "science", "biography", "nature", "culture"].includes(article.category)) {
+  // If category is in English list (legacy + v2), it's English
+  if (["news", "current", "history", "science", "biography", "nature", "culture", "stories"].includes(article.category)) {
     return "en";
   }
   // If title/content has mostly ASCII, it's English
@@ -173,9 +182,23 @@ export default function ReadingBrowserPage() {
     void fetchReadingData();
   }, [fetchReadingData]);
 
-  // Get categories based on selected language
-  const categoriesForLanguage =
-    activeLanguage === "zh" ? ZH_CATEGORIES : EN_CATEGORIES;
+  // Derive available categories dynamically from articles matching active language
+  const availableCategories = useMemo(() => {
+    const lang = activeLanguage;
+    const cats = new Set<string>();
+    for (const a of articles) {
+      const articleLang = inferLanguage(a);
+      if (articleLang === lang && a.category) {
+        cats.add(a.category);
+      }
+    }
+    const entries = Array.from(cats).sort().map(key => ({
+      key,
+      label: CATEGORY_LABELS[key] || key,
+    }));
+    // Fallback for empty state (no articles loaded yet)
+    return entries.length > 0 ? entries : (activeLanguage === "en" ? FALLBACK_EN_CATEGORIES : []);
+  }, [articles, activeLanguage]);
 
   const filteredArticles = articles
     .filter((a) => {
@@ -315,7 +338,7 @@ export default function ReadingBrowserPage() {
 
         {/* --- Category pills - SECONDARY --- */}
         <div className="mb-6 flex flex-wrap gap-2">
-          {categoriesForLanguage.map((cat) => (
+          {availableCategories.map((cat) => (
             <button
               key={cat.key}
               onClick={() =>
