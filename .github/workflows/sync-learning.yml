@@ -2,8 +2,8 @@ name: Sync Learning Data
 
 on:
   schedule:
-    # 07:30 CST = 23:30 UTC — 每天同步 IXL/Khan/RAZ/Epic
-    - cron: "30 23 * * *"
+    # 16:00-23:45 CST = 08:00-15:45 UTC — 每天下午4点后每15分钟同步 IXL/Khan/RAZ/Epic
+    - cron: "*/15 8-15 * * *"
     # 16:00 CST Mon = 08:00 UTC Mon — 每周刷新平台登录态
     - cron: "0 8 * * 1"
   workflow_dispatch:
@@ -13,14 +13,22 @@ jobs:
     name: Platform daily sync
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'schedule' && github.event.schedule == '30 23 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' && github.event.schedule == '*/15 8-15 * * *' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Trigger platform sync
         run: |
-          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/platform-sync/run" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-            -o /dev/null -w "%{http_code}"
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/sync-response.json \
+            --connect-timeout 30 --max-time 120 \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            -X GET "${{ secrets.VERCEL_BASE_URL }}/api/platform-sync/run" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}")
+          echo "HTTP Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Response body:"
+            cat /tmp/sync-response.json || true
+            exit 1
+          fi
 
   refresh-sessions:
     name: Refresh platform sessions

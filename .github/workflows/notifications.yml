@@ -2,35 +2,33 @@ name: Notifications
 
 on:
   schedule:
-    # 每 15 分钟轮询录音推送队列
-    - cron: "*/15 * * * *"
     # 23:00 CST = 15:00 UTC — 每晚未完成作业提醒
     - cron: "0 15 * * *"
   workflow_dispatch:
 
 jobs:
-  voice-push:
-    name: Deliver voice recordings
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: github.event_name == 'schedule' && github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
-
-    steps:
-      - name: Trigger voice-push delivery
-        run: |
-          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/voice-push/run?limit=20" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-            -o /dev/null -w "%{http_code}"
-
   nightly-reminders:
     name: Nightly homework reminders
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'schedule' && github.event.schedule == '0 15 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Trigger nightly reminders
         run: |
-          curl -s -f -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reminders/nightly" \
-            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
-            -o /dev/null -w "%{http_code}"
+          HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/reminders-response.json \
+            --connect-timeout 30 --max-time 120 \
+            --retry 3 --retry-delay 5 --retry-all-errors \
+            -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reminders/nightly" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}")
+          echo "HTTP Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Response body:"
+            cat /tmp/reminders-response.json || true
+            exit 1
+          fi
+
+  # Voice push delivery has been migrated to OpenClaw (pull-based model).
+  # The external OpenClaw service polls /api/voice-push/openclaw for tasks.
+  # To re-enable cron-based delivery, restore the voice-push-worker library
+  # and create a new cron endpoint at /api/voice-push/run.

@@ -19,7 +19,7 @@ jobs:
           HTTP_CODE=$(curl -s -w "%{http_code}" -o /tmp/refresh-news-response.json \
             --connect-timeout 30 --max-time 180 \
             --retry 3 --retry-delay 5 --retry-all-errors \
-            -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reading/refresh-news?concurrency=1&limit=5" \
+            -X GET "${{ secrets.VERCEL_BASE_URL }}/api/reading/refresh-news?concurrency=1&limit=5&force=true" \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}")
           echo "HTTP Status: $HTTP_CODE"
           if [ "$HTTP_CODE" != "200" ]; then
