@@ -27,6 +27,16 @@ export default async function ParentDashboardPage({
     redirect(`/${locale}/login`);
   }
 
+  const { data: parentRow } = await supabase
+    .from("parents")
+    .select("id")
+    .eq("id", session.user.id)
+    .maybeSingle();
+
+  if (!parentRow) {
+    redirect(`/${locale}/login`);
+  }
+
   const { data: childrenData } = await supabase
     .from("children")
     .select("id, name, avatar")

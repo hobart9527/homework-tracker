@@ -10,27 +10,42 @@ CREATE OR REPLACE FUNCTION check_rate_limit(
   p_window_ms INT
 ) RETURNS BOOLEAN AS $$
 DECLARE
-  v_reset_at TIMESTAMPTZ;
-  v_count INT;
   v_window_interval INTERVAL;
 BEGIN
   v_window_interval := (p_window_ms || ' milliseconds')::INTERVAL;
 
-  SELECT reset_at, count INTO v_reset_at, v_count
-  FROM rate_limits WHERE key = p_key;
+  -- Attempt 1: atomically increment if within valid window and under limit
+  UPDATE rate_limits
+  SET count = count + 1
+  WHERE key = p_key
+    AND reset_at > NOW()
+    AND count < p_max_requests;
 
-  IF v_reset_at IS NULL OR NOW() > v_reset_at THEN
-    INSERT INTO rate_limits (key, count, reset_at)
-    VALUES (p_key, 1, NOW() + v_window_interval)
-    ON CONFLICT (key) DO UPDATE SET count = 1, reset_at = EXCLUDED.reset_at;
+  IF FOUND THEN
     RETURN TRUE;
   END IF;
 
-  IF v_count >= p_max_requests THEN
-    RETURN FALSE;
+  -- Serialize reset/insert for same key with advisory lock
+  PERFORM pg_advisory_xact_lock(hashtext(p_key));
+
+  -- Recheck after lock
+  UPDATE rate_limits
+  SET count = count + 1
+  WHERE key = p_key
+    AND reset_at > NOW()
+    AND count < p_max_requests;
+
+  IF FOUND THEN
+    RETURN TRUE;
   END IF;
 
-  UPDATE rate_limits SET count = count + 1 WHERE key = p_key;
-  RETURN TRUE;
+  -- Insert new or reset expired/over-limit row
+  INSERT INTO rate_limits (key, count, reset_at)
+  VALUES (p_key, 1, NOW() + v_window_interval)
+  ON CONFLICT (key) DO UPDATE
+  SET count = 1, reset_at = EXCLUDED.reset_at
+  WHERE rate_limits.reset_at <= NOW() OR rate_limits.count >= p_max_requests;
+
+  RETURN FOUND;
 END;
 $$ LANGUAGE plpgsql;

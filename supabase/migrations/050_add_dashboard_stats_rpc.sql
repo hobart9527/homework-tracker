@@ -4,79 +4,57 @@ CREATE OR REPLACE FUNCTION get_reading_dashboard_stats(
   p_end TIMESTAMPTZ,
   p_recent_limit INT DEFAULT 10
 ) RETURNS JSONB LANGUAGE sql STABLE AS $$
+  WITH filtered AS (
+    SELECT rqa.*, ra.category, ra.category_v2, ra.raz_level, ra.language, ra.title
+    FROM reading_quiz_attempts rqa
+    LEFT JOIN reading_articles ra ON ra.id = rqa.article_id
+    WHERE rqa.child_id = p_child_id
+      AND rqa.created_at >= p_start AND rqa.created_at < p_end
+  )
   SELECT jsonb_build_object(
-    'quizzes_taken', COUNT(*),
-    'articles_read', COUNT(DISTINCT rqa.article_id),
-    'average_accuracy', COALESCE(AVG(
-      CASE WHEN rqa.total_questions > 0 THEN rqa.score::float / rqa.total_questions END
-    ), 0),
+    'quizzes_taken', (SELECT COUNT(*) FROM filtered),
+    'articles_read', (SELECT COUNT(DISTINCT article_id) FROM filtered),
+    'average_accuracy', COALESCE((SELECT AVG(CASE WHEN total_questions > 0 THEN score::float / total_questions END) FROM filtered), 0),
     'by_category', COALESCE((
-      SELECT jsonb_agg(jsonb_build_object(
-        'category', cat_stats.cat,
-        'count', cat_stats.cnt,
-        'avg_accuracy', cat_stats.avg_acc
-      ) ORDER BY cat_stats.cnt DESC)
+      SELECT jsonb_agg(jsonb_build_object('category', cat, 'count', cnt, 'avg_accuracy', avg_acc) ORDER BY cnt DESC)
       FROM (
-        SELECT
-          COALESCE(NULLIF(ra2.category_v2, ''), ra2.category) AS cat,
-          COUNT(*) AS cnt,
-          COALESCE(AVG(CASE WHEN rqa2.total_questions > 0 THEN rqa2.score::float / rqa2.total_questions END), 0) AS avg_acc
-        FROM reading_quiz_attempts rqa2
-        LEFT JOIN reading_articles ra2 ON ra2.id = rqa2.article_id
-        WHERE rqa2.child_id = p_child_id
-          AND rqa2.created_at >= p_start AND rqa2.created_at < p_end
-        GROUP BY COALESCE(NULLIF(ra2.category_v2, ''), ra2.category)
-        HAVING COALESCE(NULLIF(ra2.category_v2, ''), ra2.category) IS NOT NULL
-      ) cat_stats
+        SELECT COALESCE(NULLIF(category_v2, ''), category) AS cat, COUNT(*) AS cnt,
+          COALESCE(AVG(CASE WHEN total_questions > 0 THEN score::float / total_questions END), 0) AS avg_acc
+        FROM filtered
+        WHERE COALESCE(NULLIF(category_v2, ''), category) IS NOT NULL
+        GROUP BY 1
+      ) t
     ), '[]'::jsonb),
     'by_level', COALESCE((
-      SELECT jsonb_agg(jsonb_build_object(
-        'level', lvl_stats.lvl,
-        'count', lvl_stats.cnt,
-        'avg_accuracy', lvl_stats.avg_acc
-      ) ORDER BY lvl_stats.cnt DESC)
+      SELECT jsonb_agg(jsonb_build_object('level', lvl, 'count', cnt, 'avg_accuracy', avg_acc) ORDER BY cnt DESC)
       FROM (
-        SELECT
-          ra2.raz_level AS lvl,
-          COUNT(*) AS cnt,
-          COALESCE(AVG(CASE WHEN rqa2.total_questions > 0 THEN rqa2.score::float / rqa2.total_questions END), 0) AS avg_acc
-        FROM reading_quiz_attempts rqa2
-        LEFT JOIN reading_articles ra2 ON ra2.id = rqa2.article_id
-        WHERE rqa2.child_id = p_child_id
-          AND rqa2.created_at >= p_start AND rqa2.created_at < p_end
-          AND ra2.raz_level IS NOT NULL
-        GROUP BY ra2.raz_level
-      ) lvl_stats
+        SELECT raz_level AS lvl, COUNT(*) AS cnt,
+          COALESCE(AVG(CASE WHEN total_questions > 0 THEN score::float / total_questions END), 0) AS avg_acc
+        FROM filtered
+        WHERE raz_level IS NOT NULL
+        GROUP BY 1
+      ) t
     ), '[]'::jsonb),
     'by_language', COALESCE((
-      SELECT jsonb_object_agg(lang_stats.lang, lang_stats.cnt)
+      SELECT jsonb_object_agg(lang, cnt)
       FROM (
-        SELECT ra2.language AS lang, COUNT(DISTINCT rqa2.article_id) AS cnt
-        FROM reading_quiz_attempts rqa2
-        LEFT JOIN reading_articles ra2 ON ra2.id = rqa2.article_id
-        WHERE rqa2.child_id = p_child_id
-          AND rqa2.created_at >= p_start AND rqa2.created_at < p_end
-          AND ra2.language IS NOT NULL
-        GROUP BY ra2.language
-      ) lang_stats
+        SELECT language AS lang, COUNT(DISTINCT article_id) AS cnt
+        FROM filtered
+        WHERE language IS NOT NULL
+        GROUP BY 1
+      ) t
     ), '{}'::jsonb),
     'recent_attempts', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
-        'date', LEFT(rqa2.created_at::text, 10),
-        'article_id', rqa2.article_id,
-        'title', ra2.title,
-        'score', rqa2.score,
-        'total_questions', rqa2.total_questions,
-        'time_spent_seconds', rqa2.time_spent_seconds
-      ) ORDER BY rqa2.created_at DESC)
-      FROM reading_quiz_attempts rqa2
-      LEFT JOIN reading_articles ra2 ON ra2.id = rqa2.article_id
-      WHERE rqa2.child_id = p_child_id
-        AND rqa2.created_at >= p_start AND rqa2.created_at < p_end
+        'date', LEFT(created_at::text, 10),
+        'article_id', article_id,
+        'title', title,
+        'score', score,
+        'total_questions', total_questions,
+        'time_spent_seconds', time_spent_seconds
+      ) ORDER BY created_at DESC)
+      FROM filtered
       LIMIT p_recent_limit
     ), '[]'::jsonb)
   )
-  FROM reading_quiz_attempts rqa
-  WHERE rqa.child_id = p_child_id
-    AND rqa.created_at >= p_start AND rqa.created_at < p_end;
 $$;

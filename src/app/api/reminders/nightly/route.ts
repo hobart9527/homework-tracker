@@ -142,7 +142,15 @@ export async function GET(request: Request) {
 
   // --- Loop with in-memory lookups only (zero per-parent DB queries) ---
 
-  const results = [];
+  const results: any[] = [];
+  const remindersToInsert: Array<{
+    parent_id: string;
+    child_id: string;
+    homework_id: string;
+    target_date: string;
+    status: string;
+    initial_sent_at: string;
+  }> = [];
 
   for (const parent of parents) {
     const children = childrenByParentId.get(parent.id);
@@ -173,38 +181,43 @@ export async function GET(request: Request) {
 
       const child = children.find((c) => c.id === homework.child_id);
 
-      // Create reminder record
-      const { data: reminder, error } = await supabase
-        .from("homework_reminders")
-        .insert({
-          parent_id: parent.id,
-          child_id: homework.child_id,
-          homework_id: homework.id,
-          target_date: todayKey,
-          status: "sent_sms",
-          initial_sent_at: now.toISOString(),
-        })
-        .select("*")
-        .single();
+      remindersToInsert.push({
+        parent_id: parent.id,
+        child_id: homework.child_id,
+        homework_id: homework.id,
+        target_date: todayKey,
+        status: "sent_sms",
+        initial_sent_at: now.toISOString(),
+      });
 
-      if (error) {
-        results.push({
-          homeworkId: homework.id,
-          childId: homework.child_id,
-          childName: child?.name,
-          homeworkTitle: homework.title,
-          error: error.message,
-        });
-      } else {
-        results.push({
-          homeworkId: homework.id,
-          childId: homework.child_id,
-          childName: child?.name,
-          homeworkTitle: homework.title,
-          status: "reminder_sent",
-        });
-      }
+      results.push({
+        homeworkId: homework.id,
+        childId: homework.child_id,
+        childName: child?.name,
+        homeworkTitle: homework.title,
+      });
     }
+  }
+
+  // Batch insert all reminders at once
+  let insertedReminders: any[] = [];
+  if (remindersToInsert.length > 0) {
+    const { data: inserted, error: batchError } = await supabase
+      .from("homework_reminders")
+      .insert(remindersToInsert)
+      .select("*");
+    if (batchError) {
+      results.push({ error: batchError.message, batchFailed: true });
+    } else {
+      insertedReminders = inserted || [];
+    }
+  }
+
+  // Annotate results with actual status from batch insert
+  const insertedKeys = new Set(insertedReminders.map((r) => `${r.homework_id}:${r.child_id}`));
+  for (const r of results) {
+    if (r.error) continue;
+    r.status = insertedKeys.has(`${r.homeworkId}:${r.childId}`) ? "reminder_sent" : "insert_missing";
   }
 
   return NextResponse.json({
@@ -233,8 +246,10 @@ function isHomeworkScheduledForDate(
 
     case "interval":
       if (!homework.repeat_start_date) return false;
+      if (dateKey < homework.repeat_start_date) return false;
+      if (homework.repeat_end_date && dateKey > homework.repeat_end_date) return false;
       const startDate = new Date(homework.repeat_start_date);
-      const diffTime = Math.abs(date.getTime() - startDate.getTime());
+      const diffTime = date.getTime() - startDate.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       return diffDays % (homework.repeat_interval || 1) === 0;
 

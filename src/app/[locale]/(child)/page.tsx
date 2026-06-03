@@ -24,6 +24,16 @@ export default async function ChildLandingPage({
     redirect(`/${locale}/child-login`);
   }
 
+  const { data: childRow } = await supabase
+    .from("children")
+    .select("id")
+    .eq("id", session.user.id)
+    .maybeSingle();
+
+  if (!childRow) {
+    redirect(`/${locale}/login`);
+  }
+
   const [homeworkResponse, checkInResponse] = await Promise.all([
     supabase.from("homeworks").select("*").eq("child_id", session.user.id),
     supabase

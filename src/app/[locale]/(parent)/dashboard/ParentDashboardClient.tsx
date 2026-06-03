@@ -189,6 +189,24 @@ export default function ParentDashboardClient({
       return;
     }
 
+    if (refreshTick > 0) {
+      fetchDashboard();
+      return;
+    }
+
+    if (rawDataRef.current.children.length > 0) {
+      const { children, homeworks, checkIns } = rawDataRef.current;
+      const nextDashboard = buildParentDashboard({
+        children,
+        homeworks,
+        checkIns,
+        date: selectedDate,
+        month: selectedMonth,
+      });
+      setDashboard(nextDashboard);
+      return;
+    }
+
     fetchDashboard();
 
     return () => {
@@ -226,8 +244,6 @@ export default function ParentDashboardClient({
 
   // Update dashboard when selectedChildId changes (without refetching data)
   useEffect(() => {
-    if (!rawDataRef.current) return;
-
     const { children, homeworks, checkIns } = rawDataRef.current;
     const nextDashboard = buildParentDashboard({
       children,
