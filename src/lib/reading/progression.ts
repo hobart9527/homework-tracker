@@ -125,9 +125,11 @@ export function computeLevelStats(
       .map((r) =>
         r.total_questions > 0 ? r.correct_count / r.total_questions : 0
       );
+    const validFeelRows = rows.filter((r) => r.difficulty_feel >= 1);
     const avgDifficultyFeel =
-      completed > 0
-        ? rows.reduce((s, r) => s + r.difficulty_feel, 0) / completed
+      validFeelRows.length > 0
+        ? validFeelRows.reduce((s, r) => s + r.difficulty_feel, 0) /
+          validFeelRows.length
         : 0;
     result[lv] = {
       completed,
@@ -149,13 +151,17 @@ export function computeLevelStats(
  *
  * Gracefully handles the case where `reading_history` does not exist yet.
  */
+export interface RecordAttemptResult {
+  recorded: boolean;
+  progress: ReadingProgress;
+  error?: string;
+}
+
 export async function recordAttempt(
   input: AttemptRecord
-): Promise<ReadingProgress> {
+): Promise<RecordAttemptResult> {
   const supabase = await createClient();
 
-  // Best-effort insert into reading_history.
-  // If the table doesn't exist, log and continue.
   const { error: insertErr } = await supabase.from("reading_history").insert({
     child_id: input.childId,
     article_id: input.articleId,
@@ -167,10 +173,15 @@ export async function recordAttempt(
   });
 
   if (insertErr) {
-    console.warn("[progression] reading_history insert failed:", insertErr.message);
+    console.error("[progression] reading_history insert failed:", insertErr.message);
+    return {
+      recorded: false,
+      progress: await getProgress(input.childId),
+      error: insertErr.message,
+    };
   }
 
-  return getProgress(input.childId);
+  return { recorded: true, progress: await getProgress(input.childId) };
 }
 
 /**
@@ -205,7 +216,8 @@ export async function getProgress(childId: string): Promise<ReadingProgress> {
       level_variant: String(h.level_variant ?? ""),
       correct_count: Number(h.correct_count ?? 0),
       total_questions: Number(h.total_questions ?? 0),
-      difficulty_feel: Number(h.difficulty_feel ?? 3),
+      // Use -1 as sentinel for "no user feedback yet" so it is excluded from avg.
+      difficulty_feel: h.difficulty_feel == null ? -1 : Number(h.difficulty_feel),
     }));
   }
 

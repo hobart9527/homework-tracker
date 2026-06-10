@@ -31,10 +31,12 @@
 import { config } from "dotenv";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCorpusEntry } from "./reading/classic-corpus";
-import { decideRoute } from "@/lib/reading/route-analyzer";
 import scrapeAllSources from "./reading/scrape-all-sources";
 
 config({ path: ".env.local" });
+
+// Level variant type — declared early so checkExistingArticle can use it.
+type LevelVariant = "L1" | "L2" | "L3";
 
 // Validate env BEFORE any dynamic imports that may initialize external clients.
 validateEnv();
@@ -387,8 +389,6 @@ async function loadTopics(
 // ---------------------------------------------------------------------------
 // Main pipeline
 // ---------------------------------------------------------------------------
-
-type LevelVariant = "L1" | "L2" | "L3";
 
 interface WorkItem {
   topic: ReadingTopicRow;

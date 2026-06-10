@@ -100,7 +100,7 @@ export interface LocalGeneratedIllustration {
 function deriveEffectiveGrade(options: GenerateReadingOptions): number {
   // NEW: levelVariant takes precedence
   if (options.levelVariant) {
-    const map: Record<LevelVariant, number> = { L1: 3, L2: 6, L3: 9 };
+    const map: Record<LevelVariant, number> = { L1: 3, L2: 6, L3: 8 };
     return map[options.levelVariant];
   }
   const levels = options.recommendedLevels;
@@ -848,6 +848,8 @@ export async function generateReadingContent(
       // so we budget extra headroom to avoid JSON truncation.
       return opts.language === "zh" ? 24576 : 12288;
     })(),
+    // @ts-expect-error MiniMax-specific: separate thinking into reasoning_details
+    reasoning_split: true,
   });
 
   const rawText = completion.choices?.[0]?.message?.content || "{}";

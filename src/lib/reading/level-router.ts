@@ -10,6 +10,7 @@
 // All DB access is best-effort with graceful fallbacks.
 
 import { createClient } from "@/lib/supabase/server";
+import { randomInt } from "crypto";
 import type { LevelVariant, ReadingProgress } from "./progression";
 
 // ---------------------------------------------------------------------------
@@ -117,14 +118,11 @@ export async function drawArticle(
       .filter(Boolean)
   );
 
-  // Count consecutive same-topic+same-level reads (most-recent-first)
+  // Count total occurrences of topic+level in recent history (not strictly consecutive)
   const topicLevelCounts = new Map<string, number>();
   for (const h of recentHistory) {
     const key = `${h.topic_key}:${h.level_variant}`;
-    const current = topicLevelCounts.get(key) ?? 0;
-    if (current < SAME_TOPIC_LEVEL_CONSECUTIVE_LIMIT) {
-      topicLevelCounts.set(key, current + 1);
-    }
+    topicLevelCounts.set(key, (topicLevelCounts.get(key) ?? 0) + 1);
   }
 
   // -----------------------------------------------------------------
@@ -171,16 +169,11 @@ export async function drawArticle(
   // Filter to target level
   let pool = typedCandidates.filter((c) => c.levelVariant === targetLevel);
 
-  // If pool is empty, fall back to adjacent level
+  // If pool is empty, fall back to adjacent level.
+  // L1 → L2, L3 → L2, L2 → L1 (safer default, only L1 if truly needed).
   if (pool.length === 0) {
     const fallback =
-      targetLevel === "L1"
-        ? "L2"
-        : targetLevel === "L3"
-          ? "L2"
-          : progress.levelStats.L1.completed > progress.levelStats.L3.completed
-            ? "L3"
-            : "L1";
+      targetLevel === "L1" ? "L2" : targetLevel === "L3" ? "L2" : "L1";
     pool = typedCandidates.filter((c) => c.levelVariant === fallback);
     console.warn(
       `[level-router] no articles at ${targetLevel}, falling back to ${fallback}`
@@ -207,7 +200,7 @@ export async function drawArticle(
   // -----------------------------------------------------------------
   // 6. Weighted random draw (simple uniform for now)
   // -----------------------------------------------------------------
-  const pick = finalPool[Math.floor(Math.random() * finalPool.length)];
+  const pick = finalPool[randomInt(finalPool.length)];
 
   return {
     topicKey: pick.topicKey,

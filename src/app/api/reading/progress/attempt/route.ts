@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    let progress = await recordAttempt({
+    const result = await recordAttempt({
       childId,
       articleId,
       levelVariant: levelVariant as LevelVariant,
@@ -60,6 +60,15 @@ export async function POST(request: Request) {
       totalQuestions: Number(totalQuestions),
       difficultyFeel: Number(difficultyFeel),
     });
+
+    if (!result.recorded) {
+      return NextResponse.json(
+        { error: "Failed to record attempt", details: result.error },
+        { status: 500 }
+      );
+    }
+
+    let progress = result.progress;
 
     // If the attempt triggered a level-up, apply it.
     if (progress.canLevelUp) {
