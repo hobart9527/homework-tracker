@@ -15,7 +15,7 @@
 
 // ── content-generator (article + questions LLM pipeline) ─────────────────
 export { generateArticleContent, generateReadingContent, buildChinesePrompt, buildEnglishPrompt } from "./content-generator";
-export type { GenerateArticleOptions, GenerateReadingOptions } from "./content-generator";
+export type { GenerateArticleOptions, GenerateReadingOptions, LevelVariant } from "./content-generator";
 export type { LocalGeneratedIllustration } from "./content-generator";
 
 // ── types (canonical reading types + Supabase row aliases) ───────────────

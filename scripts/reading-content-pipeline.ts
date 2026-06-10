@@ -162,8 +162,9 @@ interface ExistingArticleCheck {
 async function checkExistingArticle(
   supabase: SupabaseClient<PipelineDatabase>,
   topicKey: string,
-  gradeLevel: number
+  level: LevelVariant
 ): Promise<ExistingArticleCheck> {
+  const gradeLevel = level === "L1" ? 3 : level === "L2" ? 6 : 8;
   const { data, error } = await supabase
     .from("reading_articles")
     .select("id, status")
@@ -387,9 +388,64 @@ async function loadTopics(
 // Main pipeline
 // ---------------------------------------------------------------------------
 
+type LevelVariant = "L1" | "L2" | "L3";
+
 interface WorkItem {
   topic: ReadingTopicRow;
-  grade: number;
+  level: LevelVariant;
+}
+
+interface QualityCheckResult {
+  fitsLevel: boolean;
+  needsExpansion: boolean;
+  wordCount: number;
+  simplePct: number;
+  compoundPct: number;
+  complexPct: number;
+}
+
+function checkSourceQuality(sourceText: string | undefined, level: LevelVariant): QualityCheckResult {
+  if (!sourceText) {
+    return { fitsLevel: false, needsExpansion: true, wordCount: 0, simplePct: 0, compoundPct: 0, complexPct: 0 };
+  }
+
+  const words = sourceText.split(/\s+/).filter(w => w.length > 0).length;
+  const sentences = sourceText.split(/[.!?]+/).filter(s => s.trim().length > 5);
+
+  let simple = 0, compound = 0, complex = 0;
+  for (const s of sentences) {
+    const st = s.trim().toLowerCase();
+    const hasConjunction = /\b(and|but|or|so|yet|for|nor)\b/.test(st);
+    const hasSubordinator = /\b(because|since|although|though|while|when|if|that|which|who|where|after|before|until|unless|even though)\b/.test(st);
+
+    if (!hasConjunction && !hasSubordinator) simple++;
+    else if (hasConjunction && !hasSubordinator) compound++;
+    else complex++;
+  }
+
+  const total = sentences.length || 1;
+  const simplePct = Math.round((simple / total) * 100);
+  const compoundPct = Math.round((compound / total) * 100);
+  const complexPct = Math.round((complex / total) * 100);
+
+  // Level standards from reading-standards.json v2.0
+  const standards: Record<LevelVariant, { wordMin: number; wordMax: number; simple: number; compound: number; complex: number }> = {
+    L1: { wordMin: 300, wordMax: 400, simple: 70, compound: 30, complex: 0 },
+    L2: { wordMin: 600, wordMax: 800, simple: 25, compound: 45, complex: 30 },
+    L3: { wordMin: 800, wordMax: 1100, simple: 15, compound: 45, complex: 40 },
+  };
+
+  const std = standards[level];
+  const wordCount = words;
+
+  // Check if source text fits the level (with 10% tolerance)
+  const wordFits = wordCount >= std.wordMin * 0.9 && wordCount <= std.wordMax * 1.1;
+  const syntaxFits = simplePct <= std.simple + 10 && compoundPct >= std.compound - 10 && complexPct >= std.complex - 10;
+
+  const fitsLevel = wordFits && syntaxFits;
+  const needsExpansion = wordCount < std.wordMin;
+
+  return { fitsLevel, needsExpansion, wordCount, simplePct, compoundPct, complexPct };
 }
 
 async function main(): Promise<void> {
@@ -399,19 +455,19 @@ async function main(): Promise<void> {
   validateEnv();
 
   // Parse config
-  const grades = (process.env.PIPELINE_GRADES || "3,6")
+  const levels = (process.env.PIPELINE_LEVELS || "L1,L2,L3")
     .split(",")
-    .map((s) => parseInt(s.trim(), 10))
-    .filter((n) => !isNaN(n) && n > 0);
+    .map((s) => s.trim().toUpperCase())
+    .filter((s) => ["L1", "L2", "L3"].includes(s)) as LevelVariant[];
 
   const topicLimit = parseInt(process.env.PIPELINE_TOPIC_LIMIT || "0", 10);
 
-  if (grades.length === 0) {
-    console.error("ERROR: No valid grade levels configured.");
+  if (levels.length === 0) {
+    console.error("ERROR: No valid levels configured. Use L1,L2,L3.");
     process.exit(1);
   }
 
-  console.log(`Grades:     ${grades.join(", ")}`);
+  console.log(`Levels:     ${levels.join(", ")}`);
   console.log(`Language:   ${pipelineLanguage}`);
   console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M2.7"}`);
   console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1"}`);
@@ -436,11 +492,11 @@ async function main(): Promise<void> {
     console.warn("WARNING: No active English topics found in reading_topics table.");
   }
 
-  // Collect all work items (topic, grade) pairs
+  // Collect all work items (topic, level) pairs
   const workItems: WorkItem[] = [];
-  for (const grade of grades) {
+  for (const level of levels) {
     for (const topic of topics) {
-      workItems.push({ topic, grade });
+      workItems.push({ topic, level });
     }
   }
 
@@ -452,7 +508,7 @@ async function main(): Promise<void> {
   // Create global pacer for LLM call concurrency (max 3 concurrent across all tasks)
   const pacer = new Pacer(3);
   const tasks = workItems.map((item, index) =>
-    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer)
+    processWorkItem(item, index + 1, workItems.length, levels, topics, supabase, pacer)
   );
 
   const results = await Promise.all(tasks);
@@ -485,42 +541,23 @@ async function processWorkItem(
   item: WorkItem,
   index: number,
   total: number,
-  grades: number[],
+  levels: LevelVariant[],
   topics: ReadingTopicRow[],
   supabase: SupabaseClient<PipelineDatabase>,
   pacer: InstanceType<typeof Pacer>
 ): Promise<ProcessResult> {
-  const { topic, grade } = item;
-  const key = `${topic.topic_key}|G${grade}`;
+  const { topic, level } = item;
+  const key = `${topic.topic_key}|${level}`;
   process.stdout.write(
     `[${index}/${total}] ${key} (${topic.category})... `
   );
 
   try {
-    // Determine route (A/B/C) based on source text quality
-    const routeDecision = decideRoute({
-      topic_key: topic.topic_key,
-      language: pipelineLanguage,
-      source: topic.source ?? null,
-      source_text: topic.source_text ?? null,
-      target_grades: topic.target_grades,
-    });
-
-    // Determine which grades to process for this topic
-    // Use topic's declared target_grades (intersected with pipeline grades)
-    const targetGrades = (topic.target_grades || []).filter((g) => grades.includes(g));
-
-    // If this grade is not in the topic's target_grades, skip it
-    if (targetGrades.length > 0 && !targetGrades.includes(grade)) {
-      console.log("SKIP (grade not in target_grades)");
-      return { status: "skipped" };
-    }
-
     // Step 1: Check if article already exists and is published
     const existing = await checkExistingArticle(
       supabase,
       topic.topic_key,
-      grade
+      level
     );
 
     if (existing.exists && existing.status === "published") {
@@ -532,19 +569,41 @@ async function processWorkItem(
     const corpusEntry = getCorpusEntry(topic.topic_key, pipelineLanguage);
     const sourceText = topic.source_text || corpusEntry?.content || undefined;
 
-    // Step 3: Generate article content (concurrent, with retry)
-    const contentResult = await pacer.run(() =>
-      withRetry(() =>
-        generateReadingContent({
-          topicKey: topic.topic_key,
-          language: pipelineLanguage,
-          category: topic.category,
-          gradeLevel: grade,
-          sourceText,
-          route: routeDecision.route,
-        })
-      )
-    );
+    // Step 3: Check source text quality and decide route
+    const qualityCheck = checkSourceQuality(sourceText, level);
+    let contentResult;
+
+    if (qualityCheck.fitsLevel) {
+      // Route A: Source text fits the level directly — use as-is with minor cleanup
+      console.log("USE-DIRECT");
+      contentResult = await pacer.run(() =>
+        withRetry(() =>
+          generateReadingContent({
+            topicKey: topic.topic_key,
+            language: pipelineLanguage,
+            category: topic.category,
+            levelVariant: level,
+            sourceText,
+            route: "A", // Direct use
+          })
+        )
+      );
+    } else {
+      // Route B/C: Source text needs adaptation — rewrite/expand/compress
+      console.log("REWRITE");
+      contentResult = await pacer.run(() =>
+        withRetry(() =>
+          generateReadingContent({
+            topicKey: topic.topic_key,
+            language: pipelineLanguage,
+            category: topic.category,
+            levelVariant: level,
+            sourceText,
+            route: qualityCheck.needsExpansion ? "B" : "C",
+          })
+        )
+      );
+    }
 
     const { article, questions, illustrations } = contentResult;
 
@@ -553,20 +612,20 @@ async function processWorkItem(
       article,
       questions,
       language: pipelineLanguage,
-      gradeLevel: grade,
+      gradeLevel: level === "L1" ? 3 : level === "L2" ? 6 : 8,
     });
     const ibGate = validateIBCriteria({
       article,
       questions,
       language: pipelineLanguage,
-      gradeLevel: grade,
+      gradeLevel: level === "L1" ? 3 : level === "L2" ? 6 : 8,
     });
     const factualGate = validateFactualAccuracy({
       article,
       sourceText,
       keyFacts: topic.key_facts || undefined,
       language: pipelineLanguage,
-      gradeLevel: grade,
+      gradeLevel: level === "L1" ? 3 : level === "L2" ? 6 : 8,
     });
 
     // Merge issues with source tagging
@@ -577,13 +636,14 @@ async function processWorkItem(
     ];
 
     // Route A: skip factual gate (original text is the ground truth)
-    const effectiveFactualPass = routeDecision.route === "A" ? true : factualGate.pass;
+    const effectiveFactualPass = qualityCheck.fitsLevel ? true : factualGate.pass;
     const status: "draft" | "published" = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
 
     // Step 4: Upsert article FIRST to get real articleId (cover/ill fields null for now)
+    const gradeLevel = level === "L1" ? 3 : level === "L2" ? 6 : 8;
     const articleId = await upsertArticle(supabase, {
       topicKey: topic.topic_key,
-      gradeLevel: grade,
+      gradeLevel,
       title: article.title,
       content: article.content,
       sourceUrl: topic.source_url,
@@ -594,7 +654,7 @@ async function processWorkItem(
       sceneDescription: article.scene_description,
       summary: article.summary,
       status,
-      contentSource: routeDecision.route === "A" ? "original" : routeDecision.route === "B" ? "adapted" : "llm",
+      contentSource: qualityCheck.fitsLevel ? "original" : qualityCheck.needsExpansion ? "adapted" : "llm",
       coverImageUrl: null,
       coverSource: null,
       coverSourceUrl: null,
@@ -676,8 +736,9 @@ async function processWorkItem(
     const sourceCount = illustrationResults.filter(r => r.source === "source-website").length;
     const aiCount = illustrationResults.length - sourceCount;
     const gateLabel = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
+    const routeLabel = qualityCheck.fitsLevel ? "direct" : qualityCheck.needsExpansion ? "expand" : "rewrite";
     console.log(
-      `OK — "${article.title}" route=${routeDecision.route} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
+      `OK — "${article.title}" route=${routeLabel} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
     );
     return { status: "succeeded" };
   } catch (err) {

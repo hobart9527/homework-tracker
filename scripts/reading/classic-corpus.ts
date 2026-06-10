@@ -14,6 +14,8 @@ export interface ClassicCorpusEntry {
   source_url: string | null;
   tags: string[];
   grade_range: [number, number];
+  ib_theme_code: string;
+  text_type: string;
 }
 
 // ============================================================================
@@ -30,6 +32,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["成语故事", "励志", "坚持"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   {
     topic_key: "chengyu-shouwang",
@@ -39,6 +43,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["成语故事", "寓言", "智慧"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   {
     topic_key: "chengyu-yuema",
@@ -48,6 +54,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["成语故事", "寓言", "真诚"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   // ---- 历史故事 ----
   {
@@ -58,6 +66,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["历史故事", "三国", "智慧"],
     grade_range: [4, 6],
+    ib_theme_code: "T2",
+    text_type: "fiction",
   },
   {
     topic_key: "lishi-ximen",
@@ -67,6 +77,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["历史故事", "战国", "智慧", "破除迷信"],
     grade_range: [4, 6],
+    ib_theme_code: "T2",
+    text_type: "fiction",
   },
   // ---- 古典诗词 ----
   {
@@ -77,6 +89,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["古典诗词", "写景", "自然"],
     grade_range: [3, 6],
+    ib_theme_code: "T3",
+    text_type: "poetry",
   },
   {
     topic_key: "shici-denggao",
@@ -86,6 +100,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["古典诗词", "写景", "励志"],
     grade_range: [3, 6],
+    ib_theme_code: "T3",
+    text_type: "poetry",
   },
   // ---- 寓言故事 ----
   {
@@ -96,6 +112,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["寓言", "智慧", "适应环境"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   {
     topic_key: "yuyan-yanmu",
@@ -105,6 +123,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["寓言", "历史", "智慧", "外交"],
     grade_range: [4, 6],
+    ib_theme_code: "T5",
+    text_type: "fiction",
   },
   // ---- 文化故事 ----
   {
@@ -115,6 +135,8 @@ const chineseCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["文化", "历史人物", "书法"],
     grade_range: [3, 6],
+    ib_theme_code: "T3",
+    text_type: "non-fiction",
   },
 ];
 
@@ -132,6 +154,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["fairy tale", "classic literature", " Grimm"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   {
     topic_key: "grimm-hansel",
@@ -141,6 +165,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["fairy tale", "classic literature", " Grimm", "adventure"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   {
     topic_key: "grimm-raven",
@@ -150,6 +176,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["fairy tale", "classic literature", " Grimm", "mystery"],
     grade_range: [3, 6],
+    ib_theme_code: "T3",
+    text_type: "fiction",
   },
   // ---- Aesop's Fables ----
   {
@@ -160,6 +188,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["fable", "Aesop", "morality", "perseverance"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   {
     topic_key: "aesop-boywolf",
@@ -169,6 +199,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["fable", "Aesop", "morality", "honesty"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   {
     topic_key: "aesop-travellers",
@@ -178,6 +210,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["fable", "Aesop", "morality", "friendship"],
     grade_range: [3, 6],
+    ib_theme_code: "T1",
+    text_type: "fiction",
   },
   // ---- Classic Literature Excerpts ----
   {
@@ -188,6 +222,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["classic literature", "adventure", "Treasure Island"],
     grade_range: [4, 6],
+    ib_theme_code: "T3",
+    text_type: "fiction",
   },
   {
     topic_key: "literature-alice",
@@ -197,6 +233,8 @@ const englishCorpus: ClassicCorpusEntry[] = [
     source_url: null,
     tags: ["classic literature", "fantasy", "adventure"],
     grade_range: [3, 6],
+    ib_theme_code: "T3",
+    text_type: "fiction",
   },
 ];
 

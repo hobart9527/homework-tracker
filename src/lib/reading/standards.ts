@@ -41,35 +41,57 @@ interface RawStandardsData {
 // 1. Re-export standards from JSON with computed fields
 // ─────────────────────────────────────────────
 
+function isEnglishGradeData(v: unknown): v is RawEnglishGradeData {
+  return (
+    v !== null &&
+    typeof v === "object" &&
+    "razLevel" in v &&
+    typeof (v as Record<string, unknown>).razLevel === "string"
+  );
+}
+
+function isChineseGradeData(v: unknown): v is RawChineseGradeData {
+  return (
+    v !== null &&
+    typeof v === "object" &&
+    "charCountMin" in v &&
+    typeof (v as Record<string, unknown>).charCountMin === "number"
+  );
+}
+
 export const ENGLISH_STANDARDS: Record<number, EnglishGradeStandard> = Object.fromEntries(
-  Object.entries((standardsData as RawStandardsData).english).map(([grade, data]) => [
-    Number(grade),
-    {
-      razLevel: data.razLevel,
-      wordCountRange: { min: data.wordCountMin, max: data.wordCountMax },
-      wpm: data.wpm,
-      readingMinutes: {
-        min: Math.ceil(data.wordCountMin / data.wpm),
-        max: Math.ceil(data.wordCountMax / data.wpm),
+  Object.entries((standardsData as unknown as RawStandardsData).english)
+    .filter(([, data]) => isEnglishGradeData(data))
+    .map(([grade, data]) => [
+      Number(grade),
+      {
+        razLevel: data.razLevel,
+        wordCountRange: { min: data.wordCountMin, max: data.wordCountMax },
+        wpm: data.wpm,
+        readingMinutes: {
+          min: Math.ceil(data.wordCountMin / data.wpm),
+          max: Math.ceil(data.wordCountMax / data.wpm),
+        },
+        lexileScore: data.lexileScore,
       },
-      lexileScore: data.lexileScore,
-    },
-  ])
+    ])
 );
 
 export const CHINESE_STANDARDS: Record<number, ChineseGradeStandard> = Object.fromEntries(
-  Object.entries((standardsData as RawStandardsData).chinese).map(([grade, data]) => [
-    Number(grade),
-    {
-      wordCountRange: { min: data.charCountMin, max: data.charCountMax },
-      charCountRange: { min: data.charCountMin, max: data.charCountMax },
-      wpm: data.wpm,
-      readingMinutes: {
-        min: Math.ceil(data.charCountMin / data.wpm),
-        max: Math.ceil(data.charCountMax / data.wpm),
+  Object.entries((standardsData as unknown as RawStandardsData).chinese)
+    .filter(([, data]) => isChineseGradeData(data))
+    .map(([grade, data]) => [
+      Number(grade),
+      {
+        wordCountRange: { min: data.charCountMin, max: data.charCountMax },
+        charCountRange: { min: data.charCountMin, max: data.charCountMax },
+        wpm: data.wpm,
+        readingMinutes: {
+          min: Math.ceil(data.charCountMin / data.wpm),
+          max: Math.ceil(data.charCountMax / data.wpm),
+        },
       },
-    },
-  ])
+    ])
 );
 
 // ─────────────────────────────────────────────

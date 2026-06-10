@@ -16,11 +16,28 @@ function tryParseWithFallback(rawText: string): FallbackResult {
   }
 
   // Strategy 1: Strip <think> blocks (closed + unclosed) + markdown fences
+  // Handle both: <think>...</think>{JSON}  and  <think>...{JSON} (unclosed)
   let text = original
-    .replace(/<think[\s\S]*?<\/think>/gi, "")
-    .replace(/<think[\s\S]*/i, "")
     .replace(/```(?:json)?\s*([\s\S]*?)```/g, "$1")
     .trim();
+
+  // Remove <think> blocks: first try closed, then handle unclosed by finding JSON after
+  text = text.replace(/<think[\s\S]*?<\/think>/gi, "");
+  if (text.includes("<think>")) {
+    // Unclosed <think>: find the first { or [ after <think>, that's where JSON starts
+    const afterThink = text.split(/<think>/i)[1] || "";
+    const firstBrace = afterThink.search(/[{\[]/);
+    if (firstBrace >= 0) {
+      text = afterThink.slice(firstBrace);
+    } else {
+      text = "";
+    }
+  }
+  // If there's plain text before the JSON object, find the first '{'
+  const firstBrace = text.indexOf("{");
+  if (firstBrace > 0) {
+    text = text.slice(firstBrace);
+  }
   try {
     return { success: true, data: JSON.parse(text) as Record<string, unknown>, method: "strip-think" };
   } catch {

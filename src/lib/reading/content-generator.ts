@@ -56,11 +56,16 @@ export interface GenerateArticleOptions {
 // New unified API types
 // ---------------------------------------------------------------------------
 
+export type LevelVariant = "L1" | "L2" | "L3";
+
 export interface GenerateReadingOptions {
   topicKey: string;
   language: "zh" | "en"; // never 'zh+en' per Q6 (single-language enforcement)
   category: string;
-  gradeLevel: number; // primary grade kept for backward-compat
+  // NEW: levelVariant replaces gradeLevel for L1/L2/L3 generation
+  levelVariant?: LevelVariant;
+  // gradeLevel kept for backward-compat with existing pipeline callers
+  gradeLevel?: number; // deprecated: use levelVariant instead
   sourceText?: string; // optional for zh
   // NEW (W0a) — all OPTIONAL for backward-compat:
   recommendedLevels?: string[]; // e.g., ['L4','L5'] — RAZ level codes; upper bound used to derive effective grade
@@ -69,6 +74,9 @@ export interface GenerateReadingOptions {
   packOrder?: number; // 1-based position within pack
   previousTopicSummary?: string; // narrative continuity hint when packOrder>1
   route?: "A" | "B" | "C";  // routing decision from route-analyzer
+  // NEW: IB theme and text type for level-variant generation
+  ibTheme?: string; // e.g., "T1"
+  textType?: string; // e.g., "fiction"
 }
 
 export interface LocalGeneratedIllustration {
@@ -85,33 +93,47 @@ export interface LocalGeneratedIllustration {
  * Parses RAZ level codes (e.g., 'L5' → 5) and returns the upper bound (more
  * challenging side). Falls back to the explicit gradeLevel when the array is
  * empty/undefined or contains no parseable level codes.
+ *
+ * NEW: When levelVariant is set (L1/L2/L3), maps to a representative grade
+ * for backward-compat with gradeLevel-dependent code.
  */
 function deriveEffectiveGrade(options: GenerateReadingOptions): number {
+  // NEW: levelVariant takes precedence
+  if (options.levelVariant) {
+    const map: Record<LevelVariant, number> = { L1: 3, L2: 6, L3: 9 };
+    return map[options.levelVariant];
+  }
   const levels = options.recommendedLevels;
-  if (!levels || levels.length === 0) return options.gradeLevel;
+  if (!levels || levels.length === 0) return options.gradeLevel ?? 3;
   const nums = levels
     .map((l) => {
       const m = /^L(\d+)$/i.exec(l.trim());
       return m ? parseInt(m[1], 10) : NaN;
     })
     .filter((n) => Number.isFinite(n));
-  if (nums.length === 0) return options.gradeLevel;
+  if (nums.length === 0) return options.gradeLevel ?? 3;
   return Math.max(...nums);
 }
 
 /** Behavior B — age-appropriateness clause (only when raw gradeLevel < 5 AND warnings present). */
 function buildAgeGateClauseEn(options: GenerateReadingOptions): string {
-  if (options.gradeLevel >= 5) return "";
+  const effectiveGrade = options.levelVariant
+    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
+    : (options.gradeLevel ?? 3);
+  if (effectiveGrade >= 5) return "";
   const warnings = options.contentWarnings;
   if (!warnings || warnings.length === 0) return "";
-  return `\n\nAGE-APPROPRIATENESS: This article must be suitable for a Grade ${options.gradeLevel} child. The topic involves [${warnings.join(", ")}]. Use a kid-friendly, calm tone. Do NOT include graphic violence, political controversy, or anything frightening. Focus on factual context and human resilience.`;
+  return `\n\nAGE-APPROPRIATENESS: This article must be suitable for a Grade ${effectiveGrade} child. The topic involves [${warnings.join(", ")}]. Use a kid-friendly, calm tone. Do NOT include graphic violence, political controversy, or anything frightening. Focus on factual context and human resilience.`;
 }
 
 function buildAgeGateClauseZh(options: GenerateReadingOptions): string {
-  if (options.gradeLevel >= 5) return "";
+  const effectiveGrade = options.levelVariant
+    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
+    : (options.gradeLevel ?? 3);
+  if (effectiveGrade >= 5) return "";
   const warnings = options.contentWarnings;
   if (!warnings || warnings.length === 0) return "";
-  return `\n\n适龄性要求：本文须适合${options.gradeLevel}年级孩子阅读。题材涉及 [${warnings.join("、")}]。使用儿童友好、平和的语气。禁止血腥暴力描写、政治争议或令人恐惧的内容。聚焦于事实背景和人类的坚韧。`;
+  return `\n\n适龄性要求：本文须适合${effectiveGrade}年级孩子阅读。题材涉及 [${warnings.join("、")}]。使用儿童友好、平和的语气。禁止血腥暴力描写、政治争议或令人恐惧的内容。聚焦于事实背景和人类的坚韧。`;
 }
 
 /** Behavior C — narrative-continuity clause (only when packOrder>1 AND previousTopicSummary present). */
@@ -149,7 +171,152 @@ function displayTopicKey(opts: GenerateReadingOptions): string {
   return opts.topicKey;
 }
 
+// ---------------------------------------------------------------------------
+// Level-variant prompt builders (L1/L2/L3)
+// ---------------------------------------------------------------------------
+
+interface LevelSpec {
+  wordCountMin: number;
+  wordCountMax: number;
+  simplePct: number;
+  compoundPct: number;
+  complexPct: number;
+  vocab: string;
+  questionCount: number;
+  bloomsLiteral: number;
+  bloomsInfer: number;
+  bloomsEvaluate: number;
+  bloomsSynthesize: number;
+  paragraphSentencesMin: number;
+  paragraphSentencesMax: number;
+  allowOpinion: boolean;
+  themeWords: number;
+}
+
+const LEVEL_SPECS: Record<LevelVariant, LevelSpec> = {
+  L1: {
+    wordCountMin: 300, wordCountMax: 400,
+    simplePct: 70, compoundPct: 30, complexPct: 0,
+    vocab: "GSL 1k-2k only. Use only simple, high-frequency words. Avoid idioms, metaphors, and abstract vocabulary.",
+    questionCount: 5,
+    bloomsLiteral: 4, bloomsInfer: 1, bloomsEvaluate: 0, bloomsSynthesize: 0,
+    paragraphSentencesMin: 3, paragraphSentencesMax: 4,
+    allowOpinion: false,
+    themeWords: 4,
+  },
+  L2: {
+    wordCountMin: 600, wordCountMax: 800,
+    simplePct: 25, compoundPct: 45, complexPct: 30,
+    vocab: "GSL 0-3k + AWL 1-5. Introduce some academic vocabulary. Use common idioms and simple metaphors.",
+    questionCount: 5,
+    bloomsLiteral: 1, bloomsInfer: 2, bloomsEvaluate: 2, bloomsSynthesize: 0,
+    paragraphSentencesMin: 4, paragraphSentencesMax: 7,
+    allowOpinion: false,
+    themeWords: 10,
+  },
+  L3: {
+    wordCountMin: 800, wordCountMax: 1100,
+    simplePct: 15, compoundPct: 45, complexPct: 40,
+    vocab: "GSL full + AWL full + academic vocabulary. Use sophisticated figurative language, nuanced vocabulary, and rhetorical devices.",
+    questionCount: 5,
+    bloomsLiteral: 0, bloomsInfer: 2, bloomsEvaluate: 2, bloomsSynthesize: 1,
+    paragraphSentencesMin: 5, paragraphSentencesMax: 9,
+    allowOpinion: true,
+    themeWords: 14,
+  },
+};
+
+function buildLevelVariantPromptEn(options: GenerateReadingOptions): string {
+  const lv = options.levelVariant!;
+  const spec = LEVEL_SPECS[lv];
+  const ageGateClause = buildAgeGateClauseEn(options);
+  const continuityClause = buildPackContinuityClauseEn(options);
+  const ibTheme = options.ibTheme ?? "T1";
+  const textType = options.textType ?? "fiction";
+
+  return `You are an expert children's reading content creator. You are adapting a source text into a Level ${lv} reading article.
+
+SOURCE TEXT:
+${(options.sourceText || "").slice(0, 6000)}
+
+--- LEVEL ${lv} SPECIFICATIONS ---
+CRITICAL: The article MUST be between ${spec.wordCountMin} and ${spec.wordCountMax} words. Count every word and verify before outputting.
+Sentence structure distribution:
+  - Simple sentences: ${spec.simplePct}%
+  - Compound sentences: ${spec.compoundPct}%
+  - Complex sentences: ${spec.complexPct}%
+Vocabulary: ${spec.vocab}
+Paragraphs: ${spec.paragraphSentencesMin}-${spec.paragraphSentencesMax} sentences each
+${spec.allowOpinion ? "May include opinion, analysis, or argumentation." : "Stay factual and narrative. No opinion or analysis."}
+
+IB THEME: ${ibTheme}
+TEXT TYPE: ${textType}
+CATEGORY: ${options.category}
+
+--- QUESTIONS (${spec.questionCount} total) ---
+CRITICAL: After writing the article, count every word. If word_count is BELOW ${spec.wordCountMin}, add more sentences until it reaches ${spec.wordCountMin}. If word_count is ABOVE ${spec.wordCountMax}, remove sentences until it is under ${spec.wordCountMax}. The final word_count MUST be between ${spec.wordCountMin} and ${spec.wordCountMax}.
+
+CRITICAL: Generate EXACTLY ${spec.questionCount} questions. Each question MUST use the EXACT question_type shown below. Do NOT use any other type.
+
+${[
+  spec.bloomsLiteral >= 1 ? `Question #1: question_type MUST be "detail" — ask a specific fact from the text (literal comprehension)` : spec.bloomsInfer >= 1 ? `Question #1: question_type MUST be "inference" — ask what the reader can figure out from clues` : `Question #1: question_type MUST be "main_idea" — ask for judgment or opinion`,
+  spec.bloomsLiteral >= 2 ? `Question #2: question_type MUST be "detail" — ask another specific fact (literal comprehension)` : spec.bloomsInfer >= 2 ? `Question #2: question_type MUST be "inference" — ask what a character is likely thinking or feeling` : spec.bloomsEvaluate >= 1 ? `Question #2: question_type MUST be "main_idea" — ask which choice is better and why` : `Question #2: question_type MUST be "inference" — ask what might happen next`,
+  spec.bloomsLiteral >= 3 ? `Question #3: question_type MUST be "detail" — ask about a setting or event (literal comprehension)` : spec.bloomsInfer >= 3 ? `Question #3: question_type MUST be "inference" — ask why a character acted a certain way` : spec.bloomsEvaluate >= 2 ? `Question #3: question_type MUST be "main_idea" — ask about the author's purpose or message` : `Question #3: question_type MUST be "vocabulary" — ask what a word means in context`,
+  spec.bloomsLiteral >= 4 ? `Question #4: question_type MUST be "detail" — ask about a sequence or order (literal comprehension)` : spec.bloomsInfer >= 4 ? `Question #4: question_type MUST be "inference" — ask what the story implies about a theme` : spec.bloomsEvaluate >= 3 ? `Question #4: question_type MUST be "main_idea" — ask if a character's decision was wise` : spec.bloomsSynthesize >= 1 ? `Question #4: question_type MUST be "sequence" — ask how events connect to form the whole story` : `Question #4: question_type MUST be "main_idea" — ask what the story is mostly about`,
+  spec.bloomsLiteral >= 5 ? `Question #5: question_type MUST be "detail" — ask about a character's appearance or action (literal comprehension)` : spec.bloomsInfer >= 5 ? `Question #5: question_type MUST be "inference" — ask what the reader learns about life from the story` : spec.bloomsEvaluate >= 4 ? `Question #5: question_type MUST be "main_idea" — ask how the story could have ended differently` : spec.bloomsSynthesize >= 2 ? `Question #5: question_type MUST be "sequence" — ask how the beginning and ending connect` : `Question #5: question_type MUST be "main_idea" — ask the central message or lesson`
+].filter(q => !q.includes(`Question #${spec.questionCount + 1}:`)).join("\n")}
+
+Each question has 4 options (A/B/C/D), exactly one correct answer.
+Difficulty scale: 1 (easiest) to 5 (hardest).
+
+--- IB MYP ENGLISH REQUIREMENTS ---
+1. GENRE: "narrative" | "informative" | "opinion" | "literary"
+2. AUTHOR'S PURPOSE: "to inform" | "to entertain" | "to persuade" | "to explain"
+3. Include figurative language appropriate for ${lv}.
+
+--- OUTPUT FORMAT ---
+CRITICAL: Your entire response must be ONLY a valid JSON object. Do NOT include any thinking process, explanations, markdown, code fences, or any text before or after the JSON.
+
+Return ONLY this JSON structure:
+{
+  "title": "Engaging title for Level ${lv}",
+  "content": "Full article text...",
+  "summary": "One-sentence summary (max 30 words)",
+  "word_count": number,
+  "estimated_minutes": number,
+  "difficulty": number (1-5),
+  "scene_description": "A single vivid sentence describing a key scene...",
+  "genre": "narrative|informative|opinion|literary",
+  "author_purpose": "to inform|to entertain|to persuade|to explain",
+  "factual_accuracy": {
+    "source_facts_declared": ["fact 1", "fact 2"],
+    "facts_preserved_count": 2
+  },
+  "illustrations": [
+    { "paragraph_index": 0, "scene_description": "..." }
+  ],
+  "questions": [
+    {
+      "question_text": "...",
+      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
+      "correct_answer": "A",
+      "difficulty": number (1-5),
+      "hint": "Reading strategy tip (1-2 sentences), NOT the answer.",
+      "explanation": "Why the correct answer is right, in child-friendly language."
+    }
+  ]
+}
+
+${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}`;
+}
+
 export function buildEnglishPrompt(options: GenerateReadingOptions): string {
+  // NEW: if levelVariant is set, use the level-variant prompt
+  if (options.levelVariant) {
+    return buildLevelVariantPromptEn(options);
+  }
+
   // Behavior A: effective grade drives wordLimit / questionCount / focusAreas.
   const effectiveGrade = deriveEffectiveGrade(options);
   const enRange = getWordCountRange('en', effectiveGrade);
@@ -162,12 +329,12 @@ export function buildEnglishPrompt(options: GenerateReadingOptions): string {
   const ageGateClause = buildAgeGateClauseEn(options);
   const continuityClause = buildPackContinuityClauseEn(options);
 
-  return `You are adapting a reading passage for a Grade ${options.gradeLevel} student (age ${options.gradeLevel + 5}).
+  return `You are adapting a reading passage for a Grade ${options.gradeLevel ?? 3} student (age ${(options.gradeLevel ?? 3) + 5}).
 
 Original passage:
 ${(options.sourceText || "").slice(0, 6000)}
 
-Create an adapted version suitable for Grade ${options.gradeLevel}. Requirements:
+Create an adapted version suitable for Grade ${options.gradeLevel ?? 3}. Requirements:
 - Target length: ${wordLimit}
 - Grade-appropriate vocabulary and sentence complexity
 - Clear topic, engaging opening paragraph
@@ -212,7 +379,7 @@ ${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}
 
 Return STRICT JSON (no markdown, no code fences):
 {
-  "title": "Article title (engaging for grade ${options.gradeLevel})",
+  "title": "Article title (engaging for grade ${options.gradeLevel ?? 3})",
   "content": "Full article text...",
   "summary": "One-sentence summary (max 30 words)",
   "word_count": number,
@@ -258,7 +425,7 @@ function buildEnglishRouteAPrompt(options: GenerateReadingOptions): string {
 Original article (USE AS-IS for the "content" field):
 ${(options.sourceText || "").slice(0, 8000)}
 
-IMPORTANT: Copy the article text EXACTLY into the "content" field of the JSON output. The article is already grade-appropriate for Grade ${options.gradeLevel}.
+IMPORTANT: Copy the article text EXACTLY into the "content" field of the JSON output. The article is already grade-appropriate.
 
 Create ${questionCount} comprehension questions about this article.
 Question types: ${focusAreas}
@@ -314,14 +481,18 @@ export function buildChinesePrompt(options: GenerateReadingOptions): string {
   const ageGateClause = buildAgeGateClauseZh(options);
   const continuityClause = buildPackContinuityClauseZh(options);
 
-  return `你是一位专业的中文儿童阅读内容创作专家。请为${options.gradeLevel}年级学生创作一篇阅读文章。
+  const effectiveGradeZh = options.levelVariant
+    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
+    : (options.gradeLevel ?? 3);
+
+  return `你是一位专业的中文儿童阅读内容创作专家。请为${effectiveGradeZh}年级学生创作一篇阅读文章。
 
 主题：${displayTopicKey(options)}
 类别：${options.category}
 ${sourcePassageBlock}
 要求：
 - 字数范围：${charLimit}字
-- 适合${options.gradeLevel}年级学生的词汇和句子复杂度
+- 适合${effectiveGradeZh}年级学生的词汇和句子复杂度
 - 主题清晰，开头引人入胜
 - 包含一个经典名句（成语、古诗词或名言），并提供原文、拼音和译文
 
@@ -417,7 +588,7 @@ function buildChineseRouteAPrompt(options: GenerateReadingOptions): string {
 原文（请原封不动地放入 "content" 字段）：
 ${sourceText.slice(0, 8000)}
 
-重要：将原文逐字复制到 JSON 输出的 "content" 字段中。这篇文章已经适合${options.gradeLevel}年级学生阅读。
+重要：将原文逐字复制到 JSON 输出的 "content" 字段中。这篇文章已经适合目标年级学生阅读。
 
 请为这篇文章创建${questionCount}道阅读理解题。
 题型包括：${focusAreas}
@@ -467,8 +638,12 @@ function buildEnglishRouteBPrompt(options: GenerateReadingOptions): string {
   const ageGateClause = buildAgeGateClauseEn(options);
   const continuityClause = buildPackContinuityClauseEn(options);
 
+  const effectiveGradeB = options.levelVariant
+    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
+    : (options.gradeLevel ?? 3);
+
   // B1/B2: retain all facts, only adjust vocabulary and sentence length
-  return `You are adapting a reading passage for a Grade ${options.gradeLevel} student. The original text is already mostly suitable — only minor adjustments are needed.
+  return `You are adapting a reading passage for a Grade ${effectiveGradeB} student. The original text is already mostly suitable — only minor adjustments are needed.
 
 Original text:
 ${(options.sourceText || "").slice(0, 6000)}
@@ -504,7 +679,11 @@ function buildChineseRouteBPrompt(options: GenerateReadingOptions): string {
   const ageGateClause = buildAgeGateClauseZh(options);
   const continuityClause = buildPackContinuityClauseZh(options);
 
-  return `你是一位专业的中文儿童阅读改编专家。请将以下文言文/古文逐句翻译改编成适合小学${options.gradeLevel}年级的白话文。
+  const effectiveGradeBZh = options.levelVariant
+    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
+    : (options.gradeLevel ?? 3);
+
+  return `你是一位专业的中文儿童阅读改编专家。请将以下文言文/古文逐句翻译改编成适合小学${effectiveGradeBZh}年级的白话文。
 
 原文：
 ${sourceText.slice(0, 4000)}
@@ -512,7 +691,7 @@ ${sourceText.slice(0, 4000)}
 约束性改编规则（严格遵守）：
 1. 逐句翻译：原文的每一句话都要对应1-2句白话文。不要跳过任何句子。
 2. 保留全部事实：原文中所有人物、事件、时间、地点必须完整保留。禁止添加原文没有的细节或评论。
-3. 词汇替换：生僻字替换为${options.gradeLevel}年级课本常用字。专业术语用通俗语言解释。
+3. 词汇替换：生僻字替换为${effectiveGradeBZh}年级课本常用字。专业术语用通俗语言解释。
 4. 句子简化：文言文长句拆分为简短白话句。每个白话句子不超过20字。
 5. 不要改变叙事顺序：严格按原文段落顺序改写。
 6. 保留典故：原文中的成语、典故要保留并稍作解释。
@@ -601,8 +780,12 @@ export async function generateArticleContent(
     ],
     temperature: 0.7,
     max_tokens: 4096,
+    // MiniMax-specific: separate thinking into reasoning_details field
+    // @ts-expect-error OpenAI SDK types don't include MiniMax-specific params
+    reasoning_split: true,
   });
 
+  // MiniMax with reasoning_split=true puts thinking in reasoning_details, content is clean JSON
   const rawText = completion.choices[0]?.message?.content || "{}";
   const result = parseJsonWithRecovery(rawText) as Record<string, any>;
 
@@ -677,10 +860,13 @@ export async function generateReadingContent(
 
   // Override LLM-returned difficulty with objective calculation
   const content = result.content as string | undefined;
+  const effectiveGradeForDifficulty = opts.levelVariant
+    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[opts.levelVariant]
+    : (opts.gradeLevel ?? 3);
   const objResult = calculateObjectiveDifficulty({
     content: content || "",
     language: opts.language,
-    gradeLevel: opts.gradeLevel,
+    gradeLevel: effectiveGradeForDifficulty,
     llmDifficulty: result.difficulty as number | undefined,
   });
 
