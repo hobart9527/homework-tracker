@@ -181,9 +181,9 @@ function ReadingArticleContent({
             .single();
 
           if (assignment) {
-            // Step 2: find all reading homeworks for this child that
-            // belong to 中文 or 英文 primary category and have secondary
-            // category "阅读".
+            // Step 2: find all homeworks for this child that
+            // belong to 中文 or 英文 primary category.
+            // We will filter by shouldAutoCompleteReading and group name in the loop.
             const { data: readingHomeworks } = await supabase
               .from("homeworks")
               .select(
@@ -191,7 +191,6 @@ function ReadingArticleContent({
               )
               .eq("child_id", assignment.child_id)
               .is("deleted_at", null)
-              .eq("type_name", "阅读")
               .in("homework_type_groups.name", ["中文", "英文"]);
 
             const targetGroupName = article?.language === "en" ? "英文" : "中文";
