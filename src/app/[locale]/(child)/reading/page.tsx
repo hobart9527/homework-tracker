@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { createClient } from "@/lib/supabase/client";
 import { ArticleCard } from "@/components/reading/ArticleCard";
@@ -110,6 +110,7 @@ export default function ReadingBrowserPage() {
   const { t } = useTranslation();
   const router = useRouter();
   const locale = useLocale();
+  const searchParams = useSearchParams();
   const [supabase] = useState(() => createClient());
 
   const [loading, setLoading] = useState(true);
@@ -117,7 +118,14 @@ export default function ReadingBrowserPage() {
 
   const [articles, setArticles] = useState<Article[]>([]);
   const [activeCategory, setActiveCategory] = useState("");
-  const [activeLanguage, setActiveLanguage] = useState<"zh" | "en">("en");
+  const [activeLanguage, setActiveLanguage] = useState<"zh" | "en">(
+    ((): "zh" | "en" => {
+      const langParam = searchParams?.get("lang");
+      if (langParam === "zh") return "zh";
+      if (langParam === "en") return "en";
+      return "en";
+    })()
+  );
   const [sortMode, setSortMode] = useState<"default" | "unread" | "latest">("default");
   const [searchQuery, setSearchQuery] = useState("");
   const [userGradeLevel, setUserGradeLevel] = useState<number | null>(null);

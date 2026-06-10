@@ -274,13 +274,13 @@ export default function ChildLandingClient({
           ) : (
             <PriorityHomeworkCard
               task={priorityTask}
-              actionLabel={priorityTask?.platformUrl && priorityTask.typeIcon !== "📚" ? "去平台" : undefined}
+              actionLabel={priorityTask?.platformUrl && priorityTask.typeIcon !== "📚" && priorityTask.typeIcon !== "📖" ? "去平台" : undefined}
               onOpen={() => {
                 if (!priorityTask) return;
 
                 // 阅读类型任务直接跳转到阅读页
-                if (priorityTask.typeIcon === "📚") {
-                  router.push(`/${locale}/reading`);
+                if (priorityTask.typeIcon === "📚" || priorityTask.typeIcon === "📖") {
+                  router.push(`/${locale}/reading?lang=${priorityTask.typeIcon === "📖" ? "zh" : "en"}`);
                   return;
                 }
 

@@ -69,7 +69,7 @@ export function PriorityHomeworkCard({
             onClick={onOpen}
             className="min-h-[44px] w-full sm:w-auto"
           >
-            {actionLabel || (task.typeIcon === "📚" ? "去阅读" : "去完成")}
+            {actionLabel || (task.typeIcon === "📚" || task.typeIcon === "📖" ? "去阅读" : "去完成")}
           </Button>
         </div>
       </div>

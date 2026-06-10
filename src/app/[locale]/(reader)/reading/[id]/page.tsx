@@ -167,89 +167,77 @@ function ReadingArticleContent({
       window.dispatchEvent(new CustomEvent("child-points-changed"));
 
       // ── Reading auto-checkin ──
-      if (assignmentId) {
-        try {
-          const supabase = createClient();
+      if (!childId) return;
 
-          // Step 1: fetch the assignment with homework linkage.
-          // reading_assignments has no homework_id FK, so we join via
-          // the child_id + matching reading-type homework.
-          const { data: assignment } = await supabase
-            .from("reading_assignments")
-            .select("id, child_id")
-            .eq("id", assignmentId)
-            .single();
+      try {
+        const supabase = createClient();
 
-          if (assignment) {
-            // Step 2: find all homeworks for this child that
-            // belong to 中文 or 英文 primary category.
-            // We will filter by shouldAutoCompleteReading and group name in the loop.
-            const { data: readingHomeworks } = await supabase
-              .from("homeworks")
-              .select(
-                "id, type_name, point_value, required_checkpoint_type, type_group_id, group:homework_type_groups(name)"
-              )
-              .eq("child_id", assignment.child_id)
-              .is("deleted_at", null)
-              .in("homework_type_groups.name", ["中文", "英文"]);
+        // Step 1: find all homeworks for this child that
+        // belong to 中文 or 英文 primary category.
+        // We filter by shouldAutoCompleteReading and group name in JS.
+        const { data: readingHomeworks } = await supabase
+          .from("homeworks")
+          .select(
+            "id, type_name, point_value, required_checkpoint_type, type_group_id, group:homework_type_groups(name)"
+          )
+          .eq("child_id", childId)
+          .is("deleted_at", null);
 
-            const targetGroupName = article?.language === "en" ? "英文" : "中文";
-            const matchingHomeworks =
-              readingHomeworks?.filter(
-                (hw: any) =>
-                  hw.group?.name === targetGroupName &&
-                  shouldAutoCompleteReading(hw)
-              ) ?? [];
+        const targetGroupName = article?.language === "en" ? "英文" : "中文";
+        const matchingHomeworks =
+          readingHomeworks?.filter(
+            (hw: any) =>
+              hw.group?.name === targetGroupName &&
+              shouldAutoCompleteReading(hw)
+          ) ?? [];
 
-            for (const hw of matchingHomeworks) {
-              const todayStart = new Date();
-              todayStart.setHours(0, 0, 0, 0);
-              const todayEnd = new Date();
-              todayEnd.setHours(23, 59, 59, 999);
+        for (const hw of matchingHomeworks) {
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          const todayEnd = new Date();
+          todayEnd.setHours(23, 59, 59, 999);
 
-              const { data: existingCheckIns } = await supabase
-                .from("check_ins")
-                .select("id, note")
-                .eq("homework_id", hw.id)
-                .gte("completed_at", todayStart.toISOString())
-                .lte("completed_at", todayEnd.toISOString());
+          const { data: existingCheckIns } = await supabase
+            .from("check_ins")
+            .select("id, note")
+            .eq("homework_id", hw.id)
+            .gte("completed_at", todayStart.toISOString())
+            .lte("completed_at", todayEnd.toISOString());
 
-              const articleRef = `文章: ${params.id}`;
-              const sameArticleCheckIn = existingCheckIns?.find(
-                (ci) => ci.note?.includes(articleRef)
-              );
+          const articleRef = `文章: ${params.id}`;
+          const sameArticleCheckIn = existingCheckIns?.find(
+            (ci) => ci.note?.includes(articleRef)
+          );
 
-              const noteLine = `${targetGroupName}阅读自动打卡 — 文章: ${params.id}, 得分: ${result.score}/${result.total}`;
+          const noteLine = `${targetGroupName}阅读自动打卡 — 文章: ${params.id}, 得分: ${result.score}/${result.total}`;
 
-              if (sameArticleCheckIn) {
-                // Same article re-read → update score line
-                await supabase
-                  .from("check_ins")
-                  .update({ note: noteLine })
-                  .eq("id", sameArticleCheckIn.id);
-              } else {
-                await createReadingAutoCheckin({
-                  supabase,
-                  childId: assignment.child_id,
-                  homework: {
-                    id: hw.id,
-                    point_value: hw.point_value ?? 0,
-                  },
-                  articleId: params.id,
-                  score: result.score,
-                  total: result.total,
-                  articleLanguage: article?.language,
-                });
-              }
-            }
+          if (sameArticleCheckIn) {
+            // Same article re-read → update score line
+            await supabase
+              .from("check_ins")
+              .update({ note: noteLine })
+              .eq("id", sameArticleCheckIn.id);
+          } else {
+            await createReadingAutoCheckin({
+              supabase,
+              childId,
+              homework: {
+                id: hw.id,
+                point_value: hw.point_value ?? 0,
+              },
+              articleId: params.id,
+              score: result.score,
+              total: result.total,
+              articleLanguage: article?.language,
+            });
           }
-        } catch (err) {
-          // Auto-checkin is best-effort; never block the quiz flow.
-          console.error("Reading auto-checkin failed:", err);
         }
+      } catch (err) {
+        // Auto-checkin is best-effort; never block the quiz flow.
+        console.error("Reading auto-checkin failed:", err);
       }
     },
-    [assignmentId, params.id]
+    [childId, params.id, article?.language]
   );
 
   // ── Loading state ──
