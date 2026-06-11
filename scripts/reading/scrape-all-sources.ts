@@ -109,6 +109,15 @@ export async function scrapeAllSources(options: ScrapeOptions = { dryRun: false,
     { source: "icdl", args: ["scripts/reading/scrapers/icdl-scraper.ts", "--lang", options.lang, "--limit", "50", ...(options.dryRun ? ["--dry-run"] : [])] },
     { source: "dogo", args: ["scripts/reading/scrapers/dogo-scraper.ts", "--limit", "20", ...(options.dryRun ? ["--dry-run"] : [])] },
     { source: "bbc-newsround", args: ["scripts/reading/scrapers/bbc-newsround-scraper.ts", "--limit", "20", ...(options.dryRun ? ["--dry-run"] : [])] },
+    // English-language scrapers
+    ...(options.lang === "en" ? [
+      { source: "commonlit", args: ["scripts/reading/scrapers/commonlit-scraper.ts", "--limit", "10", ...(options.dryRun ? ["--dry-run"] : [])] },
+      { source: "news-in-levels", args: ["scripts/reading/scrapers/news-in-levels.ts", ...(options.dryRun ? ["--dry-run"] : [])] },
+    ] : []),
+    // Chinese-language scraper
+    ...(options.lang === "zh" ? [
+      { source: "gushiwen", args: ["scripts/reading/scrapers/gushiwen-scraper.ts", "--limit", "15", ...(options.dryRun ? ["--dry-run"] : [])] },
+    ] : []),
   ];
 
   const jobPromises = scraperJobs.map(async (job) => {

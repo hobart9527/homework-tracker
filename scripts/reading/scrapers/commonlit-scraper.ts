@@ -46,8 +46,6 @@ interface CommonLitText {
 
 interface TopicUpsertData {
   topic_key: string;
-  title: string;
-  author: string | null;
   language: string;
   category: string;
   source: string;
@@ -55,11 +53,10 @@ interface TopicUpsertData {
   source_text: string | null;
   source_image_url: string | null;
   source_inline_image_urls: string[] | null;
-  grade_level: number;
   target_grades: number[];
   status: string;
   content_completeness: string;
-  metadata: Record<string, unknown>;
+  source_quality_score: number;
 }
 
 type ExtractionStrategy =
@@ -907,8 +904,6 @@ async function upsertTopic(
   const { error } = await (supabase as any).from("reading_topics").upsert(
     {
       topic_key: data.topic_key,
-      title: data.title,
-      author: data.author,
       language: data.language,
       category: data.category,
       source: data.source,
@@ -916,11 +911,10 @@ async function upsertTopic(
       source_text: data.source_text,
       source_image_url: data.source_image_url,
       source_inline_image_urls: data.source_inline_image_urls,
-      grade_level: data.grade_level,
       target_grades: data.target_grades,
       status: data.status,
       content_completeness: data.content_completeness,
-      metadata: data.metadata,
+      source_quality_score: data.source_quality_score,
     },
     { onConflict: "topic_key" }
   );
@@ -1037,8 +1031,6 @@ async function processText(
 
   const upsertData: TopicUpsertData = {
     topic_key: topicKey,
-    title: textData.title || "Untitled",
-    author: textData.author ?? null,
     language: "en",
     category: deriveCategory(textData.themes || []),
     source: "commonlit",
@@ -1046,25 +1038,16 @@ async function processText(
     source_text: sourceText,
     source_image_url: images.cover,
     source_inline_image_urls: images.inline || null,
-    grade_level: textData.gradesMin || 6,
     target_grades: [textData.gradesMin || 6, textData.gradesMax || 12],
     status: textData.isPublic !== false ? "active" : "pending",
     content_completeness: completeness,
-    metadata: {
-      commonlit_id: textData.id || "",
-      grades_max: textData.gradesMax || 12,
-      themes: textData.themes || [],
-      has_full_content: !!textData.fullText,
-      excerpt: textData.excerpt || null,
-      extraction_strategy: textData.strategy || "none",
-      content_completeness: completeness,
-    },
+    source_quality_score: 1.0,
   };
 
   if (dryRun) {
     console.log(`  [DRY-RUN] Would upsert: ${topicKey}`);
-    console.log(`    Title: ${upsertData.title}`);
-    console.log(`    Author: ${upsertData.author || "unknown"}`);
+    console.log(`    Topic key: ${upsertData.topic_key}`);
+    console.log(`    Language: ${upsertData.language}`);
     console.log(`    Grades: ${upsertData.target_grades.join("-")}`);
     console.log(`    Category: ${upsertData.category}`);
     console.log(`    Has content: ${!!upsertData.source_text}`);
