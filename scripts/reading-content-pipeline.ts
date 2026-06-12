@@ -189,6 +189,33 @@ function coerceQuestionDifficulty(value: unknown): number {
   return 3;
 }
 
+const VALID_QUESTION_TYPES = ['main_idea', 'detail', 'inference', 'vocabulary', 'sequence'] as const;
+type ValidQuestionType = typeof VALID_QUESTION_TYPES[number];
+
+function coerceQuestionType(value: unknown): ValidQuestionType {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase().replace(/\s+/g, '_');
+    const map: Record<string, ValidQuestionType> = {
+      'main_idea': 'main_idea',
+      'mainidea': 'main_idea',
+      'main_idea_question': 'main_idea',
+      'detail': 'detail',
+      'details': 'detail',
+      'inference': 'inference',
+      'infer': 'inference',
+      'vocabulary': 'vocabulary',
+      'vocab': 'vocabulary',
+      'vocabulary_question': 'vocabulary',
+      'sequence': 'sequence',
+      'sequencing': 'sequence',
+      'order': 'sequence',
+    };
+    if (map[normalized]) return map[normalized];
+    if (VALID_QUESTION_TYPES.includes(normalized as ValidQuestionType)) return normalized as ValidQuestionType;
+  }
+  return 'detail';
+}
+
 // ---------------------------------------------------------------------------
 // Environment validation
 // ---------------------------------------------------------------------------
@@ -374,7 +401,7 @@ async function replaceQuestions(
       questions.map((q, i) => ({
         article_id: articleId,
         question_text: q.question_text,
-        question_type: q.question_type,
+        question_type: coerceQuestionType(q.question_type),
         options: q.options,
         correct_answer: q.correct_answer,
         difficulty: coerceQuestionDifficulty(q.difficulty),
