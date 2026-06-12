@@ -768,8 +768,11 @@ export async function generateArticleContent(
 ): Promise<{ article: LocalGeneratedArticle; questions: LocalGeneratedQuestion[] }> {
   const prompt = buildGenerationPrompt(options);
 
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
+  const isMiniMax = modelName.toLowerCase().includes("minimax");
+
   const completion = await getOpenAI().chat.completions.create({
-    model: process.env.OPENAI_READING_MODEL || "MiniMax-M2.7",
+    model: modelName,
     messages: [
       {
         role: "system",
@@ -780,6 +783,8 @@ export async function generateArticleContent(
     ],
     temperature: 0.7,
     max_tokens: 4096,
+    // Only set JSON response format for non-MiniMax models
+    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
     // MiniMax-specific: separate thinking into reasoning_details field
     // @ts-expect-error OpenAI SDK types don't include MiniMax-specific params
     reasoning_split: true,
@@ -830,13 +835,16 @@ export async function generateReadingContent(
     return opts.language === "zh" ? buildChinesePrompt(opts) : buildEnglishPrompt(opts);
   })();
 
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
+  const isMiniMax = modelName.toLowerCase().includes("minimax");
+
   const completion = await getOpenAI().chat.completions.create({
-    model: process.env.OPENAI_READING_MODEL || "MiniMax-M2.7",
+    model: modelName,
     messages: [
       {
         role: "system",
         content:
-          "You are an expert children's reading content creator. You create reading articles and comprehension questions for students. CRITICAL: Your entire response must be a single valid JSON object. Do NOT write the article as plain text outside the JSON. Put the full article text inside the JSON 'content' field. Do NOT include markdown code fences, <think> tags, or any text outside the JSON object.",
+          "You are an expert children's reading content creator. You create reading articles and comprehension questions for students. CRITICAL: Your entire response must be a single valid JSON object. Do NOT write the article as plain text outside the JSON. Put the full article text inside the JSON 'content' field. Do NOT include markdown code fences, <thinking> tags, or any text outside the JSON object.",
       },
       { role: "user", content: prompt },
     ],
@@ -844,10 +852,12 @@ export async function generateReadingContent(
     max_tokens: (() => {
       if (opts.route === "A") return 4096;   // questions+metadata only, ~500 tokens needed
       if (opts.route === "B") return 8192;   // constrained rewrite, shorter
-      // Route C: full generation. MiniMax-M2.7 emits <think> blocks that consume tokens,
+      // Route C: full generation. MiniMax-M2.7 emits <thinking> blocks that consume tokens,
       // so we budget extra headroom to avoid JSON truncation.
       return opts.language === "zh" ? 24576 : 12288;
     })(),
+    // Only set JSON response format for non-MiniMax models
+    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
     // @ts-expect-error MiniMax-specific: separate thinking into reasoning_details
     reasoning_split: true,
   });

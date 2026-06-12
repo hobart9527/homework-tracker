@@ -3,7 +3,8 @@ name: Reading Content Pipeline
 on:
   schedule:
     # 08:00 CST = 00:00 UTC — daily content generation
-    - cron: "0 0 * * *"
+    # Use minute 7 to avoid GitHub scheduler peak-hour skip risk
+    - cron: "7 0 * * *"
   workflow_dispatch:
 
 jobs:
@@ -20,6 +21,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
+      - run: npx playwright install
       - run: PIPELINE_LANGUAGE=en npx tsx scripts/reading-content-pipeline.ts --scrape-first
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -39,6 +41,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
+      - run: npx playwright install
       - run: PIPELINE_LANGUAGE=zh npx tsx scripts/reading-content-pipeline.ts --scrape-first
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}

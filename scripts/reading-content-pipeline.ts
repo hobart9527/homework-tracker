@@ -120,6 +120,76 @@ interface PipelineDatabase {
 }
 
 // ---------------------------------------------------------------------------
+// Sanitization helpers — coerce LLM string values to safe integers for DB columns
+// ---------------------------------------------------------------------------
+
+function toSafeInt(value: unknown, fallback: number, min?: number, max?: number): number {
+  let n: number;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    n = value;
+  } else if (typeof value === "string") {
+    const parsed = parseInt(value, 10);
+    n = Number.isFinite(parsed) ? parsed : fallback;
+  } else {
+    n = fallback;
+  }
+  if (min !== undefined) n = Math.max(min, n);
+  if (max !== undefined) n = Math.min(max, n);
+  return n;
+}
+
+function computeWordCount(content: string, language: string): number {
+  if (!content) return 0;
+  if (language === "zh") {
+    // Count CJK characters as words for Chinese
+    const cjk = content.match(/[一-鿿]/g) || [];
+    return cjk.length;
+  }
+  // English: split on whitespace
+  return content.split(/\s+/).filter((w) => w.length > 0).length;
+}
+
+function sanitizeArticleNumbers(
+  article: {
+    word_count: number | string | unknown;
+    estimated_minutes: number | string | unknown;
+    difficulty: number | string | unknown;
+    content: string;
+  },
+  language: string
+): { word_count: number; estimated_minutes: number; difficulty: number } {
+  const rawWordCount = toSafeInt(article.word_count, 0, 0);
+  const wordCount = rawWordCount > 0 ? rawWordCount : computeWordCount(article.content, language);
+  const estimatedMinutes =
+    toSafeInt(article.estimated_minutes, 0, 1) > 0
+      ? toSafeInt(article.estimated_minutes, 0, 1)
+      : Math.max(1, Math.round(wordCount / (language === "en" ? 100 : 80)));
+  const difficulty = toSafeInt(article.difficulty, 3, 1, 5);
+  return { word_count: wordCount, estimated_minutes: estimatedMinutes, difficulty };
+}
+
+function coerceQuestionDifficulty(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(1, Math.min(5, value));
+  }
+  if (typeof value === "string") {
+    const lower = value.trim().toLowerCase();
+    const map: Record<string, number> = {
+      easy: 2,
+      简单: 2,
+      medium: 3,
+      中等: 3,
+      hard: 4,
+      困难: 4,
+    };
+    if (map[lower] !== undefined) return map[lower];
+    const parsed = parseInt(value, 10);
+    if (Number.isFinite(parsed)) return Math.max(1, Math.min(5, parsed));
+  }
+  return 3;
+}
+
+// ---------------------------------------------------------------------------
 // Environment validation
 // ---------------------------------------------------------------------------
 
@@ -307,7 +377,7 @@ async function replaceQuestions(
         question_type: q.question_type,
         options: q.options,
         correct_answer: q.correct_answer,
-        difficulty: q.difficulty || 3,
+        difficulty: coerceQuestionDifficulty(q.difficulty),
         order_index: i + 1,
       }))
     );
@@ -569,11 +639,14 @@ async function processWorkItem(
     const corpusEntry = getCorpusEntry(topic.topic_key, pipelineLanguage);
     const sourceText = topic.source_text || corpusEntry?.content || undefined;
 
+    // Guard: if source text is missing or too short, force route C (full generation)
+    const hasUsableSource = !!sourceText && sourceText.trim().length >= 50;
+
     // Step 3: Check source text quality and decide route
     const qualityCheck = checkSourceQuality(sourceText, level);
     let contentResult;
 
-    if (qualityCheck.fitsLevel) {
+    if (qualityCheck.fitsLevel && hasUsableSource) {
       // Route A: Source text fits the level directly — use as-is with minor cleanup
       console.log("USE-DIRECT");
       contentResult = await pacer.run(() =>
@@ -588,7 +661,7 @@ async function processWorkItem(
           })
         )
       );
-    } else {
+    } else if (hasUsableSource) {
       // Route B/C: Source text needs adaptation — rewrite/expand/compress
       console.log("REWRITE");
       contentResult = await pacer.run(() =>
@@ -600,6 +673,21 @@ async function processWorkItem(
             levelVariant: level,
             sourceText,
             route: qualityCheck.needsExpansion ? "B" : "C",
+          })
+        )
+      );
+    } else {
+      // No usable source — force route C (full generation from scratch)
+      console.log("NO-SOURCE → GENERATE");
+      contentResult = await pacer.run(() =>
+        withRetry(() =>
+          generateReadingContent({
+            topicKey: topic.topic_key,
+            language: pipelineLanguage,
+            category: topic.category,
+            levelVariant: level,
+            sourceText: undefined,
+            route: "C",
           })
         )
       );
@@ -641,6 +729,7 @@ async function processWorkItem(
 
     // Step 4: Upsert article FIRST to get real articleId (cover/ill fields null for now)
     const gradeLevel = level === "L1" ? 3 : level === "L2" ? 6 : 8;
+    const sanitized = sanitizeArticleNumbers(article, pipelineLanguage);
     const articleId = await upsertArticle(supabase, {
       topicKey: topic.topic_key,
       gradeLevel,
@@ -648,9 +737,9 @@ async function processWorkItem(
       content: article.content,
       sourceUrl: topic.source_url,
       category: topic.category,
-      wordCount: article.word_count,
-      estimatedMinutes: article.estimated_minutes,
-      difficulty: article.difficulty,
+      wordCount: sanitized.word_count,
+      estimatedMinutes: sanitized.estimated_minutes,
+      difficulty: sanitized.difficulty,
       sceneDescription: article.scene_description,
       summary: article.summary,
       status,
@@ -682,13 +771,14 @@ async function processWorkItem(
       console.warn(`\n  [cover] failed: ${reason}`);
     }
 
-    // Step 6: Update article cover fields
+    // Step 6: Update article cover fields (normalize source-website to pollinations for DB constraint)
     if (coverResult) {
+      const coverSource = coverResult.source === "source-website" ? "pollinations" : coverResult.source;
       await updateArticleCover(
         supabase,
         articleId,
         coverResult.url,
-        coverResult.source,
+        coverSource,
         coverResult.source_url
       );
     }
@@ -726,7 +816,7 @@ async function processWorkItem(
         paragraph_index: ill.paragraph_index,
         image_url: ill.url,
         source_url: ill.source_url,
-        source: ill.source,
+        source: ill.source === "source-website" || ill.source === "dalle" ? "pollinations" : ill.source,
         scene_description:
           illustrations.find((i: { paragraph_index: number; scene_description: string }) => i.paragraph_index === ill.paragraph_index)
             ?.scene_description || "",
