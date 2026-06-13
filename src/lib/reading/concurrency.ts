@@ -59,9 +59,9 @@ export class Pacer {
 export interface RetryOptions {
   /** Maximum number of retry attempts (default: 2) */
   maxRetries?: number;
-  /** Initial delay in milliseconds (default: 1000) */
+  /** Initial delay in milliseconds (default: 3000) */
   baseDelayMs?: number;
-  /** Maximum delay cap in milliseconds (default: 10000) */
+  /** Maximum delay cap in milliseconds (default: 60000) */
   maxDelayMs?: number;
   /**
    * Predicate to determine if an error should trigger a retry.
@@ -85,9 +85,9 @@ export async function withRetry<T>(
   options?: RetryOptions
 ): Promise<T> {
   const {
-    maxRetries = 2,
-    baseDelayMs = 1000,
-    maxDelayMs = 10000,
+    maxRetries = 3,
+    baseDelayMs = 3000,
+    maxDelayMs = 60000,
     shouldRetry = defaultShouldRetry,
   } = options ?? {};
 

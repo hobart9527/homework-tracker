@@ -804,13 +804,15 @@ export async function generateArticleContent(
       estimated_minutes: result.estimated_minutes || 5,
       difficulty: result.difficulty || 3,
     } satisfies LocalGeneratedArticle,
-    questions: (result.questions || []).map((q: Record<string, unknown>, i: number) => ({
-      question_text: q.question_text || "",
-      question_type: (q.question_type as LocalGeneratedQuestion["question_type"]) || "detail",
-      options: (q.options as { label: string; text: string }[]) || [],
-      correct_answer: (q.correct_answer as string) || "A",
-      difficulty: (q.difficulty as number) || 3,
-    })),
+    questions: Array.isArray(result.questions)
+      ? (result.questions as Record<string, unknown>[]).map((q) => ({
+          question_text: (q.question_text as string) || "",
+          question_type: (q.question_type as LocalGeneratedQuestion["question_type"]) || "detail",
+          options: (q.options as { label: string; text: string }[]) || [],
+          correct_answer: (q.correct_answer as string) || "A",
+          difficulty: (q.difficulty as number) || 3,
+        }))
+      : [],
   };
 }
 
