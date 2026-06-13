@@ -409,6 +409,72 @@ Return STRICT JSON (no markdown, no code fences):
 }`;
 }
 
+// Route A prompt: article content is passed as-is (no LLM rewrite).
+// LLM only generates questions + metadata (summary, scene_description, genre).
+// Content/word_count/difficulty/estimated_minutes are computed by caller.
+const ROUTE_A_PROMPT_EN =
+`You are a children's reading assessment expert. Given a complete article, create comprehension questions and metadata. DO NOT output the article content.
+
+Article:
+{{SOURCE_TEXT}}
+
+Create {{QUESTION_COUNT}} comprehension questions.
+Question types: {{FOCUS_AREAS}}
+Mix of: main_idea, detail, inference, vocabulary, sequence.
+Each question has 4 options (A/B/C/D), exactly one correct answer.
+Difficulty scale: 1 (easiest) to 5 (hardest).
+
+Also provide:
+- scene_description: one vivid sentence describing a key scene
+- summary: one-sentence summary (max 30 words)
+- genre: "narrative"|"informative"|"opinion"|"literary"
+- author_purpose: "to inform"|"to entertain"|"to persuade"|"to explain"
+- illustrations: 1-2 objects with { paragraph_index, scene_description }
+
+At least 30% of questions MUST be inference type.
+
+Return STRICT JSON:
+{
+  "summary": "one sentence",
+  "scene_description": "key scene description",
+  "genre": "narrative|informative|opinion|literary",
+  "author_purpose": "to inform|to entertain|to persuade|to explain",
+  "illustrations": [{ "paragraph_index": 0, "scene_description": "..." }],
+  "questions": [{ "question_text": "...", "question_type": "...", "options": [{"label":"A","text":"..."},...], "correct_answer": "A", "difficulty": number }]
+}`;
+
+const ROUTE_A_PROMPT_ZH =
+`你是一位中文儿童阅读测评专家。请根据给定的完整文章，创建阅读题和元数据。请勿输出文章正文。
+
+文章：
+{{SOURCE_TEXT}}
+
+创建{{QUESTION_COUNT}}道阅读理解题。
+题型：{{FOCUS_AREAS}}
+混合题型：main_idea（主旨）、detail（细节）、inference（推理）、vocabulary（词汇）、sequence（顺序）。
+每道题4个选项（A/B/C/D），只有一个正确答案。
+难度：1（最简单）到5（最难）。
+
+还需提供：
+- scene_description：一句话描述关键场景
+- summary：一句话总结（最多30字）
+- genre：记叙文|说明文|议论文|文学散文
+- cultural_connection：一句话文化关联
+- classical_quote：{ original, pinyin, translation }
+
+至少30%题目为inference类型。
+
+返回严格JSON：
+{
+  "summary": "一句话总结",
+  "scene_description": "关键场景描述",
+  "genre": "记叙文|说明文|议论文|文学散文",
+  "cultural_connection": "文化关联描述",
+  "classical_quote": { "original": "原文", "pinyin": "拼音", "translation": "译文" },
+  "illustrations": [{ "paragraph_index": 0, "scene_description": "..." }],
+  "questions": [{ "question_text": "...", "question_type": "...", "options": [...], "correct_answer": "A", "difficulty": number }]
+}`;
+
 function buildEnglishRouteAPrompt(options: GenerateReadingOptions): string {
   const effectiveGrade = deriveEffectiveGrade(options);
   const enRange = getWordCountRange("en", effectiveGrade);
@@ -420,45 +486,29 @@ function buildEnglishRouteAPrompt(options: GenerateReadingOptions): string {
   const ageGateClause = buildAgeGateClauseEn(options);
   const continuityClause = buildPackContinuityClauseEn(options);
 
-  return `You are a children's reading assessment expert. You are given a complete article that has already been written. DO NOT rewrite, adapt, or modify the article text in any way.
+  return ROUTE_A_PROMPT_EN
+    .replace("{{SOURCE_TEXT}}", (options.sourceText || "").slice(0, 8000))
+    .replace("{{QUESTION_COUNT}}", String(questionCount))
+    .replace("{{FOCUS_AREAS}}", focusAreas)
+    + ageGateClause + continuityClause + LANGUAGE_LOCK_EN;
+}
 
-Original article (USE AS-IS for the "content" field):
-${(options.sourceText || "").slice(0, 8000)}
+function buildChineseRouteAPrompt(options: GenerateReadingOptions): string {
+  const effectiveGrade = deriveEffectiveGrade(options);
+  const questionCount = effectiveGrade <= 4 ? 5 : 8;
+  const focusAreas = effectiveGrade <= 4
+    ? "Detail and vocabulary questions (easier)"
+    : "Main idea and inference questions (more analytical)";
 
-IMPORTANT: Copy the article text EXACTLY into the "content" field of the JSON output. The article is already grade-appropriate.
+  const sourceText = options.sourceText || "";
+  const ageGateClause = buildAgeGateClauseZh(options);
+  const continuityClause = buildPackContinuityClauseZh(options);
 
-Create ${questionCount} comprehension questions about this article.
-Question types: ${focusAreas}
-Mix of: main_idea, detail, inference, vocabulary, sequence.
-Each question has 4 options (A/B/C/D), exactly one correct answer.
-Difficulty scale: 1 (easiest) to 5 (hardest).
-
-Also provide:
-- scene_description: a single vivid sentence describing a key scene from the article
-- illustrations: 1-2 objects with { paragraph_index, scene_description }
-- summary: one-sentence summary (max 30 words)
-
---- IB MYP Requirements ---
-1. GENRE: one of "narrative" | "informative" | "opinion" | "literary"
-2. AUTHOR_PURPOSE: one of "to inform" | "to entertain" | "to persuade" | "to explain"
-3. At least 30% of questions MUST be inference type.
-
-${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}
-
-Return STRICT JSON (no markdown):
-{
-  "title": "title",
-  "content": "COPY THE ORIGINAL ARTICLE TEXT HERE VERBATIM",
-  "summary": "one sentence",
-  "word_count": number,
-  "estimated_minutes": number,
-  "difficulty": number (1-5),
-  "scene_description": "key scene description",
-  "genre": "narrative|informative|opinion|literary",
-  "author_purpose": "to inform|to entertain|to persuade|to explain",
-  "illustrations": [{ "paragraph_index": 0, "scene_description": "..." }],
-  "questions": [{ "question_text": "...", "question_type": "main_idea|detail|inference|vocabulary|sequence", "options": [{"label":"A","text":"..."},...], "correct_answer": "A", "difficulty": number }]
-}`;
+  return ROUTE_A_PROMPT_ZH
+    .replace("{{SOURCE_TEXT}}", sourceText.slice(0, 4000))
+    .replace("{{QUESTION_COUNT}}", String(questionCount))
+    .replace("{{FOCUS_AREAS}}", focusAreas)
+    + ageGateClause + continuityClause + LANGUAGE_LOCK_ZH;
 }
 
 export function buildChinesePrompt(options: GenerateReadingOptions): string {
@@ -569,60 +619,6 @@ ${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
       "explanation": "Why the correct answer is right, in child-friendly language. Briefly explain which part of the article supports it."
     }
   ]
-}`;
-}
-
-function buildChineseRouteAPrompt(options: GenerateReadingOptions): string {
-  const effectiveGrade = deriveEffectiveGrade(options);
-  const questionCount = effectiveGrade <= 4 ? 5 : 8;
-  const focusAreas = effectiveGrade <= 4
-    ? "Detail and vocabulary questions (easier)"
-    : "Main idea and inference questions (more analytical)";
-
-  const sourceText = options.sourceText || "";
-  const ageGateClause = buildAgeGateClauseZh(options);
-  const continuityClause = buildPackContinuityClauseZh(options);
-
-  return `你是一位中文儿童阅读测评专家。你收到了一篇已经写好的完整文章。请勿改写、润色或修改文章正文。
-
-原文（请原封不动地放入 "content" 字段）：
-${sourceText.slice(0, 8000)}
-
-重要：将原文逐字复制到 JSON 输出的 "content" 字段中。这篇文章已经适合目标年级学生阅读。
-
-请为这篇文章创建${questionCount}道阅读理解题。
-题型包括：${focusAreas}
-混合题型：main_idea（主旨）、detail（细节）、inference（推理）、vocabulary（词汇）、sequence（顺序）。
-每道题4个选项（A/B/C/D），只有一个正确答案。
-难度：1（最简单）到5（最难）。
-
-还需提供：
-- scene_description：一句话描述关键场景
-- classical_quote：{ original, pinyin, translation }（从原文中找）
-- illustrations：1-2个 { paragraph_index, scene_description }
-- summary：一句话总结（最多30字）
-
---- IB MYP 要求 ---
-1. genre：记叙文|说明文|议论文|文学散文
-2. cultural_connection：一句话文化关联
-3. 至少30%题目为inference类型
-
-${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
-
-返回严格JSON：
-{
-  "title": "标题",
-  "content": "原文逐字复制到这里",
-  "summary": "一句话总结",
-  "word_count": number,
-  "estimated_minutes": number,
-  "difficulty": number (1-5),
-  "scene_description": "关键场景描述",
-  "genre": "记叙文|说明文|议论文|文学散文",
-  "cultural_connection": "文化关联描述",
-  "classical_quote": { "original": "原文", "pinyin": "拼音", "translation": "译文" },
-  "illustrations": [{ "paragraph_index": 0, "scene_description": "..." }],
-  "questions": [{ "question_text": "...", "question_type": "...", "options": [...], "correct_answer": "A", "difficulty": number }]
 }`;
 }
 
@@ -827,16 +823,95 @@ export async function generateReadingContent(
   questions: GeneratedQuestion[];
   illustrations: LocalGeneratedIllustration[];
 }> {
-  const prompt = (() => {
-    if (opts.route === "A") {
-      return opts.language === "zh" ? buildChineseRouteAPrompt(opts) : buildEnglishRouteAPrompt(opts);
+  const effectiveGradeForDifficulty = opts.levelVariant
+    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[opts.levelVariant]
+    : (opts.gradeLevel ?? 3);
+
+  // Route A: source text is already grade-appropriate. Use it directly for
+  // article content; only call LLM for questions + metadata.
+  if (opts.route === "A") {
+    const sourceText = opts.sourceText || "";
+    const prompt = opts.language === "zh"
+      ? buildChineseRouteAPrompt(opts)
+      : buildEnglishRouteAPrompt(opts);
+
+    // Compute content stats locally — no LLM needed.
+    const wordCount = opts.language === "zh"
+      ? (sourceText.match(/[一-鿿]/g) || []).length
+      : sourceText.split(/\s+/).filter(Boolean).length;
+    const estimatedMinutes = Math.max(1, Math.round(wordCount / (opts.language === "en" ? 100 : 80)));
+    const difficulty = calculateObjectiveDifficulty({
+      content: sourceText,
+      language: opts.language,
+      gradeLevel: effectiveGradeForDifficulty,
+    }).difficulty;
+
+    // LLM call: only for questions + metadata. Short prompt, low max_tokens.
+    const isMiniMax = (process.env.OPENAI_READING_MODEL || "MiniMax-M3").toLowerCase().includes("minimax");
+    const completion = await getOpenAI().chat.completions.create({
+      model: process.env.OPENAI_READING_MODEL || "MiniMax-M3",
+      messages: [
+        {
+          role: "system",
+          content: "You are a children's reading assessment expert. Output only the requested JSON fields — no article content.",
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 4096,
+      ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+      reasoning_split: true,
+    } as any);
+
+    const rawText = completion.choices?.[0]?.message?.content || "{}";
+    let result: Record<string, unknown>;
+    try {
+      result = parseJsonWithRecovery(rawText) as Record<string, unknown>;
+    } catch {
+      // If LLM fails for questions, still return article-only result.
+      result = {};
     }
-    if (opts.route === "B") {
-      return opts.language === "zh" ? buildChineseRouteBPrompt(opts) : buildEnglishRouteBPrompt(opts);
-    }
-    // Route C (default): existing full-generation prompts
-    return opts.language === "zh" ? buildChinesePrompt(opts) : buildEnglishPrompt(opts);
-  })();
+
+    const title = (result.title as string) ||
+      (opts.sourceText?.split("\n")[0]?.slice(0, 80) || "Untitled");
+
+    return {
+      article: {
+        title,
+        content: sourceText,
+        summary: (result.summary as string) || "",
+        word_count: wordCount,
+        estimated_minutes: estimatedMinutes,
+        difficulty,
+        scene_description: (result.scene_description as string) || "",
+        genre: (result.genre as GeneratedArticle["genre"]) || (opts.language === "zh" ? "记叙文" : "informative"),
+        author_purpose: (result.author_purpose as GeneratedArticle["author_purpose"]) || "to inform",
+        cultural_connection: result.cultural_connection as string | undefined,
+        classical_quote: result.classical_quote as { original: string; pinyin: string; translation: string } | undefined,
+        factual_accuracy: undefined,
+      } satisfies GeneratedArticle,
+      questions: Array.isArray(result.questions)
+        ? (result.questions as Record<string, unknown>[]).map((q) => ({
+            question_text: (q.question_text as string) || "",
+            question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
+            options: (q.options as { label: string; text: string }[]) || [],
+            correct_answer: (q.correct_answer as string) || "A",
+            difficulty: (q.difficulty as number) || 3,
+          }))
+        : [],
+      illustrations: Array.isArray(result.illustrations)
+        ? (result.illustrations as Record<string, unknown>[]).map((ill) => ({
+            paragraph_index: (ill.paragraph_index as number) || 0,
+            scene_description: (ill.scene_description as string) || "",
+          } satisfies LocalGeneratedIllustration))
+        : [],
+    };
+  }
+
+  // Routes B/C: full LLM generation.
+  const prompt = opts.route === "B"
+    ? (opts.language === "zh" ? buildChineseRouteBPrompt(opts) : buildEnglishRouteBPrompt(opts))
+    : (opts.language === "zh" ? buildChinesePrompt(opts) : buildEnglishPrompt(opts));
 
   const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
   const isMiniMax = modelName.toLowerCase().includes("minimax");
@@ -852,20 +927,10 @@ export async function generateReadingContent(
       { role: "user", content: prompt },
     ],
     temperature: 0.7,
-    max_tokens: (() => {
-      if (opts.route === "A") return 8192;    // questions+metadata only
-      if (opts.route === "B") return 16384;   // constrained rewrite
-      // Route C: full generation. MiniMax-M3 supports 1M context, so generous
-      // budget prevents JSON truncation even with reasoning content.
-      return opts.language === "zh" ? 65536 : 32768;
-    })(),
-    // Only set JSON response format for non-MiniMax models
+    max_tokens: opts.route === "B" ? 16384 : (opts.language === "zh" ? 65536 : 32768),
     ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
-    // reasoning_split=true routes internal CoT to reasoning_details,
-    // so content stays clean JSON. MiniMax always thinks internally.
-    // @ts-expect-error OpenAI SDK types don't include MiniMax-specific params
     reasoning_split: true,
-  });
+  } as any);
 
   const rawText = completion.choices?.[0]?.message?.content || "{}";
   let result: Record<string, unknown>;
@@ -875,11 +940,7 @@ export async function generateReadingContent(
     throw new Error(repairJsonToError(rawText));
   }
 
-  // Override LLM-returned difficulty with objective calculation
   const content = result.content as string | undefined;
-  const effectiveGradeForDifficulty = opts.levelVariant
-    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[opts.levelVariant]
-    : (opts.gradeLevel ?? 3);
   const objResult = calculateObjectiveDifficulty({
     content: content || "",
     language: opts.language,
@@ -894,14 +955,12 @@ export async function generateReadingContent(
       summary: (result.summary as string) || "",
       word_count: (result.word_count as number) || 0,
       estimated_minutes: (result.estimated_minutes as number) || 5,
-      difficulty: objResult.difficulty, // override LLM value with objective score
+      difficulty: objResult.difficulty,
       scene_description: (result.scene_description as string) || "",
-      // IB MYP fields — populate from LLM result or fall back to safe defaults
       genre: (result.genre as GeneratedArticle["genre"]) || (opts.language === "zh" ? "记叙文" : "informative"),
       author_purpose: (result.author_purpose as GeneratedArticle["author_purpose"]) || "to inform",
       cultural_connection: result.cultural_connection as string | undefined,
       classical_quote: result.classical_quote as { original: string; pinyin: string; translation: string } | undefined,
-      // Factual accuracy fallback — when no sourceText provided or LLM omits field
       factual_accuracy: result.factual_accuracy as { source_facts_declared: string[]; facts_preserved_count: number } | undefined,
     } satisfies GeneratedArticle,
     questions: Array.isArray(result.questions)
