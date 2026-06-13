@@ -22,12 +22,14 @@
 export class Pacer {
   private running = 0;
   private waiting: Array<() => void> = [];
+  private lastRunAt = 0;
 
-  constructor(private readonly concurrency: number = 3) {}
+  constructor(private readonly concurrency: number = 2) {}
 
   /**
    * Execute a function, respecting the concurrency limit.
    * If under limit, runs immediately. Otherwise, waits for a slot.
+   * Enforces minimum 800ms gap between calls to avoid 429 rate limits.
    */
   async run<T>(fn: () => Promise<T>): Promise<T> {
     // Wait for a slot if at concurrency limit
@@ -37,7 +39,15 @@ export class Pacer {
       });
     }
 
+    // Enforce minimum inter-request gap to smooth burst
+    const now = Date.now();
+    const elapsed = now - this.lastRunAt;
+    if (elapsed < 800) {
+      await sleep(800 - elapsed);
+    }
+
     this.running++;
+    this.lastRunAt = Date.now();
 
     try {
       return await fn();
