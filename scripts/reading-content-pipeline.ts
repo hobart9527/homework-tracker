@@ -13,7 +13,7 @@
  *   SUPABASE_SERVICE_ROLE_KEY (required)
  *   OPENAI_API_KEY            (required)
  *   OPENAI_BASE_URL           (optional, default: https://api.minimaxi.com/v1)
- *   OPENAI_READING_MODEL      (optional, default: MiniMax-M2.7)
+ *   OPENAI_READING_MODEL      (optional, default: MiniMax-M3)
  *   PIPELINE_GRADES           (optional, default: "3,6")
  *   PIPELINE_TOPIC_LIMIT      (optional, default: 0 = all topics)
  *   MINIMAX_DAILY_QUOTA       (optional, default: 50)
@@ -566,7 +566,7 @@ async function main(): Promise<void> {
 
   console.log(`Levels:     ${levels.join(", ")}`);
   console.log(`Language:   ${pipelineLanguage}`);
-  console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M2.7"}`);
+  console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M3"}`);
   console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1"}`);
   console.log("");
 

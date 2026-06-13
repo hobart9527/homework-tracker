@@ -768,7 +768,7 @@ export async function generateArticleContent(
 ): Promise<{ article: LocalGeneratedArticle; questions: LocalGeneratedQuestion[] }> {
   const prompt = buildGenerationPrompt(options);
 
-  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
   const completion = await getOpenAI().chat.completions.create({
@@ -782,15 +782,16 @@ export async function generateArticleContent(
       { role: "user", content: prompt },
     ],
     temperature: 0.7,
-    max_tokens: 4096,
+    max_tokens: 8192,
     // Only set JSON response format for non-MiniMax models
     ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
-    // MiniMax-specific: separate thinking into reasoning_details field
+    // reasoning_split=true separates native CoT into reasoning_details field,
+    // keeping content clean JSON. MiniMax models always think internally;
+    // this just routes the thinking out of the content field.
     // @ts-expect-error OpenAI SDK types don't include MiniMax-specific params
     reasoning_split: true,
   });
 
-  // MiniMax with reasoning_split=true puts thinking in reasoning_details, content is clean JSON
   const rawText = completion.choices[0]?.message?.content || "{}";
   const result = parseJsonWithRecovery(rawText) as Record<string, any>;
 
@@ -835,7 +836,7 @@ export async function generateReadingContent(
     return opts.language === "zh" ? buildChinesePrompt(opts) : buildEnglishPrompt(opts);
   })();
 
-  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
   const completion = await getOpenAI().chat.completions.create({
@@ -850,15 +851,17 @@ export async function generateReadingContent(
     ],
     temperature: 0.7,
     max_tokens: (() => {
-      if (opts.route === "A") return 4096;   // questions+metadata only, ~500 tokens needed
-      if (opts.route === "B") return 8192;   // constrained rewrite, shorter
-      // Route C: full generation. MiniMax-M2.7 emits <thinking> blocks that consume tokens,
-      // so we budget extra headroom to avoid JSON truncation.
-      return opts.language === "zh" ? 24576 : 12288;
+      if (opts.route === "A") return 8192;    // questions+metadata only
+      if (opts.route === "B") return 16384;   // constrained rewrite
+      // Route C: full generation. MiniMax-M3 supports 1M context, so generous
+      // budget prevents JSON truncation even with reasoning content.
+      return opts.language === "zh" ? 65536 : 32768;
     })(),
     // Only set JSON response format for non-MiniMax models
     ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
-    // @ts-expect-error MiniMax-specific: separate thinking into reasoning_details
+    // reasoning_split=true routes internal CoT to reasoning_details,
+    // so content stays clean JSON. MiniMax always thinks internally.
+    // @ts-expect-error OpenAI SDK types don't include MiniMax-specific params
     reasoning_split: true,
   });
 
@@ -899,18 +902,20 @@ export async function generateReadingContent(
       // Factual accuracy fallback — when no sourceText provided or LLM omits field
       factual_accuracy: result.factual_accuracy as { source_facts_declared: string[]; facts_preserved_count: number } | undefined,
     } satisfies GeneratedArticle,
-    questions: ((result.questions || []) as Record<string, unknown>[]).map((q) => ({
-      question_text: (q.question_text as string) || "",
-      question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
-      options: (q.options as { label: string; text: string }[]) || [],
-      correct_answer: (q.correct_answer as string) || "A",
-      difficulty: (q.difficulty as number) || 3,
-    })),
-    illustrations: ((result.illustrations || []) as Record<string, unknown>[]).map((ill) => {
-      return {
-        paragraph_index: (ill.paragraph_index as number) || 0,
-        scene_description: (ill.scene_description as string) || "",
-      } satisfies LocalGeneratedIllustration;
-    }),
+    questions: Array.isArray(result.questions)
+      ? (result.questions as Record<string, unknown>[]).map((q) => ({
+          question_text: (q.question_text as string) || "",
+          question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
+          options: (q.options as { label: string; text: string }[]) || [],
+          correct_answer: (q.correct_answer as string) || "A",
+          difficulty: (q.difficulty as number) || 3,
+        }))
+      : [],
+    illustrations: Array.isArray(result.illustrations)
+      ? (result.illustrations as Record<string, unknown>[]).map((ill) => ({
+          paragraph_index: (ill.paragraph_index as number) || 0,
+          scene_description: (ill.scene_description as string) || "",
+        } satisfies LocalGeneratedIllustration))
+      : [],
   };
 }
