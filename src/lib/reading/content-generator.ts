@@ -1206,7 +1206,7 @@ export async function generateReadingContent(
       { role: "user", content: prompt },
     ],
     temperature: 0.7,
-    max_tokens: opts.route === "B" ? 16384 : (opts.language === "zh" ? 65536 : 32768),
+    max_tokens: opts.route === "B" ? 16384 : (opts.language === "zh" ? 16384 : 32768),
     ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
     reasoning_split: true,
   } as any);
