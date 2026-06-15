@@ -154,6 +154,40 @@ function stripIncompleteTrailingField(text: string): string {
   return "{}";
 }
 
+/**
+ * Escape control characters (U+0000–U+001F) inside JSON string values.
+ * MiniMax often returns JSON with literal newlines (U+000A) in article content,
+ * which causes JSON.parse to throw.
+ */
+function escapeStringControls(text: string): string {
+  let result = "";
+  let inString = false;
+  let esc = false;
+
+  for (const ch of text) {
+    if (esc) { esc = false; result += ch; continue; }
+    if (ch === "\\" && inString) { esc = true; result += ch; continue; }
+    if (ch === '"') { inString = !inString; result += ch; continue; }
+
+    if (inString && ch < " ") {
+      switch (ch) {
+        case "\n": result += "\\n"; break;
+        case "\r": result += "\\r"; break;
+        case "\t": result += "\\t"; break;
+        case "\f": result += "\\f"; break;
+        case "\b": result += "\\b"; break;
+        default:
+          result += `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`;
+          break;
+      }
+    } else {
+      result += ch;
+    }
+  }
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Main recovery chain
 // ---------------------------------------------------------------------------
@@ -278,6 +312,11 @@ function tryParseWithFallbackInner(t: string): FallbackResult {
   if (jsonStart > 0) {
     text = text.slice(jsonStart);
   }
+
+  // Escape literal control characters inside string values
+  // (MiniMax often includes literal newlines in content fields)
+  text = escapeStringControls(text);
+
   try {
     return {
       success: true,

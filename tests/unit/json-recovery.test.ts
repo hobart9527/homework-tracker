@@ -194,6 +194,24 @@ describe("parseJsonWithRecovery", () => {
     });
   });
 
+  it("escapes literal newlines inside string values (MiniMax content)", () => {
+    // MiniMax returns JSON with real U+000A bytes inside "content" value
+    // Build raw text that has literal newlines inside a JSON string
+    const inner = JSON.stringify({
+      title: "寒江独钓",
+      content: "第一段。\n\n第二段。\n\n第三段。",
+    });
+    // The \n in JS is a real newline — JSON.parse would reject it
+    // Simulate what MiniMax returns: {title, content} with actual newlines
+    const literalNewlines =
+      '{"title":"寒江独钓","content":"第一段。\n\n第二段。\n\n第三段。"}';
+    const result = parseJsonWithRecovery(literalNewlines);
+    expect(result).toEqual({
+      title: "寒江独钓",
+      content: "第一段。\n\n第二段。\n\n第三段。",
+    });
+  });
+
   it("recovers chapter outline format with truncated title field", () => {
     const raw =
       '{\n  "title": "动物的奇妙世界",\n  "chapters": [\n    {\n      "heading": "第1章 认识动物",\n      "summary": "介绍各种动物的基本特征。';
