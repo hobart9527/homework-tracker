@@ -632,6 +632,24 @@ type WorkItemStatus = "succeeded" | "skipped" | "failed";
 
 interface ProcessResult {
   status: WorkItemStatus;
+  reason?: string;
+}
+
+function isExternalServiceError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const lower = msg.toLowerCase();
+  if (msg.includes("429")) return true;
+  if (msg.includes("402")) return true;
+  if (lower.includes("timeout")) return true;
+  if (lower.includes("econnreset")) return true;
+  if (lower.includes("fetch failed")) return true;
+  if (lower.includes("fetch error")) return true;
+  if (lower.includes("network")) return true;
+  if (lower.includes("aborterror") || lower.includes("abort")) return true;
+  if (lower.includes("socket hang up")) return true;
+  if (lower.includes("connection refused")) return true;
+  if (lower.includes("dns lookup")) return true;
+  return false;
 }
 
 async function processWorkItem(
@@ -860,8 +878,12 @@ async function processWorkItem(
     return { status: "succeeded" };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (isExternalServiceError(err)) {
+      console.log(`[EXTERNAL-SKIP] ${message}`);
+      return { status: "skipped", reason: `external: ${message}` };
+    }
     console.log(`FAIL — ${message}`);
-    return { status: "failed" };
+    return { status: "failed", reason: message };
   }
 }
 

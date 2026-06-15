@@ -267,3 +267,115 @@ describe("generateReadingContent — JSON parsing tolerance", () => {
     expect(result.article.title).toBe("After Think");
   });
 });
+
+describe("generateReadingContent — defensive validation", () => {
+  beforeEach(() => {
+    mockCreate.mockReset();
+  });
+
+  afterEach(() => {
+    mockCreate.mockReset();
+  });
+
+  it("normalizes malformed options (null, missing label/text) to valid array", async () => {
+    const fakePayload = {
+      title: "Malformed Options",
+      content: "Paragraph one.",
+      summary: "summary",
+      scene_description: "scene",
+      word_count: 100,
+      estimated_minutes: 2,
+      difficulty: 2,
+      illustrations: [],
+      questions: [
+        {
+          question_text: "Q1?",
+          question_type: "detail",
+          options: [
+            { label: "A", text: "a" },
+            null,
+            { text: "no-label" },
+            { label: "D", text: "d" },
+          ],
+          correct_answer: "A",
+          difficulty: 2,
+        },
+      ],
+    };
+
+    mockCreate.mockResolvedValue(makeCompletion(JSON.stringify(fakePayload)));
+
+    const result = await generateReadingContent({
+      topicKey: "x",
+      language: "en",
+      category: "科学",
+      gradeLevel: 3,
+      sourceText: "src",
+    });
+
+    expect(result.questions).toHaveLength(1);
+    expect(result.questions[0].options).toEqual([
+      { label: "A", text: "a" },
+      { label: "", text: "no-label" },
+      { label: "D", text: "d" },
+    ]);
+  });
+
+  it("throws retryable error when required fields are missing after recovery", async () => {
+    const badPayload = {
+      // missing title, content, questions
+      summary: "only summary",
+      scene_description: "scene",
+      word_count: 0,
+      estimated_minutes: 0,
+      difficulty: 0,
+      illustrations: [],
+    };
+
+    mockCreate.mockResolvedValue(makeCompletion(JSON.stringify(badPayload)));
+
+    await expect(
+      generateReadingContent({
+        topicKey: "x",
+        language: "en",
+        category: "科学",
+        gradeLevel: 3,
+        sourceText: "src",
+      })
+    ).rejects.toThrow("missing required fields after JSON recovery");
+  });
+
+  it("handles options that are not an array by returning empty options", async () => {
+    const fakePayload = {
+      title: "Bad Options Type",
+      content: "Paragraph one.",
+      summary: "summary",
+      scene_description: "scene",
+      word_count: 100,
+      estimated_minutes: 2,
+      difficulty: 2,
+      illustrations: [],
+      questions: [
+        {
+          question_text: "Q1?",
+          question_type: "detail",
+          options: "not-an-array",
+          correct_answer: "A",
+          difficulty: 2,
+        },
+      ],
+    };
+
+    mockCreate.mockResolvedValue(makeCompletion(JSON.stringify(fakePayload)));
+
+    const result = await generateReadingContent({
+      topicKey: "x",
+      language: "en",
+      category: "科学",
+      gradeLevel: 3,
+      sourceText: "src",
+    });
+
+    expect(result.questions[0].options).toEqual([]);
+  });
+});

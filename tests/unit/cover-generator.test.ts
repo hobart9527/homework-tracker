@@ -331,6 +331,36 @@ describe("generateCover - Pollinations retry on transient failures", () => {
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(4);
   });
 
+  it("retries on 402 then succeeds (Pollinations path, source=pollinations)", async () => {
+    setQuota(false); // skip MiniMax → straight to Pollinations
+    downloadAndUploadMock
+      .mockRejectedValueOnce(new Error("fetch failed: 402"))
+      .mockResolvedValueOnce({
+        url: "https://example.supabase.co/storage/v1/object/public/reading-media/covers/art-123.webp",
+        bytes: 8888,
+      });
+
+    const result = await generateCover(defaultOpts());
+
+    expect(result.source).toBe("pollinations");
+    expect(result.url).toContain("reading-media/covers/art-123.webp");
+    expect(result.bytes).toBe(8888);
+    // Original call + 1 retry = 2 invocations
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws after maxAttempts (4) consecutive 402 retriable failures", async () => {
+    setQuota(false); // skip MiniMax → straight to Pollinations
+    downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 402"));
+
+    await expect(generateCover(defaultOpts())).rejects.toThrow(
+      /cover generation failed: fetch failed: 402/
+    );
+    // maxAttempts = 4 → uploader invoked exactly 4 times before the
+    // outer try/catch wraps the final error.
+    expect(downloadAndUploadMock).toHaveBeenCalledTimes(4);
+  });
+
   it("does NOT retry on non-retriable 4xx (e.g. 400) and throws immediately", async () => {
     setQuota(false);
     downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 400"));

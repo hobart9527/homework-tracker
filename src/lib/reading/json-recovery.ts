@@ -44,15 +44,26 @@ function tryParseWithFallback(rawText: string): FallbackResult {
     console.warn("[json-recovery] Strip <think> failed, trying fallback strategy 2");
   }
 
-  // Strategy 2: Remove trailing commas before ] or } and at end of string
+  // Strategy 3: Regex extract first {...} object (original strategy 2)
+  try {
+    const match = original.match(/\{[\s\S]*\}/);
+    if (match) {
+      const extracted = match[0];
+      return { success: true, data: JSON.parse(extracted) as Record<string, unknown>, method: "regex-extract" };
+    }
+  } catch {
+    console.warn("[json-recovery] Regex extract failed, trying fallback strategy 3");
+  }
+
+  // Strategy 4: Remove trailing commas before ] or } and at end of string
   text = text.replace(/,(\s*[}\]])/g, "$1").replace(/,\s*$/, "");
   try {
     return { success: true, data: JSON.parse(text) as Record<string, unknown>, method: "trailing-comma" };
   } catch {
-    console.warn("[json-recovery] Trailing comma removal failed, trying fallback strategy 3");
+    console.warn("[json-recovery] Trailing comma removal failed, trying fallback strategy 4");
   }
 
-  // Strategy 3: Truncate after last structural brace, then balance braces on truncated text
+  // Strategy 5: Truncate after last structural brace, then balance braces on truncated text
   const lastBrace = Math.max(text.lastIndexOf("}"), text.lastIndexOf("]"));
   if (lastBrace > 0) {
     let truncated = text.slice(0, lastBrace + 1);
@@ -106,17 +117,6 @@ function tryParseWithFallback(rawText: string): FallbackResult {
     } catch {
       console.warn("[json-recovery] Brace balancing failed, trying fallback strategy 5");
     }
-  }
-
-  // Strategy 5: Regex extract first {...} object (original strategy 2)
-  try {
-    const match = original.match(/\{[\s\S]*\}/);
-    if (match) {
-      const extracted = match[0];
-      return { success: true, data: JSON.parse(extracted) as Record<string, unknown>, method: "regex-extract" };
-    }
-  } catch {
-    console.warn("[json-recovery] Regex extract failed, using fallback");
   }
 
   // Strategy 6: Return partial object with title (last resort)

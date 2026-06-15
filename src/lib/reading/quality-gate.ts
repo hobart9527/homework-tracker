@@ -114,7 +114,16 @@ function checkQuestionOptionsAndCorrect(
   issues: QualityGateIssue[]
 ): void {
   input.questions.forEach((q, idx) => {
-    const labels = (q.options ?? []).map((o) => o?.label);
+    const opts = q.options;
+    if (!Array.isArray(opts)) {
+      issues.push({
+        code: "question-options-not-array",
+        severity: "error",
+        message: `Question #${idx + 1} options is not an array (got ${typeof opts}).`,
+      });
+      return;
+    }
+    const labels = opts.map((o) => o?.label);
     if (labels.length !== 4) {
       issues.push({
         code: "question-correct-not-in-options",

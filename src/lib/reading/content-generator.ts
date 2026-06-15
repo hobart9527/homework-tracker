@@ -816,6 +816,56 @@ export async function generateArticleContent(
 // New unified API
 // ---------------------------------------------------------------------------
 
+function normalizeQuestionOptions(q: Record<string, unknown>): { label: string; text: string }[] {
+  const raw = q.options;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((o): o is Record<string, unknown> => o !== null && typeof o === "object")
+    .map((o) => ({
+      label: String(o.label || "").trim(),
+      text: String(o.text || "").trim(),
+    }))
+    .filter((o) => o.label || o.text);
+}
+
+function normalizeQuestions(result: Record<string, unknown>): GeneratedQuestion[] {
+  const raw = result.questions;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((q): q is Record<string, unknown> => q !== null && typeof q === "object")
+    .map((q) => {
+      const options = normalizeQuestionOptions(q);
+      return {
+        question_text: String(q.question_text || "").trim(),
+        question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
+        options,
+        correct_answer: String(q.correct_answer || "").trim() || "A",
+        difficulty: Number(q.difficulty) || 3,
+      };
+    });
+}
+
+function normalizeIllustrations(result: Record<string, unknown>): LocalGeneratedIllustration[] {
+  const raw = result.illustrations;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((ill): ill is Record<string, unknown> => ill !== null && typeof ill === "object")
+    .map((ill) => ({
+      paragraph_index: Number(ill.paragraph_index) || 0,
+      scene_description: String(ill.scene_description || "").trim(),
+    }));
+}
+
+function validateRequiredFields(result: Record<string, unknown>): void {
+  const missing: string[] = [];
+  if (!result.title) missing.push("title");
+  if (!result.content) missing.push("content");
+  if (!Array.isArray(result.questions)) missing.push("questions");
+  if (missing.length > 0) {
+    throw new Error(`Content generation failed: missing required fields after JSON recovery: ${missing.join(", ")}`);
+  }
+}
+
 export async function generateReadingContent(
   opts: GenerateReadingOptions
 ): Promise<{
@@ -948,6 +998,11 @@ export async function generateReadingContent(
     llmDifficulty: result.difficulty as number | undefined,
   });
 
+  validateRequiredFields(result);
+
+  const questions = normalizeQuestions(result);
+  const illustrations = normalizeIllustrations(result);
+
   return {
     article: {
       title: (result.title as string) || "Untitled",
@@ -963,20 +1018,7 @@ export async function generateReadingContent(
       classical_quote: result.classical_quote as { original: string; pinyin: string; translation: string } | undefined,
       factual_accuracy: result.factual_accuracy as { source_facts_declared: string[]; facts_preserved_count: number } | undefined,
     } satisfies GeneratedArticle,
-    questions: Array.isArray(result.questions)
-      ? (result.questions as Record<string, unknown>[]).map((q) => ({
-          question_text: (q.question_text as string) || "",
-          question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
-          options: (q.options as { label: string; text: string }[]) || [],
-          correct_answer: (q.correct_answer as string) || "A",
-          difficulty: (q.difficulty as number) || 3,
-        }))
-      : [],
-    illustrations: Array.isArray(result.illustrations)
-      ? (result.illustrations as Record<string, unknown>[]).map((ill) => ({
-          paragraph_index: (ill.paragraph_index as number) || 0,
-          scene_description: (ill.scene_description as string) || "",
-        } satisfies LocalGeneratedIllustration))
-      : [],
+    questions,
+    illustrations,
   };
 }

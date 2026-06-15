@@ -76,6 +76,8 @@ interface RetryOptions {
 function defaultShouldRetry(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   const lower = msg.toLowerCase();
+  // HTTP 402 (Payment Required) — retriable for Pollinations credit/quota edge.
+  if (/\b402\b/.test(msg)) return true;
   // HTTP 429 (rate limit) — retriable.
   if (/\b429\b/.test(msg)) return true;
   // HTTP 5xx — retriable. Match standalone 3-digit codes starting with 5,

@@ -132,12 +132,12 @@ describe("tryParseWithFallback", () => {
     expect(result.method).toBe("trailing-comma");
   });
 
-  it("returns truncate method when trailing text exists", () => {
+  it("returns regex-extract method when trailing text exists", () => {
     const raw = '{"e":5} trailing garbage';
     const result = tryParseWithFallback(raw);
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ e: 5 });
-    expect(result.method).toBe("truncate");
+    expect(result.method).toBe("regex-extract");
   });
 
   it("returns balance-braces method for unbalanced JSON", () => {
