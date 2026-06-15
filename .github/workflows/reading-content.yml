@@ -8,6 +8,49 @@ on:
   workflow_dispatch:
 
 jobs:
+  migrate:
+    name: Apply pending database migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - name: Run 054 migration (reading_article_chapters)
+        run: |
+          node -e "
+          const { Client } = require('pg');
+          const { readFileSync } = require('fs');
+
+          async function main() {
+            // Try pooler first (port 5432 session mode)
+            const client = new Client({
+              host: 'vwgeqttanuleaobrtrwv.pooler.supabase.com',
+              port: 5432,
+              database: 'postgres',
+              user: 'postgres',
+              password: process.env.SUPABASE_SERVICE_ROLE_KEY,
+              ssl: { rejectUnauthorized: false },
+              connectionTimeoutMillis: 15000,
+            });
+
+            await client.connect();
+            const sql = readFileSync('supabase/migrations/054_reading_article_chapters.sql', 'utf-8');
+            await client.query(sql);
+            console.log('Migration 054 applied successfully');
+            await client.end();
+          }
+
+          main().catch(e => { console.error('Migration failed:', e.message); process.exit(1); });
+          "
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
   generate-en:
     name: Generate English reading content
     runs-on: ubuntu-latest
