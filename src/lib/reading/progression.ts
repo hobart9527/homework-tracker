@@ -8,6 +8,7 @@
 // Async functions (recordAttempt, getProgress) touch Supabase.
 
 import { createClient } from "@/lib/supabase/server";
+import { getEnglishStandard } from "./standards";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -273,4 +274,17 @@ export async function applyLevelChange(
   if (error) {
     throw new Error(`[progression] failed to update level: ${error.message}`);
   }
+}
+
+/**
+ * Convert a school grade (1-10) to the closest RAZ level string.
+ * Bridges grade-driven generation with RAZ-level recommendation system.
+ */
+export function gradeToRazLevel(grade: number): string {
+  const std = getEnglishStandard(grade);
+  if (std && std.razLevel) {
+    const firstLevel = std.razLevel.split("-")[0]?.trim();
+    if (firstLevel) return firstLevel;
+  }
+  return "L1";
 }

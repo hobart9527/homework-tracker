@@ -48,7 +48,8 @@ describe("buildEnglishPrompt", () => {
       sourceText: "Astronauts went to the moon.",
     });
 
-    expect(prompt).toContain("350-550 words");
+    // Prompt uses dynamic range format: "between 350 and 550 words"
+    expect(prompt).toContain("350 and 550 words");
     expect(prompt).toContain("Grade 3");
     expect(prompt).toContain("scene_description");
     expect(prompt).toContain("illustrations");
@@ -63,7 +64,7 @@ describe("buildEnglishPrompt", () => {
       sourceText: "Astronauts went to the moon.",
     });
 
-    expect(prompt).toContain("600-1100 words");
+    expect(prompt).toContain("600 and 1100 words");
   });
 });
 
@@ -76,7 +77,7 @@ describe("buildChinesePrompt", () => {
       gradeLevel: 5,
     });
 
-    expect(prompt).toContain("400-1000");
+    expect(prompt).toContain("400 到 1000 字");
     expect(prompt).not.toContain("pinyin_content");
     expect(prompt).toContain("scene_description");
     expect(prompt).toContain("classical_quote");
@@ -91,7 +92,7 @@ describe("buildChinesePrompt", () => {
       gradeLevel: 3,
     });
 
-    expect(prompt).toContain("200-600");
+    expect(prompt).toContain("200 到 600 字");
     expect(prompt).not.toContain("pinyin_content");
   });
 });
@@ -149,7 +150,7 @@ describe("generateReadingContent — English G3 path", () => {
   });
 });
 
-describe("generateReadingContent — Chinese G5 path", () => {
+describe("generateReadingContent — Chinese G3 path (single-block, non-chapterized)", () => {
   beforeEach(() => {
     mockCreate.mockReset();
   });
@@ -187,11 +188,12 @@ describe("generateReadingContent — Chinese G5 path", () => {
 
     mockCreate.mockResolvedValue(makeCompletion(JSON.stringify(fakePayload)));
 
+    // G3 Chinese — single-block (gradeHasChapters(3, "zh") = false)
     const result = await generateReadingContent({
       topicKey: "守株待兔",
       language: "zh",
       category: "成语故事",
-      gradeLevel: 5,
+      gradeLevel: 3,
     });
 
     expect(result.article.classical_quote).toBeDefined();
@@ -200,6 +202,65 @@ describe("generateReadingContent — Chinese G5 path", () => {
     expect(result.article.scene_description).toContain("农夫");
     expect(result.questions).toHaveLength(5);
     expect(result.illustrations).toHaveLength(1);
+  });
+});
+
+describe("generateReadingContent — Chinese G5 chapterized path", () => {
+  beforeEach(() => {
+    mockCreate.mockReset();
+  });
+
+  // G5+ Chinese routes to chapterized generation (chapterCount=4 > 1).
+  // With a single shared mock, the outline falls back to generic headings and
+  // each chapter re-parses the same content+questions payload.
+
+  it("routes to chapterized path, produces 4 chapters with combined content", async () => {
+    // Phase 1 (outline): expects JSON array of {heading, summary}
+    const outlinePayload = [
+      { heading: "太阳系简介", summary: "介绍太阳系的基本组成" },
+      { heading: "八大行星", summary: "八大行星的特点和位置" },
+      { heading: "太阳的作用", summary: "太阳对地球的影响" },
+      { heading: "探索太空", summary: "人类探索太空的历程" },
+    ];
+
+    // Phase 2 (per-chapter, 4 calls): expects {content, word_count, questions}
+    const chapterPayload = {
+      content: "Chapter body text.",
+      word_count: 150,
+      questions: [
+        {
+          question_text: "Q1",
+          question_type: "detail" as const,
+          options: [{ label: "A", text: "a" }, { label: "B", text: "b" }, { label: "C", text: "c" }, { label: "D", text: "d" }],
+          correct_answer: "A",
+          difficulty: 2,
+        },
+      ],
+    };
+
+    // Setup sequential mocks: 1 outline + 4 chapter calls
+    mockCreate
+      .mockResolvedValueOnce(makeCompletion(JSON.stringify(outlinePayload)))
+      .mockResolvedValue(makeCompletion(JSON.stringify(chapterPayload)));
+
+    const result = await generateReadingContent({
+      topicKey: "solar-system",
+      language: "zh",
+      category: "科学",
+      gradeLevel: 5,
+    });
+
+    // Chapterized: 4 chapters (G5 zh chapterCount=4)
+    expect(result.article.chapters).toBeDefined();
+    expect(result.article.chapters!.length).toBe(4);
+    expect(result.article.chapters![0].heading).toBe("太阳系简介");
+    expect(result.article.chapters![0].content).toBe("Chapter body text.");
+    // Chapterized has no classical_quote or scene_description
+    expect(result.article.classical_quote).toBeUndefined();
+    // Content is joined chapters
+    expect(result.article.content).toContain("Chapter body text.");
+    // 4 chapters × 1 question each = 4 questions
+    expect(result.questions).toHaveLength(4);
   });
 });
 

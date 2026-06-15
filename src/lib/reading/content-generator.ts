@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { calculateObjectiveDifficulty } from "./difficulty";
-import { getWordCountRange } from "./standards";
+import { getWordCountRange, getTotalQuestionCount, getChapterCount, getQuestionsPerChapter, getBloomDistribution, getSyntaxDistribution, getVocabScope, getWordsPerChapter, gradeHasChapters, getEnglishStandard, getChineseStandard } from "./standards";
 import { parseJsonWithRecovery } from "./json-recovery";
-import type { GeneratedArticle, GeneratedQuestion } from "./types";
+import type { GeneratedArticle, GeneratedQuestion, ArticleChapter } from "./types";
 
 let _openai: OpenAI | null = null;
 function getOpenAI(): OpenAI {
@@ -60,23 +60,22 @@ export type LevelVariant = "L1" | "L2" | "L3";
 
 export interface GenerateReadingOptions {
   topicKey: string;
-  language: "zh" | "en"; // never 'zh+en' per Q6 (single-language enforcement)
+  language: "zh" | "en";
   category: string;
-  // NEW: levelVariant replaces gradeLevel for L1/L2/L3 generation
+  // schoolGrade is the primary driver — maps directly to reading-standards.json
+  schoolGrade?: number;
+  // levelVariant for L1/L2/L3 backward compat (maps to L1→3, L2→6, L3→8)
   levelVariant?: LevelVariant;
-  // gradeLevel kept for backward-compat with existing pipeline callers
-  gradeLevel?: number; // deprecated: use levelVariant instead
-  sourceText?: string; // optional for zh
-  // NEW (W0a) — all OPTIONAL for backward-compat:
-  recommendedLevels?: string[]; // e.g., ['L4','L5'] — RAZ level codes; upper bound used to derive effective grade
-  contentWarnings?: string[]; // e.g., ['war','death','politics'] — triggers age-gate clause when gradeLevel<5
+  gradeLevel?: number; // deprecated
+  sourceText?: string;
+  recommendedLevels?: string[];
+  contentWarnings?: string[];
   packId?: string;
-  packOrder?: number; // 1-based position within pack
-  previousTopicSummary?: string; // narrative continuity hint when packOrder>1
-  route?: "A" | "B" | "C";  // routing decision from route-analyzer
-  // NEW: IB theme and text type for level-variant generation
-  ibTheme?: string; // e.g., "T1"
-  textType?: string; // e.g., "fiction"
+  packOrder?: number;
+  previousTopicSummary?: string;
+  route?: "A" | "B" | "C";
+  ibTheme?: string;
+  textType?: string;
 }
 
 export interface LocalGeneratedIllustration {
@@ -98,7 +97,10 @@ export interface LocalGeneratedIllustration {
  * for backward-compat with gradeLevel-dependent code.
  */
 function deriveEffectiveGrade(options: GenerateReadingOptions): number {
-  // NEW: levelVariant takes precedence
+  // schoolGrade takes highest precedence
+  if (options.schoolGrade !== undefined && options.schoolGrade > 0) {
+    return options.schoolGrade;
+  }
   if (options.levelVariant) {
     const map: Record<LevelVariant, number> = { L1: 3, L2: 6, L3: 8 };
     return map[options.levelVariant];
@@ -172,99 +174,84 @@ function displayTopicKey(opts: GenerateReadingOptions): string {
 }
 
 // ---------------------------------------------------------------------------
-// Level-variant prompt builders (L1/L2/L3)
+// Grade-driven prompt builders — reads from reading-standards.json
 // ---------------------------------------------------------------------------
 
-interface LevelSpec {
-  wordCountMin: number;
-  wordCountMax: number;
-  simplePct: number;
-  compoundPct: number;
-  complexPct: number;
-  vocab: string;
-  questionCount: number;
-  bloomsLiteral: number;
-  bloomsInfer: number;
-  bloomsEvaluate: number;
-  bloomsSynthesize: number;
-  paragraphSentencesMin: number;
-  paragraphSentencesMax: number;
-  allowOpinion: boolean;
-  themeWords: number;
-}
-
-const LEVEL_SPECS: Record<LevelVariant, LevelSpec> = {
-  L1: {
-    wordCountMin: 300, wordCountMax: 400,
-    simplePct: 70, compoundPct: 30, complexPct: 0,
-    vocab: "GSL 1k-2k only. Use only simple, high-frequency words. Avoid idioms, metaphors, and abstract vocabulary.",
-    questionCount: 5,
-    bloomsLiteral: 4, bloomsInfer: 1, bloomsEvaluate: 0, bloomsSynthesize: 0,
-    paragraphSentencesMin: 3, paragraphSentencesMax: 4,
-    allowOpinion: false,
-    themeWords: 4,
-  },
-  L2: {
-    wordCountMin: 600, wordCountMax: 800,
-    simplePct: 25, compoundPct: 45, complexPct: 30,
-    vocab: "GSL 0-3k + AWL 1-5. Introduce some academic vocabulary. Use common idioms and simple metaphors.",
-    questionCount: 5,
-    bloomsLiteral: 1, bloomsInfer: 2, bloomsEvaluate: 2, bloomsSynthesize: 0,
-    paragraphSentencesMin: 4, paragraphSentencesMax: 7,
-    allowOpinion: false,
-    themeWords: 10,
-  },
-  L3: {
-    wordCountMin: 800, wordCountMax: 1100,
-    simplePct: 15, compoundPct: 45, complexPct: 40,
-    vocab: "GSL full + AWL full + academic vocabulary. Use sophisticated figurative language, nuanced vocabulary, and rhetorical devices.",
-    questionCount: 5,
-    bloomsLiteral: 0, bloomsInfer: 2, bloomsEvaluate: 2, bloomsSynthesize: 1,
-    paragraphSentencesMin: 5, paragraphSentencesMax: 9,
-    allowOpinion: true,
-    themeWords: 14,
-  },
-};
-
-function buildLevelVariantPromptEn(options: GenerateReadingOptions): string {
-  const lv = options.levelVariant!;
-  const spec = LEVEL_SPECS[lv];
+function buildGradePromptEn(options: GenerateReadingOptions, grade: number): string {
   const ageGateClause = buildAgeGateClauseEn(options);
   const continuityClause = buildPackContinuityClauseEn(options);
   const ibTheme = options.ibTheme ?? "T1";
   const textType = options.textType ?? "fiction";
+  const lang = options.language || "en";
 
-  return `You are an expert children's reading content creator. You are adapting a source text into a Level ${lv} reading article.
+  const enStd = getEnglishStandard(grade);
+  const std = {
+    wordCountMin: getWordCountRange(lang, grade).min,
+    wordCountMax: getWordCountRange(lang, grade).max,
+    questionCount: getTotalQuestionCount(grade, lang),
+    ...getBloomDistribution(grade, lang),
+    ...getSyntaxDistribution(grade, lang),
+    allowOpinion: enStd.allowOpinion,
+    paragraphSentencesMin: enStd.paragraphSentencesMin,
+    paragraphSentencesMax: enStd.paragraphSentencesMax,
+    vocab: enStd.vocab,
+    themeWords: enStd.themeWords,
+  };
+
+  const bloomsBloom = getBloomDistribution(grade, lang);
+  const qSpec: Array<{ literal: number; infer: number; evaluate: number; synthesize: number }> = [];
+  // Build sequential question spec
+  for (let i = 0; i < std.questionCount; i++) {
+    // Distribute bloom's evenly across questions
+    const pos = i % 4;
+    qSpec.push({
+      literal: pos === 0 ? 1 : 0,
+      infer: pos === 1 ? 1 : 0,
+      evaluate: pos === 2 ? 1 : 0,
+      synthesize: pos === 3 ? 1 : 0,
+    });
+  }
+
+  function qTypeForIndex(idx: number): string {
+    const b = qSpec[idx] || qSpec[0];
+    if (b.literal && bloomsBloom.literal > 0) return `"detail"`;
+    if (b.infer && bloomsBloom.infer > 0) return `"inference"`;
+    if (b.evaluate && bloomsBloom.evaluate > 0) return `"main_idea"`;
+    if (b.synthesize && bloomsBloom.synthesize > 0) return `"sequence"`;
+    return `"detail"`;
+  }
+
+  const questionLines = Array.from({ length: std.questionCount }, (_, i) => {
+    const qt = qTypeForIndex(i);
+    const prefix = `Question #${i + 1}: question_type MUST be ${qt}`;
+    if (qt === `"detail"`) return `${prefix} — ask a specific fact from the text (literal comprehension)`;
+    if (qt === `"inference"`) return `${prefix} — ask what the reader can figure out from clues`;
+    if (qt === `"main_idea"`) return `${prefix} — ask for judgment or opinion`;
+    return `${prefix} — ask how events connect or build on each other`;
+  }).join("\n");
+
+  return `You are an expert children's reading content creator. You are adapting a source text for Grade ${grade} students.
 
 SOURCE TEXT:
 ${(options.sourceText || "").slice(0, 6000)}
 
---- LEVEL ${lv} SPECIFICATIONS ---
-CRITICAL: The article MUST be between ${spec.wordCountMin} and ${spec.wordCountMax} words. Count every word and verify before outputting.
+--- GRADE ${grade} SPECIFICATIONS ---
+CRITICAL: The article MUST be between ${std.wordCountMin} and ${std.wordCountMax} words.
 Sentence structure distribution:
-  - Simple sentences: ${spec.simplePct}%
-  - Compound sentences: ${spec.compoundPct}%
-  - Complex sentences: ${spec.complexPct}%
-Vocabulary: ${spec.vocab}
-Paragraphs: ${spec.paragraphSentencesMin}-${spec.paragraphSentencesMax} sentences each
-${spec.allowOpinion ? "May include opinion, analysis, or argumentation." : "Stay factual and narrative. No opinion or analysis."}
+  - Simple sentences: ${std.simple}%
+  - Compound sentences: ${std.compound}%
+  - Complex sentences: ${std.complex}%
+Vocabulary: ${std.vocab}
+Paragraphs: ${std.paragraphSentencesMin}-${std.paragraphSentencesMax} sentences each
+${std.allowOpinion ? "May include opinion, analysis, or argumentation." : "Stay factual and narrative. No opinion or analysis."}
 
 IB THEME: ${ibTheme}
 TEXT TYPE: ${textType}
 CATEGORY: ${options.category}
 
---- QUESTIONS (${spec.questionCount} total) ---
-CRITICAL: After writing the article, count every word. If word_count is BELOW ${spec.wordCountMin}, add more sentences until it reaches ${spec.wordCountMin}. If word_count is ABOVE ${spec.wordCountMax}, remove sentences until it is under ${spec.wordCountMax}. The final word_count MUST be between ${spec.wordCountMin} and ${spec.wordCountMax}.
-
-CRITICAL: Generate EXACTLY ${spec.questionCount} questions. Each question MUST use the EXACT question_type shown below. Do NOT use any other type.
-
-${[
-  spec.bloomsLiteral >= 1 ? `Question #1: question_type MUST be "detail" — ask a specific fact from the text (literal comprehension)` : spec.bloomsInfer >= 1 ? `Question #1: question_type MUST be "inference" — ask what the reader can figure out from clues` : `Question #1: question_type MUST be "main_idea" — ask for judgment or opinion`,
-  spec.bloomsLiteral >= 2 ? `Question #2: question_type MUST be "detail" — ask another specific fact (literal comprehension)` : spec.bloomsInfer >= 2 ? `Question #2: question_type MUST be "inference" — ask what a character is likely thinking or feeling` : spec.bloomsEvaluate >= 1 ? `Question #2: question_type MUST be "main_idea" — ask which choice is better and why` : `Question #2: question_type MUST be "inference" — ask what might happen next`,
-  spec.bloomsLiteral >= 3 ? `Question #3: question_type MUST be "detail" — ask about a setting or event (literal comprehension)` : spec.bloomsInfer >= 3 ? `Question #3: question_type MUST be "inference" — ask why a character acted a certain way` : spec.bloomsEvaluate >= 2 ? `Question #3: question_type MUST be "main_idea" — ask about the author's purpose or message` : `Question #3: question_type MUST be "vocabulary" — ask what a word means in context`,
-  spec.bloomsLiteral >= 4 ? `Question #4: question_type MUST be "detail" — ask about a sequence or order (literal comprehension)` : spec.bloomsInfer >= 4 ? `Question #4: question_type MUST be "inference" — ask what the story implies about a theme` : spec.bloomsEvaluate >= 3 ? `Question #4: question_type MUST be "main_idea" — ask if a character's decision was wise` : spec.bloomsSynthesize >= 1 ? `Question #4: question_type MUST be "sequence" — ask how events connect to form the whole story` : `Question #4: question_type MUST be "main_idea" — ask what the story is mostly about`,
-  spec.bloomsLiteral >= 5 ? `Question #5: question_type MUST be "detail" — ask about a character's appearance or action (literal comprehension)` : spec.bloomsInfer >= 5 ? `Question #5: question_type MUST be "inference" — ask what the reader learns about life from the story` : spec.bloomsEvaluate >= 4 ? `Question #5: question_type MUST be "main_idea" — ask how the story could have ended differently` : spec.bloomsSynthesize >= 2 ? `Question #5: question_type MUST be "sequence" — ask how the beginning and ending connect` : `Question #5: question_type MUST be "main_idea" — ask the central message or lesson`
-].filter(q => !q.includes(`Question #${spec.questionCount + 1}:`)).join("\n")}
+--- QUESTIONS (${std.questionCount} total) ---
+CRITICAL: Generate EXACTLY ${std.questionCount} questions.
+${questionLines}
 
 Each question has 4 options (A/B/C/D), exactly one correct answer.
 Difficulty scale: 1 (easiest) to 5 (hardest).
@@ -272,14 +259,14 @@ Difficulty scale: 1 (easiest) to 5 (hardest).
 --- IB MYP ENGLISH REQUIREMENTS ---
 1. GENRE: "narrative" | "informative" | "opinion" | "literary"
 2. AUTHOR'S PURPOSE: "to inform" | "to entertain" | "to persuade" | "to explain"
-3. Include figurative language appropriate for ${lv}.
+3. Include figurative language appropriate for Grade ${grade}.
 
 --- OUTPUT FORMAT ---
 CRITICAL: Your entire response must be ONLY a valid JSON object. Do NOT include any thinking process, explanations, markdown, code fences, or any text before or after the JSON.
 
 Return ONLY this JSON structure:
 {
-  "title": "Engaging title for Level ${lv}",
+  "title": "Engaging title for Grade ${grade}",
   "content": "Full article text...",
   "summary": "One-sentence summary (max 30 words)",
   "word_count": number,
@@ -312,86 +299,116 @@ ${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}`;
 }
 
 export function buildEnglishPrompt(options: GenerateReadingOptions): string {
-  // NEW: if levelVariant is set, use the level-variant prompt
-  if (options.levelVariant) {
-    return buildLevelVariantPromptEn(options);
+  const grade = deriveEffectiveGrade(options);
+  return buildGradePromptEn(options, grade);
+}
+
+// ---------------------------------------------------------------------------
+// Chinese grade-driven prompt — mirrors buildGradePromptEn
+// ---------------------------------------------------------------------------
+
+function buildGradePromptZh(options: GenerateReadingOptions, grade: number): string {
+  const ageGateClause = buildAgeGateClauseZh(options);
+  const continuityClause = buildPackContinuityClauseZh(options);
+  const lang = "zh";
+  const ibTheme = options.ibTheme ?? "T1";
+  const textType = options.textType ?? "fiction";
+
+  const zhStd = getChineseStandard(grade);
+  const std = {
+    charCountMin: getWordCountRange(lang, grade).min,
+    charCountMax: getWordCountRange(lang, grade).max,
+    questionCount: getTotalQuestionCount(grade, lang),
+    ...getBloomDistribution(grade, lang),
+    ...getSyntaxDistribution(grade, lang),
+    vocab: zhStd.vocab,
+    paragraphSentencesMin: zhStd.paragraphSentencesMin,
+    paragraphSentencesMax: zhStd.paragraphSentencesMax,
+    allowOpinion: zhStd.allowOpinion,
+    themeWords: zhStd.themeWords,
+  };
+
+  const bloomsBloom = getBloomDistribution(grade, lang);
+  const qSpec: Array<{ literal: number; infer: number; evaluate: number; synthesize: number }> = [];
+  for (let i = 0; i < std.questionCount; i++) {
+    const pos = i % 4;
+    qSpec.push({
+      literal: pos === 0 ? 1 : 0,
+      infer: pos === 1 ? 1 : 0,
+      evaluate: pos === 2 ? 1 : 0,
+      synthesize: pos === 3 ? 1 : 0,
+    });
   }
 
-  // Behavior A: effective grade drives wordLimit / questionCount / focusAreas.
-  const effectiveGrade = deriveEffectiveGrade(options);
-  const enRange = getWordCountRange('en', effectiveGrade);
-  const wordLimit = `${enRange.min}-${enRange.max} words`;
-  const questionCount = effectiveGrade <= 4 ? 5 : 8;
-  const focusAreas = effectiveGrade <= 4
-    ? "Detail and vocabulary questions (easier)"
-    : "Main idea and inference questions (more analytical)";
+  function qTypeForGradeZh(idx: number): string {
+    const b = qSpec[idx] || qSpec[0];
+    if (b.literal && bloomsBloom.literal > 0) return `"detail"`;
+    if (b.infer && bloomsBloom.infer > 0) return `"inference"`;
+    if (b.evaluate && bloomsBloom.evaluate > 0) return `"main_idea"`;
+    if (b.synthesize && bloomsBloom.synthesize > 0) return `"sequence"`;
+    return `"detail"`;
+  }
 
-  const ageGateClause = buildAgeGateClauseEn(options);
-  const continuityClause = buildPackContinuityClauseEn(options);
+  const questionLines = Array.from({ length: std.questionCount }, (_, i) => {
+    const qt = qTypeForGradeZh(i);
+    const prefix = `题目 #${i + 1}：question_type 必须为 ${qt}`;
+    if (qt === `"detail"`) return `${prefix} — 考察文中具体事实（字面理解）`;
+    if (qt === `"inference"`) return `${prefix} — 考察从线索推断的能力`;
+    if (qt === `"main_idea"`) return `${prefix} — 考察判断或观点`;
+    return `${prefix} — 考察事件关联或承接关系`;
+  }).join("\n");
 
-  return `You are adapting a reading passage for a Grade ${options.gradeLevel ?? 3} student (age ${(options.gradeLevel ?? 3) + 5}).
+  return `你是一位专业的中文儿童阅读内容创作专家。你正为${grade}年级学生创作阅读文章。
 
-Original passage:
-${(options.sourceText || "").slice(0, 6000)}
+主题：${displayTopicKey(options)}
+类别：${options.category}
+${options.sourceText ? `原文参考：\n${(options.sourceText || "").slice(0, 4000)}\n` : ""}
 
-Create an adapted version suitable for Grade ${options.gradeLevel ?? 3}. Requirements:
-- Target length: ${wordLimit}
-- Grade-appropriate vocabulary and sentence complexity
-- Clear topic, engaging opening paragraph
-- Category: ${options.category}
+--- ${grade}年级规格 ---
+核心要求：文章字数在 ${std.charCountMin} 到 ${std.charCountMax} 字之间。
+句子结构分布：
+  - 简单句：${std.simple}%
+  - 并列句：${std.compound}%
+  - 复合句：${std.complex}%
+词汇范围：${std.vocab}
+段落：每段 ${std.paragraphSentencesMin}-${std.paragraphSentencesMax} 句
+${std.allowOpinion ? "可包含观点、分析或议论。" : "保持客观叙述。不要夹带个人观点或分析。"}
 
-Also create ${questionCount} comprehension questions (return as array).
-Question types to include: ${focusAreas}
-Mix of: main_idea, detail, inference, vocabulary, sequence.
-Each question has 4 options (A/B/C/D), exactly one correct answer.
-Difficulty scale: 1 (easiest) to 5 (hardest).
+IB 主题：${ibTheme}
+文体：${textType}
 
-In addition, provide:
-- scene_description: a single vivid sentence describing a key scene from the article (used for cover image generation)
-- illustrations: an array of 1-2 objects, each with { paragraph_index, scene_description } for in-article images
+--- 题目（共${std.questionCount}道）---
+核心要求：生成恰好 ${std.questionCount} 道阅读理解题。
+${questionLines}
 
---- IB MYP English Requirements ---
-1. GENRE: This article MUST be one of the following types. Include the exact type name in the "genre" field:
-   - "narrative" = story with characters, setting, plot, conflict, resolution (for: news, history, biography)
-   - "informative" = explains facts, processes, or concepts with clear structure (for: science, nature)
-   - "opinion" = presents a viewpoint with supporting reasons (for: culture)
-   - "literary" = expressive, creative prose with literary devices (for: culture)
+每道题 4 个选项（A/B/C/D），仅一个正确答案。
+难度等级：1（最简单）到 5（最难）。
 
-2. AUTHOR'S PURPOSE: The "author_purpose" field MUST be one of: "to inform" | "to entertain" | "to persuade" | "to explain"
+--- IB MYP 中文阅读要求 ---
+1. 文体（genre）："记叙文" | "说明文" | "议论文" | "文学散文"
+2. 文化关联（cultural_connection）：一句话说明本文涉及的文化关联点
+3. ${grade >= 4 ? "至少使用一种修辞手法：比喻、拟人、排比或成语引用" : ""}
+4. 包含 classical_quote（成语/古诗词/名言），含原文、拼音和译文
 
-3. CRITICAL THINKING QUESTIONS: At least 30% of questions MUST be inference (inference type). Do NOT over-rely on detail questions. Include vocabulary and main_idea types as appropriate.
+--- 输出格式 ---
+核心要求：只返回 JSON。不要包含思考过程、markdown、代码块或额外文字。
 
-4. FIGURATIVE LANGUAGE: For Grade 4+, include at least one of: metaphor, simile, personification, or idiom in the article content.
-
-GENERATION CHECKLIST (complete before outputting JSON):
-□ Genre check: content structure matches declared genre "${options.category}"
-  - narrative: all five elements present (time, place, characters, events, significance)
-  - informative: definition paragraph + feature/example paragraphs present
-□ Critical thinking: inference-type questions ≥ 30% of total (e.g., for 8 questions, ≥3 must be inference)
-□ Literary device (G4+): at least one metaphor, simile, personification, or idiom in content
-□ classical_quote: original text appears verbatim in content (not paraphrased)
-□ Adaptation fidelity (Tier 1/2: when Original passage provided):
-  Declare which key facts from source_text are preserved in "factual_accuracy" field,
-  format: { "source_facts_declared": ["fact 1", "fact 2", ...], "facts_preserved_count": N }
-□ If any item fails, revise content BEFORE filling in JSON fields.
-
-${ageGateClause}${continuityClause}${LANGUAGE_LOCK_EN}
-
-Return STRICT JSON (no markdown, no code fences):
+返回严格 JSON 结构：
 {
-  "title": "Article title (engaging for grade ${options.gradeLevel ?? 3})",
-  "content": "Full article text...",
-  "summary": "One-sentence summary (max 30 words)",
+  "title": "适合${grade}年级的标题",
+  "content": "完整文章内容...",
+  "summary": "一句话总结（最多30字）",
   "word_count": number,
   "estimated_minutes": number,
   "difficulty": number (1-5),
-  "scene_description": "A single vivid sentence describing a key scene...",
-  "genre": "narrative|informative|opinion|literary",
+  "scene_description": "一句话关键场景描述...",
+  "genre": "记叙文|说明文|议论文|文学散文",
+  "cultural_connection": "文化关联点一句话描述",
+  "classical_quote": { "original": "原文", "pinyin": "拼音", "translation": "译文" },
   "factual_accuracy": {
-    "source_facts_declared": ["fact 1", "fact 2"],
+    "source_facts_declared": ["事实1", "事实2"],
     "facts_preserved_count": 2
   },
-  "author_purpose": "to inform|to entertain|to persuade|to explain",
   "illustrations": [
     { "paragraph_index": 0, "scene_description": "..." }
   ],
@@ -402,11 +419,13 @@ Return STRICT JSON (no markdown, no code fences):
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": number (1-5),
-      "hint": "A short tip (1-2 sentences) to help the child think about this question. Focus on reading strategy, NOT giving away the answer.",
-      "explanation": "Why the correct answer is right, in child-friendly language. Briefly explain which part of the article supports it."
+      "hint": "答题策略提示（1-2句），不要直接给答案。",
+      "explanation": "为什么正确答案是对的，用儿童友好语言解释。"
     }
   ]
-}`;
+}
+
+${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}`;
 }
 
 // Route A prompt: article content is passed as-is (no LLM rewrite).
@@ -432,6 +451,9 @@ Also provide:
 - illustrations: 1-2 objects with { paragraph_index, scene_description }
 
 At least 30% of questions MUST be inference type.
+
+Question type distribution:
+{{QUESTION_DISTRIBUTION}}
 
 Return STRICT JSON:
 {
@@ -462,7 +484,7 @@ const ROUTE_A_PROMPT_ZH =
 - cultural_connection：一句话文化关联
 - classical_quote：{ original, pinyin, translation }
 
-至少30%题目为inference类型。
+题型分布标注在下方各题具体说明中，请严格按每道题指定的 question_type 执行。
 
 返回严格JSON：
 {
@@ -477,25 +499,41 @@ const ROUTE_A_PROMPT_ZH =
 
 function buildEnglishRouteAPrompt(options: GenerateReadingOptions): string {
   const effectiveGrade = deriveEffectiveGrade(options);
-  const enRange = getWordCountRange("en", effectiveGrade);
+  const lang = "en";
   const questionCount = effectiveGrade <= 4 ? 5 : 8;
   const focusAreas = effectiveGrade <= 4
     ? "Detail and vocabulary questions (easier)"
     : "Main idea and inference questions (more analytical)";
+  const bloomDist = getBloomDistribution(effectiveGrade, lang);
 
   const ageGateClause = buildAgeGateClauseEn(options);
   const continuityClause = buildPackContinuityClauseEn(options);
+
+  // Build question type distribution from SSOT bloom's
+  const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
+  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const qTypes: string[] = [];
+  for (let i = 0; i < questionCount; i++) {
+    const pos = i % 4;
+    qTypes.push(blooms[pos] > 0 ? typeNames[pos] : "detail");
+  }
+  const distribution = qTypes.map((t, i) =>
+    `  Q${i + 1}: question_type="${t}"`
+  ).join("\n");
 
   return ROUTE_A_PROMPT_EN
     .replace("{{SOURCE_TEXT}}", (options.sourceText || "").slice(0, 8000))
     .replace("{{QUESTION_COUNT}}", String(questionCount))
     .replace("{{FOCUS_AREAS}}", focusAreas)
+    .replace("{{QUESTION_DISTRIBUTION}}", distribution)
     + ageGateClause + continuityClause + LANGUAGE_LOCK_EN;
 }
 
 function buildChineseRouteAPrompt(options: GenerateReadingOptions): string {
   const effectiveGrade = deriveEffectiveGrade(options);
-  const questionCount = effectiveGrade <= 4 ? 5 : 8;
+  const lang = "zh";
+  const questionCount = getTotalQuestionCount(effectiveGrade, lang);
+  const bloomDist = getBloomDistribution(effectiveGrade, lang);
   const focusAreas = effectiveGrade <= 4
     ? "Detail and vocabulary questions (easier)"
     : "Main idea and inference questions (more analytical)";
@@ -504,142 +542,43 @@ function buildChineseRouteAPrompt(options: GenerateReadingOptions): string {
   const ageGateClause = buildAgeGateClauseZh(options);
   const continuityClause = buildPackContinuityClauseZh(options);
 
+  // Build question type distribution from SSOT bloom's
+  const qTypes: string[] = [];
+  const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
+  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  for (let i = 0; i < questionCount; i++) {
+    const pos = i % 4;
+    qTypes.push(blooms[pos] > 0 ? typeNames[pos] : "detail");
+  }
+  const typeExamples = qTypes.map((t, i) =>
+    `题${i + 1}: question_type="${t}"`
+  ).join("\n");
+
   return ROUTE_A_PROMPT_ZH
     .replace("{{SOURCE_TEXT}}", sourceText.slice(0, 4000))
     .replace("{{QUESTION_COUNT}}", String(questionCount))
     .replace("{{FOCUS_AREAS}}", focusAreas)
+    + `\n\n题型分布（基于${effectiveGrade}年级标准）:\n${typeExamples}\n`
     + ageGateClause + continuityClause + LANGUAGE_LOCK_ZH;
 }
 
 export function buildChinesePrompt(options: GenerateReadingOptions): string {
-  // Behavior A: effective grade drives charLimit / questionCount / focusAreas.
-  const effectiveGrade = deriveEffectiveGrade(options);
-  const zhRange = getWordCountRange('zh', effectiveGrade);
-  const charLimit = `${zhRange.min}-${zhRange.max}`;
-  const questionCount = effectiveGrade <= 4 ? 5 : 8;
-  const focusAreas = effectiveGrade <= 4
-    ? "Detail and vocabulary questions (easier)"
-    : "Main idea and inference questions (more analytical)";
-
-  // Trim sourceText to avoid Chinese prompts blowing past ~4000 tokens
-  // (1 zh char ≈ 1 token); cap at 4000 chars instead of 6000 for zh.
-  const trimmedSource = (options.sourceText || "").slice(0, 4000);
-  const sourcePassageBlock = trimmedSource
-    ? `\n原文参考：\n${trimmedSource}\n`
-    : "";
-
-  const ageGateClause = buildAgeGateClauseZh(options);
-  const continuityClause = buildPackContinuityClauseZh(options);
-
-  const effectiveGradeZh = options.levelVariant
-    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
-    : (options.gradeLevel ?? 3);
-
-  return `你是一位专业的中文儿童阅读内容创作专家。请为${effectiveGradeZh}年级学生创作一篇阅读文章。
-
-主题：${displayTopicKey(options)}
-类别：${options.category}
-${sourcePassageBlock}
-要求：
-- 字数范围：${charLimit}字
-- 适合${effectiveGradeZh}年级学生的词汇和句子复杂度
-- 主题清晰，开头引人入胜
-- 包含一个经典名句（成语、古诗词或名言），并提供原文、拼音和译文
-
-同时创建${questionCount}道阅读理解题。
-题型包括：${focusAreas}
-混合题型：main_idea（主旨）、detail（细节）、inference（推理）、vocabulary（词汇）、sequence（顺序）。
-每道题有4个选项（A/B/C/D），只有一个正确答案。
-难度等级：1（最简单）到5（最难）。
-
-此外，请提供：
-- scene_description：一句话描述文章中的关键场景（用于封面图生成）
-- classical_quote：包含 { original, pinyin, translation } 的对象
-- illustrations：1-2个插图对象数组，每个包含 { paragraph_index, scene_description }
-
---- IB MYP 中文阅读要求 ---
-1. 文体（GENDER）：本文必须是以下文体之一，并在 "genre" 字段中填入准确的文体名称：
-   - "记叙文" = 有时间/地点/人物/事件/意义五要素的故事
-   - "说明文" = 解释事物特征、原理或过程，结构清晰（定义+特征+例子）
-   - "议论文" = 提出观点并提供论据支持
-   - "文学散文" = 富有文学性，包含比喻、拟人等修辞手法
-
-2. 文化关联（CULTURAL CONNECTION）："cultural_connection" 字段必须填入一句话，说明本文涉及的文化关联点（如传统节日、历史典故、民间故事等）
-
-3. 批判思维题目：至少 30% 的题目为 inference（推理）类型。不要过度依赖 detail（细节）题。可包含 vocabulary、main_idea 等题型。
-
-4. 修辞手法：4年级以上文章，必须在内容中包含至少一种修辞手法：比喻、拟人、排比或成语引用。
-
-自检清单（完成前不得输出 JSON）：
-□ 文体自检：本文内容结构与声明的 genre "${options.category}" 一致
-  - 记叙文：时间/地点/人物/事件/意义五要素全部存在
-  - 说明文：定义段落 + 特征/例子段落全部存在
-□ 批判思维：inference 类问题 ≥ 总题数 × 30%（例：8题中≥3题 inference）
-□ 修辞手法（4年级以上）：内容中包含至少一种修辞手法（比喻/拟人/排比/成语）
-□ 古诗词引用：classical_quote.original 在 content 中逐字出现
-□ 文化联结：cultural_connection 描述的内容在文章中实际出现
-□ 改编忠实度（Tier 2：当提供了原文参考时）：
-  请在 "factual_accuracy" 字段中声明原文中的哪些关键事实在改编版中保留，
-  格式：{ "source_facts_declared": ["事实1", "事实2", ...], "facts_preserved_count": N }
-□ 如有任何一项不满足，请先修改内容，再填写 JSON 字段。
-
-${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
-
-返回严格的JSON格式（不要markdown，不要代码块）：
-{
-  "title": "文章标题",
-  "content": "完整文章内容...",
-  "summary": "一句话总结（最多30字）",
-  "word_count": number,
-  "estimated_minutes": number,
-  "difficulty": number (1-5),
-  "scene_description": "一句话描述关键场景...",
-  "genre": "记叙文|说明文|议论文|文学散文",
-  "cultural_connection": "一句话描述本文的文化关联点...",
-  "classical_quote": {
-    "original": "原文",
-    "pinyin": "拼音",
-    "translation": "译文"
-  },
-  "factual_accuracy": {
-    "source_facts_declared": ["事实1", "事实2"],
-    "facts_preserved_count": 2
-  },
-  "illustrations": [
-    { "paragraph_index": 0, "scene_description": "..." }
-  ],
-  "questions": [
-    {
-      "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
-      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
-      "correct_answer": "A",
-      "difficulty": number (1-5),
-      "hint": "A short tip (1-2 sentences) to help the child think about this question. Focus on reading strategy, NOT giving away the answer.",
-      "explanation": "Why the correct answer is right, in child-friendly language. Briefly explain which part of the article supports it."
-    }
-  ]
-}`;
+  const grade = deriveEffectiveGrade(options);
+  return buildGradePromptZh(options, grade);
 }
 
 function buildEnglishRouteBPrompt(options: GenerateReadingOptions): string {
   const effectiveGrade = deriveEffectiveGrade(options);
+  const lang = options.language || "en";
   const enRange = getWordCountRange("en", effectiveGrade);
   const wordLimit = `${enRange.min}-${enRange.max} words`;
-  const questionCount = effectiveGrade <= 4 ? 5 : 8;
-  const focusAreas = effectiveGrade <= 4
-    ? "Detail and vocabulary questions (easier)"
-    : "Main idea and inference questions (more analytical)";
+  const questionCount = getTotalQuestionCount(effectiveGrade, lang);
 
   const ageGateClause = buildAgeGateClauseEn(options);
   const continuityClause = buildPackContinuityClauseEn(options);
 
-  const effectiveGradeB = options.levelVariant
-    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
-    : (options.gradeLevel ?? 3);
-
   // B1/B2: retain all facts, only adjust vocabulary and sentence length
-  return `You are adapting a reading passage for a Grade ${effectiveGradeB} student. The original text is already mostly suitable — only minor adjustments are needed.
+  return `You are adapting a reading passage for a Grade ${effectiveGrade} student. The original text is already mostly suitable — only minor adjustments are needed.
 
 Original text:
 ${(options.sourceText || "").slice(0, 6000)}
@@ -653,7 +592,7 @@ CONSTRAINED ADAPTATION RULES:
 
 Target length: ${wordLimit}
 Question count: ${questionCount}
-Question types: ${focusAreas}
+Question types: main_idea, detail, inference, vocabulary, sequence
 
 Also provide: scene_description, genre, author_purpose, illustrations, and factual_accuracy.
 
@@ -664,22 +603,19 @@ Return STRICT JSON (same format as the standard prompt): {title, content, summar
 
 function buildChineseRouteBPrompt(options: GenerateReadingOptions): string {
   const effectiveGrade = deriveEffectiveGrade(options);
+  const lang = "zh";
   const zhRange = getWordCountRange("zh", effectiveGrade);
   const charLimit = `${zhRange.min}-${zhRange.max}`;
-  const questionCount = effectiveGrade <= 4 ? 5 : 8;
-  const focusAreas = effectiveGrade <= 4
-    ? "Detail and vocabulary questions (easier)"
-    : "Main idea and inference questions (more analytical)";
+  const questionCount = getTotalQuestionCount(effectiveGrade, lang);
+  const syntaxDist = getSyntaxDistribution(effectiveGrade, lang);
+  const vocab = getVocabScope(effectiveGrade, lang);
+  const bloomDist = getBloomDistribution(effectiveGrade, lang);
 
   const sourceText = options.sourceText || "";
   const ageGateClause = buildAgeGateClauseZh(options);
   const continuityClause = buildPackContinuityClauseZh(options);
 
-  const effectiveGradeBZh = options.levelVariant
-    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[options.levelVariant]
-    : (options.gradeLevel ?? 3);
-
-  return `你是一位专业的中文儿童阅读改编专家。请将以下文言文/古文逐句翻译改编成适合小学${effectiveGradeBZh}年级的白话文。
+  return `你是一位专业的中文儿童阅读改编专家。请将以下文言文/古文逐句翻译改编成适合${effectiveGrade}年级的白话文。
 
 原文：
 ${sourceText.slice(0, 4000)}
@@ -687,14 +623,16 @@ ${sourceText.slice(0, 4000)}
 约束性改编规则（严格遵守）：
 1. 逐句翻译：原文的每一句话都要对应1-2句白话文。不要跳过任何句子。
 2. 保留全部事实：原文中所有人物、事件、时间、地点必须完整保留。禁止添加原文没有的细节或评论。
-3. 词汇替换：生僻字替换为${effectiveGradeBZh}年级课本常用字。专业术语用通俗语言解释。
+3. 词汇替换：生僻字替换为${effectiveGrade}年级课本常用字（${vocab}）。专业术语用通俗语言解释。
 4. 句子简化：文言文长句拆分为简短白话句。每个白话句子不超过20字。
 5. 不要改变叙事顺序：严格按原文段落顺序改写。
 6. 保留典故：原文中的成语、典故要保留并稍作解释。
 
 字数范围：${charLimit}字
+句子结构：简单句${syntaxDist.simple}%、并列句${syntaxDist.compound}%、复合句${syntaxDist.complex}%
 
-创建${questionCount}道阅读理解题。题型：${focusAreas}
+创建${questionCount}道阅读理解题。
+题型分布：detail ${bloomDist.literal}%、inference ${bloomDist.infer}%、main_idea ${bloomDist.evaluate}%、sequence ${bloomDist.synthesize}%
 每道题4个选项（A/B/C/D），只有一个正确答案。
 
 还需提供：scene_description、genre（记叙文/说明文）、cultural_connection、classical_quote、illustrations。
@@ -866,6 +804,293 @@ function validateRequiredFields(result: Record<string, unknown>): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Chapterized content generation (Grade >= 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Phase 1: Generate chapter outlines (headings + summaries).
+ * Small prompt, low max_tokens — impossible to truncate.
+ */
+async function generateChapterOutline(
+  grade: number,
+  chapterCount: number,
+  opts: GenerateReadingOptions
+): Promise<ArticleChapter[]> {
+  const lang = opts.language || "en";
+  const isEn = lang === "en";
+
+  const outlinePrompt = isEn
+    ? `Create a ${chapterCount}-chapter outline for a Grade ${grade} reading article.
+
+Topic: ${opts.topicKey}
+Category: ${opts.category}
+${opts.sourceText ? `Source text:\n${opts.sourceText.slice(0, 3000)}` : ""}
+
+Return ONLY a JSON array of chapter objects:
+[
+  { "heading": "Chapter title", "summary": "What this chapter covers (1-2 sentences)" },
+  ...
+]
+
+Exactly ${chapterCount} chapters.`
+    : `为一个${grade}年级的阅读文章创建一个${chapterCount}章的提纲。
+
+主题：${displayTopicKey(opts)}
+类别：${opts.category}
+${opts.sourceText ? `原文参考：\n${opts.sourceText.slice(0, 2000)}` : ""}
+
+返回严格JSON数组，每个元素包含：
+[
+  { "heading": "章节标题", "summary": "章节内容概述（1-2句话）" },
+  ...
+]
+
+共${chapterCount}章。`;
+
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
+  const isMiniMax = modelName.toLowerCase().includes("minimax");
+
+  const completion = await getOpenAI().chat.completions.create({
+    model: modelName,
+    messages: [
+      { role: "system", content: "You create structured outlines. Return only valid JSON." },
+      { role: "user", content: outlinePrompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 2048,
+    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+    reasoning_split: true,
+  } as any);
+
+  const rawText = completion.choices?.[0]?.message?.content || "[]";
+  let outlines: Array<{ heading?: string; summary?: string }>;
+  try {
+    const parsed = parseJsonWithRecovery(rawText) as Record<string, unknown>;
+    outlines = (Array.isArray(parsed) ? parsed : (parsed.chapters || parsed.outline || [])) as Array<{ heading?: string; summary?: string }>;
+  } catch {
+    // Fallback: generate generic chapter headings
+    outlines = Array.from({ length: chapterCount }, (_, i) => ({
+      heading: isEn ? `Chapter ${i + 1}` : `第${i + 1}章`,
+      summary: isEn ? `Part ${i + 1} of this article` : `本文第${i + 1}部分`,
+    }));
+  }
+
+  return outlines.slice(0, chapterCount).map((ch, i) => ({
+    index: i,
+    heading: ch.heading || (isEn ? `Chapter ${i + 1}` : `第${i + 1}章`),
+    content: "",
+    word_count: 0,
+    summary: ch.summary || undefined,
+  }));
+}
+
+/**
+ * Chinese chapter prompt — injects syntax/bloom/vocab constraints from SSOT.
+ */
+function buildChapterPromptZh(
+  chapter: ArticleChapter,
+  grade: number,
+  chapterCount: number,
+  opts: GenerateReadingOptions,
+  wpc: { min: number; max: number },
+  questionsPerChapter: number
+): string {
+  const syntaxDist = getSyntaxDistribution(grade, "zh");
+  const bloomDist = getBloomDistribution(grade, "zh");
+  const vocab = getVocabScope(grade, "zh");
+
+  // Build question type distribution from SSOT bloom's
+  const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
+  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const qTypes: string[] = [];
+  for (let i = 0; i < questionsPerChapter; i++) {
+    const pos = i % 4;
+    qTypes.push(blooms[pos] > 0 ? typeNames[pos] : "detail");
+  }
+  const typeExamples = qTypes.map((t, i) =>
+    `  题${i + 1}: question_type="${t}"`
+  ).join("\n");
+
+  return `请写${grade}年级阅读文章的第${chapter.index + 1}章。
+
+章节标题："${chapter.heading}"
+章节概述：${chapter.summary || ""}
+
+主题：${displayTopicKey(opts)}
+类别：${opts.category}
+第${chapter.index + 1}章，共${chapterCount}章
+
+原文参考：
+${(opts.sourceText || "").slice(0, 2000)}
+
+要求：本章${wpc.min}-${wpc.max}字。
+句子结构：简单句${syntaxDist.simple}%、并列句${syntaxDist.compound}%、复合句${syntaxDist.complex}%
+词汇范围：${vocab}
+
+同时创建${questionsPerChapter}道阅读理解题。
+题型分布（基于${grade}年级标准）:
+${typeExamples}
+每道题4个选项（A/B/C/D），只有一个正确答案。
+
+返回严格JSON：
+{
+  "content": "章节内容...",
+  "word_count": number,
+  "questions": [
+    {
+      "question_text": "...",
+      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
+      "correct_answer": "A",
+      "difficulty": number (1-5)
+    }
+  ]
+}`;
+}
+
+/**
+ * Phase 2: Generate a single chapter's content + questions.
+ * Each chapter is an independent API call — can be parallelized.
+ */
+async function generateSingleChapter(
+  chapter: ArticleChapter,
+  grade: number,
+  chapterCount: number,
+  opts: GenerateReadingOptions
+): Promise<{ content: string; word_count: number; questions: GeneratedQuestion[] }> {
+  const lang = opts.language || "en";
+  const isEn = lang === "en";
+  const wpc = getWordsPerChapter(grade, lang);
+  const questionsPerChapter = getQuestionsPerChapter(grade, lang);
+
+  const chapterPrompt = isEn
+    ? `Write Chapter ${chapter.index + 1} of a Grade ${grade} reading article.
+
+Chapter heading: "${chapter.heading}"
+Chapter summary: ${chapter.summary || ""}
+
+Topic: ${displayTopicKey(opts)}
+Category: ${opts.category}
+Chapter ${chapter.index + 1} of ${chapterCount}
+
+Source reference:
+${(opts.sourceText || "").slice(0, 4000)}
+
+CRITICAL: Write between ${wpc.min} and ${wpc.max} words for this chapter.
+
+Also create EXACTLY ${questionsPerChapter} comprehension questions for this chapter.
+Question types: main_idea, detail, inference, vocabulary, sequence.
+Each question has 4 options (A/B/C/D), exactly one correct answer.
+
+Return STRICT JSON:
+{
+  "content": "Chapter text...",
+  "word_count": number,
+  "questions": [
+    {
+      "question_text": "...",
+      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
+      "correct_answer": "A",
+      "difficulty": number (1-5)
+    }
+  ]
+}`
+    : buildChapterPromptZh(chapter, grade, chapterCount, opts, wpc, questionsPerChapter);
+
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
+  const isMiniMax = modelName.toLowerCase().includes("minimax");
+
+  const completion = await getOpenAI().chat.completions.create({
+    model: modelName,
+    messages: [
+      {
+        role: "system",
+        content: isEn
+          ? "You write children's reading content. Return only valid JSON."
+          : "你创作儿童阅读内容。仅返回有效JSON。",
+      },
+      { role: "user", content: chapterPrompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 8192,
+    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+    reasoning_split: true,
+  } as any);
+
+  const rawText = completion.choices?.[0]?.message?.content || "{}";
+  let result: Record<string, unknown>;
+  try {
+    result = parseJsonWithRecovery(rawText) as Record<string, unknown>;
+  } catch {
+    console.error(`[chapter ${chapter.index + 1}] JSON parse failed, raw length ${rawText.length}`);
+    throw new Error(`Chapter ${chapter.index + 1} generation failed: LLM returned unparseable JSON`);
+  }
+
+  return {
+    content: (result.content as string) || "",
+    word_count: typeof result.word_count === "number" ? result.word_count : 0,
+    questions: normalizeQuestions(result),
+  };
+}
+
+/**
+ * Chapterized generation: Phase 1 (outline) + Phase 2 (per-chapter content).
+ * Each chapter is independent — can be dispatched in parallel.
+ */
+async function generateChapterizedContent(
+  opts: GenerateReadingOptions,
+  grade: number,
+  lang: "en" | "zh"
+): Promise<{
+  article: GeneratedArticle;
+  questions: GeneratedQuestion[];
+  illustrations: LocalGeneratedIllustration[];
+}> {
+  const chapterCount = getChapterCount(grade, lang);
+
+  // Phase 1: outline
+  const outlines = await generateChapterOutline(grade, chapterCount, opts);
+
+  // Phase 2: generate each chapter sequentially (respect API rate limits)
+  // Future optimization: parallel with Pacer
+  const chapters: ArticleChapter[] = [];
+  const allQuestions: GeneratedQuestion[] = [];
+
+  for (const outline of outlines) {
+    const result = await generateSingleChapter(outline, grade, chapterCount, opts);
+    chapters.push({
+      index: outline.index,
+      heading: outline.heading,
+      content: result.content,
+      word_count: result.word_count,
+      summary: outline.summary,
+    });
+    allQuestions.push(...result.questions);
+  }
+
+  const fullContent = chapters.map((ch) => ch.content).join("\n\n");
+  const totalWordCount = chapters.reduce((s, ch) => s + ch.word_count, 0);
+
+  return {
+    article: {
+      title: opts.topicKey.replace(/^(en|zh)-/, "").replace(/-/g, " ") || "Untitled",
+      content: fullContent,
+      summary: chapters[0]?.summary || "",
+      word_count: totalWordCount,
+      estimated_minutes: Math.max(1, Math.round(totalWordCount / (lang === "en" ? 100 : 80))),
+      difficulty: grade >= 4 ? Math.min(5, grade - 1) : grade,
+      scene_description: chapters[0]?.content?.slice(0, 100) || "",
+      genre: (lang === "en" ? "informative" : "说明文") as GeneratedArticle["genre"],
+      author_purpose: "to inform",
+      chapters,
+    },
+    questions: allQuestions,
+    illustrations: [],
+  };
+}
+
 export async function generateReadingContent(
   opts: GenerateReadingOptions
 ): Promise<{
@@ -873,9 +1098,13 @@ export async function generateReadingContent(
   questions: GeneratedQuestion[];
   illustrations: LocalGeneratedIllustration[];
 }> {
-  const effectiveGradeForDifficulty = opts.levelVariant
-    ? ({ L1: 3, L2: 6, L3: 9 } as Record<LevelVariant, number>)[opts.levelVariant]
-    : (opts.gradeLevel ?? 3);
+  const effectiveGradeForDifficulty = deriveEffectiveGrade(opts);
+
+  // If grade >= 4, use chapterized generation
+  const lang = opts.language || "en";
+  if (opts.route !== "A" && gradeHasChapters(effectiveGradeForDifficulty, lang)) {
+    return generateChapterizedContent(opts, effectiveGradeForDifficulty, lang);
+  }
 
   // Route A: source text is already grade-appropriate. Use it directly for
   // article content; only call LLM for questions + metadata.

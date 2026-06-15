@@ -3,7 +3,7 @@
 /**
  * Reading Content Pipeline Script (TypeScript)
  *
- * Standalone cron-compatible pipeline for generating English reading content.
+ * Standalone cron-compatible pipeline for generating reading content.
  * Reads topics from the reading_topics table, generates content via OpenAI,
  * produces cover images and in-article illustrations, runs quality gate,
  * and stores results in Supabase. Does NOT require Next.js runtime.
@@ -14,13 +14,14 @@
  *   OPENAI_API_KEY            (required)
  *   OPENAI_BASE_URL           (optional, default: https://api.minimaxi.com/v1)
  *   OPENAI_READING_MODEL      (optional, default: MiniMax-M3)
- *   PIPELINE_GRADES           (optional, default: "3,6")
+ *   PIPELINE_GRADES           (optional, comma-separated, e.g. "4,7")
+ *   PIPELINE_LEVELS           (optional, default: "L1,L2,L3" — used when PIPELINE_GRADES is not set)
  *   PIPELINE_TOPIC_LIMIT      (optional, default: 0 = all topics)
  *   MINIMAX_DAILY_QUOTA       (optional, default: 50)
  *
  * Usage:
  *   npx tsx scripts/reading-content-pipeline.ts
- *   PIPELINE_GRADES="3,4,5" PIPELINE_TOPIC_LIMIT=2 npx tsx scripts/reading-content-pipeline.ts
+ *   PIPELINE_GRADES="4,7" PIPELINE_TOPIC_LIMIT=2 npx tsx scripts/reading-content-pipeline.ts
  *   npx tsx scripts/reading-content-pipeline.ts --scrape-first
  *
  * Exit codes:
@@ -32,11 +33,12 @@ import { config } from "dotenv";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCorpusEntry } from "./reading/classic-corpus";
 import scrapeAllSources from "./reading/scrape-all-sources";
+import { getWordCountRange, getSyntaxDistribution, gradeHasChapters, getChapterCount } from "@/lib/reading/standards";
 
 config({ path: ".env.local" });
 
-// Level variant type — declared early so checkExistingArticle can use it.
-type LevelVariant = "L1" | "L2" | "L3";
+// Grade-driven pipeline: grades take precedence over levels.
+type GradeVariant = number; // 1-10 school grade
 
 // Validate env BEFORE any dynamic imports that may initialize external clients.
 validateEnv();
@@ -106,6 +108,11 @@ interface PipelineDatabase {
         Update: Record<string, unknown>;
       };
       reading_article_illustrations: {
+        Row: Record<string, unknown>;
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+      };
+      reading_article_chapters: {
         Row: Record<string, unknown>;
         Insert: Record<string, unknown>;
         Update: Record<string, unknown>;
@@ -261,14 +268,13 @@ interface ExistingArticleCheck {
 async function checkExistingArticle(
   supabase: SupabaseClient<PipelineDatabase>,
   topicKey: string,
-  level: LevelVariant
+  grade: number
 ): Promise<ExistingArticleCheck> {
-  const gradeLevel = level === "L1" ? 3 : level === "L2" ? 6 : 8;
   const { data, error } = await supabase
     .from("reading_articles")
     .select("id, status")
     .eq("topic_key", topicKey)
-    .eq("grade_level", gradeLevel)
+    .eq("grade_level", grade)
     .maybeSingle();
 
   if (error) {
@@ -489,7 +495,7 @@ async function loadTopics(
 
 interface WorkItem {
   topic: ReadingTopicRow;
-  level: LevelVariant;
+  grade: GradeVariant;
 }
 
 interface QualityCheckResult {
@@ -501,23 +507,35 @@ interface QualityCheckResult {
   complexPct: number;
 }
 
-function checkSourceQuality(sourceText: string | undefined, level: LevelVariant): QualityCheckResult {
+function checkSourceQuality(sourceText: string | undefined, grade: number, language: string): QualityCheckResult {
   if (!sourceText) {
     return { fitsLevel: false, needsExpansion: true, wordCount: 0, simplePct: 0, compoundPct: 0, complexPct: 0 };
   }
 
-  const words = sourceText.split(/\s+/).filter(w => w.length > 0).length;
-  const sentences = sourceText.split(/[.!?]+/).filter(s => s.trim().length > 5);
+  const isZh = language === "zh";
+  const words = isZh
+    ? (sourceText.match(/[一-鿿]/g) || []).length
+    : sourceText.split(/\s+/).filter(w => w.length > 0).length;
+
+  const sentenceDelimiter = isZh ? /[。！？.!?\n]+/ : /[.!?]+/;
+  const sentences = sourceText.split(sentenceDelimiter).filter(s => s.trim().length > 5);
 
   let simple = 0, compound = 0, complex = 0;
-  for (const s of sentences) {
-    const st = s.trim().toLowerCase();
-    const hasConjunction = /\b(and|but|or|so|yet|for|nor)\b/.test(st);
-    const hasSubordinator = /\b(because|since|although|though|while|when|if|that|which|who|where|after|before|until|unless|even though)\b/.test(st);
+  if (!isZh) {
+    for (const s of sentences) {
+      const st = s.trim().toLowerCase();
+      const hasConjunction = /\b(and|but|or|so|yet|for|nor)\b/.test(st);
+      const hasSubordinator = /\b(because|since|although|though|while|when|if|that|which|who|where|after|before|until|unless|even though)\b/.test(st);
 
-    if (!hasConjunction && !hasSubordinator) simple++;
-    else if (hasConjunction && !hasSubordinator) compound++;
-    else complex++;
+      if (!hasConjunction && !hasSubordinator) simple++;
+      else if (hasConjunction && !hasSubordinator) compound++;
+      else complex++;
+    }
+  } else {
+    // Chinese: skip syntax analysis (no reliable heuristic without NLP)
+    simple = sentences.length;
+    compound = 0;
+    complex = 0;
   }
 
   const total = sentences.length || 1;
@@ -525,24 +543,18 @@ function checkSourceQuality(sourceText: string | undefined, level: LevelVariant)
   const compoundPct = Math.round((compound / total) * 100);
   const complexPct = Math.round((complex / total) * 100);
 
-  // Level standards from reading-standards.json v2.0
-  const standards: Record<LevelVariant, { wordMin: number; wordMax: number; simple: number; compound: number; complex: number }> = {
-    L1: { wordMin: 300, wordMax: 400, simple: 70, compound: 30, complex: 0 },
-    L2: { wordMin: 600, wordMax: 800, simple: 25, compound: 45, complex: 30 },
-    L3: { wordMin: 800, wordMax: 1100, simple: 15, compound: 45, complex: 40 },
-  };
+  // Grade standards from reading-standards.json
+  const range = getWordCountRange(language as "en" | "zh", grade);
+  const syntax = getSyntaxDistribution(grade, language as "en" | "zh");
 
-  const std = standards[level];
-  const wordCount = words;
-
-  // Check if source text fits the level (with 10% tolerance)
-  const wordFits = wordCount >= std.wordMin * 0.9 && wordCount <= std.wordMax * 1.1;
-  const syntaxFits = simplePct <= std.simple + 10 && compoundPct >= std.compound - 10 && complexPct >= std.complex - 10;
+  // Check if source text fits the grade (with 10% tolerance)
+  const wordFits = words >= range.min * 0.9 && words <= range.max * 1.1;
+  const syntaxFits = simplePct <= syntax.simple + 10 && compoundPct >= syntax.compound - 10 && complexPct >= syntax.complex - 10;
 
   const fitsLevel = wordFits && syntaxFits;
-  const needsExpansion = wordCount < std.wordMin;
+  const needsExpansion = words < range.min;
 
-  return { fitsLevel, needsExpansion, wordCount, simplePct, compoundPct, complexPct };
+  return { fitsLevel, needsExpansion, wordCount: words, simplePct, compoundPct, complexPct };
 }
 
 async function main(): Promise<void> {
@@ -551,20 +563,33 @@ async function main(): Promise<void> {
   // Validate environment
   validateEnv();
 
-  // Parse config
-  const levels = (process.env.PIPELINE_LEVELS || "L1,L2,L3")
-    .split(",")
-    .map((s) => s.trim().toUpperCase())
-    .filter((s) => ["L1", "L2", "L3"].includes(s)) as LevelVariant[];
+  // Parse grades (PIPELINE_GRADES takes precedence over PIPELINE_LEVELS)
+  const gradesEnv = process.env.PIPELINE_GRADES;
+  const grades: number[] = gradesEnv
+    ? gradesEnv.split(",").map(s => parseInt(s.trim(), 10)).filter(n => n >= 1 && n <= 10)
+    : [];
+
+  // Fallback: parse levels and map to representative grades
+  if (grades.length === 0) {
+    const levels = (process.env.PIPELINE_LEVELS || "L1,L2,L3")
+      .split(",")
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => ["L1", "L2", "L3"].includes(s));
+    const levelGradeMap: Record<string, number> = { L1: 3, L2: 6, L3: 8 };
+    for (const lv of levels) {
+      grades.push(levelGradeMap[lv]);
+    }
+  }
 
   const topicLimit = parseInt(process.env.PIPELINE_TOPIC_LIMIT || "0", 10);
 
-  if (levels.length === 0) {
-    console.error("ERROR: No valid levels configured. Use L1,L2,L3.");
+  if (grades.length === 0) {
+    console.error("ERROR: No valid grades configured. Use PIPELINE_GRADES=\"4,7\" or PIPELINE_LEVELS=\"L1,L2,L3\".");
     process.exit(1);
   }
 
-  console.log(`Levels:     ${levels.join(", ")}`);
+  const gradesDisplay = gradesEnv ? grades.join(", ") : grades.join(", ") + " (mapped from levels)";
+  console.log(`Grades:     ${gradesDisplay}`);
   console.log(`Language:   ${pipelineLanguage}`);
   console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M3"}`);
   console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1"}`);
@@ -586,14 +611,14 @@ async function main(): Promise<void> {
   console.log("");
 
   if (topics.length === 0) {
-    console.warn("WARNING: No active English topics found in reading_topics table.");
+    console.warn("WARNING: No active topics found in reading_topics table.");
   }
 
-  // Collect all work items (topic, level) pairs
+  // Collect all work items (topic, grade) pairs
   const workItems: WorkItem[] = [];
-  for (const level of levels) {
+  for (const grade of grades) {
     for (const topic of topics) {
-      workItems.push({ topic, level });
+      workItems.push({ topic, grade });
     }
   }
 
@@ -605,7 +630,7 @@ async function main(): Promise<void> {
   // Create global pacer for LLM call concurrency (max 3 concurrent across all tasks)
   const pacer = new Pacer(3);
   const tasks = workItems.map((item, index) =>
-    processWorkItem(item, index + 1, workItems.length, levels, topics, supabase, pacer)
+    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer)
   );
 
   const results = await Promise.all(tasks);
@@ -656,13 +681,13 @@ async function processWorkItem(
   item: WorkItem,
   index: number,
   total: number,
-  levels: LevelVariant[],
+  grades: number[],
   topics: ReadingTopicRow[],
   supabase: SupabaseClient<PipelineDatabase>,
   pacer: InstanceType<typeof Pacer>
 ): Promise<ProcessResult> {
-  const { topic, level } = item;
-  const key = `${topic.topic_key}|${level}`;
+  const { topic, grade } = item;
+  const key = `${topic.topic_key}|G${grade}`;
   process.stdout.write(
     `[${index}/${total}] ${key} (${topic.category})... `
   );
@@ -672,7 +697,7 @@ async function processWorkItem(
     const existing = await checkExistingArticle(
       supabase,
       topic.topic_key,
-      level
+      grade
     );
 
     if (existing.exists && existing.status === "published") {
@@ -688,11 +713,11 @@ async function processWorkItem(
     const hasUsableSource = !!sourceText && sourceText.trim().length >= 50;
 
     // Step 3: Check source text quality and decide route
-    const qualityCheck = checkSourceQuality(sourceText, level);
+    const qualityCheck = checkSourceQuality(sourceText, grade, pipelineLanguage);
     let contentResult;
 
     if (qualityCheck.fitsLevel && hasUsableSource) {
-      // Route A: Source text fits the level directly — use as-is with minor cleanup
+      // Route A: Source text fits the grade directly — use as-is with minor cleanup
       console.log("USE-DIRECT");
       contentResult = await pacer.run(() =>
         withRetry(() =>
@@ -700,7 +725,7 @@ async function processWorkItem(
             topicKey: topic.topic_key,
             language: pipelineLanguage,
             category: topic.category,
-            levelVariant: level,
+            schoolGrade: grade,
             sourceText,
             route: "A", // Direct use
           })
@@ -715,7 +740,7 @@ async function processWorkItem(
             topicKey: topic.topic_key,
             language: pipelineLanguage,
             category: topic.category,
-            levelVariant: level,
+            schoolGrade: grade,
             sourceText,
             route: qualityCheck.needsExpansion ? "B" : "C",
           })
@@ -730,7 +755,7 @@ async function processWorkItem(
             topicKey: topic.topic_key,
             language: pipelineLanguage,
             category: topic.category,
-            levelVariant: level,
+            schoolGrade: grade,
             sourceText: undefined,
             route: "C",
           })
@@ -740,25 +765,25 @@ async function processWorkItem(
 
     const { article, questions, illustrations } = contentResult;
 
-    // Step 3: Run quality gate, IB criteria gate, and factual accuracy gate
+    // Step 4: Run quality gate, IB criteria gate, and factual accuracy gate
     const gate = validateContent({
       article,
       questions,
       language: pipelineLanguage,
-      gradeLevel: level === "L1" ? 3 : level === "L2" ? 6 : 8,
+      gradeLevel: grade,
     });
     const ibGate = validateIBCriteria({
       article,
       questions,
       language: pipelineLanguage,
-      gradeLevel: level === "L1" ? 3 : level === "L2" ? 6 : 8,
+      gradeLevel: grade,
     });
     const factualGate = validateFactualAccuracy({
       article,
       sourceText,
       keyFacts: topic.key_facts || undefined,
       language: pipelineLanguage,
-      gradeLevel: level === "L1" ? 3 : level === "L2" ? 6 : 8,
+      gradeLevel: grade,
     });
 
     // Merge issues with source tagging
@@ -772,12 +797,11 @@ async function processWorkItem(
     const effectiveFactualPass = qualityCheck.fitsLevel ? true : factualGate.pass;
     const status: "draft" | "published" = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
 
-    // Step 4: Upsert article FIRST to get real articleId (cover/ill fields null for now)
-    const gradeLevel = level === "L1" ? 3 : level === "L2" ? 6 : 8;
+    // Step 5: Upsert article FIRST to get real articleId
     const sanitized = sanitizeArticleNumbers(article, pipelineLanguage);
     const articleId = await upsertArticle(supabase, {
       topicKey: topic.topic_key,
-      gradeLevel,
+      gradeLevel: grade,
       title: article.title,
       content: article.content,
       sourceUrl: topic.source_url,
@@ -796,7 +820,30 @@ async function processWorkItem(
       language: pipelineLanguage,
     });
 
-    // Step 5: Generate cover image with REAL articleId (concurrent, with retry)
+    // Step 6: Upsert chapters if article has chapterized content
+    // Uses ON CONFLICT (article_id, index) DO UPDATE for atomicity
+    if (article.chapters && article.chapters.length > 0) {
+      const { error: chErr } = await (supabase as SupabaseClient)
+        .from("reading_article_chapters")
+        .upsert(
+          article.chapters.map((ch) => ({
+            article_id: articleId,
+            index: ch.index,
+            heading: ch.heading,
+            content: ch.content,
+            word_count: ch.word_count,
+            summary: ch.summary ?? null,
+          })),
+          { onConflict: "article_id, index" }
+        );
+
+      if (chErr) {
+        throw new Error(`Failed to upsert chapters: ${chErr.message}`);
+      }
+      console.log(`\n  [chapters] ${article.chapters.length} chapters upserted`);
+    }
+
+    // Step 7: Generate cover image with REAL articleId
     let coverResult: { url: string; source: string; source_url: string } | null = null;
     try {
       coverResult = await pacer.run(() =>
@@ -816,7 +863,7 @@ async function processWorkItem(
       console.warn(`\n  [cover] failed: ${reason}`);
     }
 
-    // Step 6: Update article cover fields (normalize source-website to pollinations for DB constraint)
+    // Step 8: Update article cover fields
     if (coverResult) {
       const coverSource = coverResult.source === "source-website" ? "pollinations" : coverResult.source;
       await updateArticleCover(
@@ -828,7 +875,7 @@ async function processWorkItem(
       );
     }
 
-    // Step 7: Generate in-article illustrations with REAL articleId (concurrent, with retry)
+    // Step 9: Generate in-article illustrations with REAL articleId
     let illustrationResults: { paragraph_index: number; url: string; source_url: string; source: string }[] = [];
     try {
       illustrationResults = await pacer.run(() =>
@@ -850,10 +897,10 @@ async function processWorkItem(
       console.warn(`\n  [illustrations] failed: ${reason}`);
     }
 
-    // Step 8: Replace questions (DB operation, outside pacer)
+    // Step 10: Replace questions (DB operation, outside pacer)
     await replaceQuestions(supabase, articleId, questions);
 
-    // Step 9: Replace illustrations (DB operation, outside pacer)
+    // Step 11: Replace illustrations (DB operation, outside pacer)
     await replaceIllustrations(
       supabase,
       articleId,
@@ -872,8 +919,9 @@ async function processWorkItem(
     const aiCount = illustrationResults.length - sourceCount;
     const gateLabel = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
     const routeLabel = qualityCheck.fitsLevel ? "direct" : qualityCheck.needsExpansion ? "expand" : "rewrite";
+    const chapterInfo = article.chapters?.length ? ` ${article.chapters.length}ch` : "";
     console.log(
-      `OK — "${article.title}" route=${routeLabel} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
+      `OK — "${article.title}" route=${routeLabel}${chapterInfo} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
     );
     return { status: "succeeded" };
   } catch (err) {

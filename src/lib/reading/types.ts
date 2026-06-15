@@ -101,6 +101,8 @@ export interface GeneratedArticle {
     pinyin: string;
     translation: string;
   };
+  chapters?: ArticleChapter[];
+
   // Factual accuracy — populated when sourceText is provided (Tier 1/2)
   // LLM declares which key facts from sourceText are preserved in the article
   factual_accuracy?: {
@@ -117,6 +119,14 @@ export interface GeneratedQuestion {
   difficulty: number;
   hint?: string;
   explanation?: string;
+}
+
+export interface ArticleChapter {
+  index: number;
+  heading: string;
+  content: string;
+  word_count: number;
+  summary?: string;
 }
 
 export interface GeneratedIllustration {

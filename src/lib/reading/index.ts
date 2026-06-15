@@ -35,6 +35,8 @@ export type {
   ReadingQuizAttemptRow,
   GeneratedArticle,
   GeneratedQuestion,
+  ArticleChapter,
+  GeneratedIllustration,
 } from "./types";
 
 // ── pinyin-converter (ruby-pinyin string builder) ────────────────────────

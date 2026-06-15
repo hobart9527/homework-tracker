@@ -24,12 +24,28 @@ interface RawEnglishGradeData {
   wordCountMax: number;
   wpm: number;
   lexileScore: number;
+  chapterCount: number;
+  questionsPerChapter: number;
+  wordsPerChapter: { min: number; max: number };
+  blooms: { literal: number; infer: number; evaluate: number; synthesize: number };
+  syntax: { simple: number; compound: number; complex: number };
+  vocab: string;
+  paragraphSentencesMin?: number;
+  paragraphSentencesMax?: number;
+  allowOpinion?: boolean;
+  themeWords?: number;
 }
 
 interface RawChineseGradeData {
   charCountMin: number;
   charCountMax: number;
   wpm: number;
+  chapterCount: number;
+  questionsPerChapter: number;
+  wordsPerChapter: { min: number; max: number };
+  blooms: { literal: number; infer: number; evaluate: number; synthesize: number };
+  syntax: { simple: number; compound: number; complex: number };
+  vocab: string;
 }
 
 interface RawStandardsData {
@@ -73,6 +89,16 @@ export const ENGLISH_STANDARDS: Record<number, EnglishGradeStandard> = Object.fr
           max: Math.ceil(data.wordCountMax / data.wpm),
         },
         lexileScore: data.lexileScore,
+        chapterCount: data.chapterCount,
+        questionsPerChapter: data.questionsPerChapter,
+        wordsPerChapter: data.wordsPerChapter,
+        blooms: data.blooms,
+        syntax: data.syntax,
+        vocab: data.vocab,
+        paragraphSentencesMin: data.paragraphSentencesMin ?? 3,
+        paragraphSentencesMax: data.paragraphSentencesMax ?? 7,
+        allowOpinion: data.allowOpinion ?? false,
+        themeWords: data.themeWords ?? 4,
       },
     ])
 );
@@ -90,6 +116,16 @@ export const CHINESE_STANDARDS: Record<number, ChineseGradeStandard> = Object.fr
           min: Math.ceil(data.charCountMin / data.wpm),
           max: Math.ceil(data.charCountMax / data.wpm),
         },
+        chapterCount: data.chapterCount ?? 1,
+        questionsPerChapter: data.questionsPerChapter ?? 5,
+        wordsPerChapter: data.wordsPerChapter ?? { min: data.charCountMin, max: data.charCountMax },
+        blooms: data.blooms ?? { literal: 4, infer: 1, evaluate: 0, synthesize: 0 },
+        syntax: data.syntax ?? { simple: 70, compound: 30, complex: 0 },
+        vocab: data.vocab ?? "",
+        paragraphSentencesMin: 3,
+        paragraphSentencesMax: 7,
+        allowOpinion: false,
+        themeWords: 4,
       },
     ])
 );
@@ -99,12 +135,12 @@ export const CHINESE_STANDARDS: Record<number, ChineseGradeStandard> = Object.fr
 // ─────────────────────────────────────────────
 
 export function getEnglishStandard(grade: number): EnglishGradeStandard {
-  const g = Math.min(Math.max(grade, 1), 8);
+  const g = Math.min(Math.max(grade, 1), 10);
   return ENGLISH_STANDARDS[g];
 }
 
 export function getChineseStandard(grade: number): ChineseGradeStandard {
-  const g = Math.min(Math.max(grade, 1), 8);
+  const g = Math.min(Math.max(grade, 1), 10);
   return CHINESE_STANDARDS[g];
 }
 
@@ -133,6 +169,56 @@ export function getReadingMinutes(
 }
 
 // ─────────────────────────────────────────────
+// 4. New helpers: chapter & generation config
+// ─────────────────────────────────────────────
+
+export function getChapterCount(grade: number, language: "en" | "zh"): number {
+  return language === "en"
+    ? getEnglishStandard(grade).chapterCount
+    : getChineseStandard(grade).chapterCount;
+}
+
+export function getQuestionsPerChapter(grade: number, language: "en" | "zh"): number {
+  return language === "en"
+    ? getEnglishStandard(grade).questionsPerChapter
+    : getChineseStandard(grade).questionsPerChapter;
+}
+
+export function getTotalQuestionCount(grade: number, language: "en" | "zh"): number {
+  const chapters = getChapterCount(grade, language);
+  const perChapter = getQuestionsPerChapter(grade, language);
+  return chapters * perChapter;
+}
+
+export function getBloomDistribution(grade: number, language: "en" | "zh"): { literal: number; infer: number; evaluate: number; synthesize: number } {
+  return language === "en"
+    ? getEnglishStandard(grade).blooms
+    : getChineseStandard(grade).blooms;
+}
+
+export function getSyntaxDistribution(grade: number, language: "en" | "zh"): { simple: number; compound: number; complex: number } {
+  return language === "en"
+    ? getEnglishStandard(grade).syntax
+    : getChineseStandard(grade).syntax;
+}
+
+export function getVocabScope(grade: number, language: "en" | "zh"): string {
+  return language === "en"
+    ? getEnglishStandard(grade).vocab
+    : getChineseStandard(grade).vocab;
+}
+
+export function getWordsPerChapter(grade: number, language: "en" | "zh"): { min: number; max: number } {
+  return language === "en"
+    ? getEnglishStandard(grade).wordsPerChapter
+    : getChineseStandard(grade).wordsPerChapter;
+}
+
+export function gradeHasChapters(grade: number, language: "en" | "zh"): boolean {
+  return getChapterCount(grade, language) > 1;
+}
+
+// ─────────────────────────────────────────────
 // 3. Type definitions (derived from JSON structure)
 // ─────────────────────────────────────────────
 
@@ -142,6 +228,17 @@ export interface EnglishGradeStandard {
   wpm: number;                          // words per minute (reading fluency)
   readingMinutes: { min: number; max: number };
   lexileScore: number;                  // typical mid-point Lexile score
+  // Chapter & generation config
+  chapterCount: number;
+  questionsPerChapter: number;
+  wordsPerChapter: { min: number; max: number };
+  blooms: { literal: number; infer: number; evaluate: number; synthesize: number };
+  syntax: { simple: number; compound: number; complex: number };
+  vocab: string;
+  paragraphSentencesMin: number;
+  paragraphSentencesMax: number;
+  allowOpinion: boolean;
+  themeWords: number;
 }
 
 export interface ChineseGradeStandard {
@@ -149,4 +246,14 @@ export interface ChineseGradeStandard {
   charCountRange: { min: number; max: number }; // for Chinese char counting
   wpm: number;                          // 字/分钟
   readingMinutes: { min: number; max: number };
+  chapterCount: number;
+  questionsPerChapter: number;
+  wordsPerChapter: { min: number; max: number };
+  blooms: { literal: number; infer: number; evaluate: number; synthesize: number };
+  syntax: { simple: number; compound: number; complex: number };
+  vocab: string;
+  paragraphSentencesMin: number;
+  paragraphSentencesMax: number;
+  allowOpinion: boolean;
+  themeWords: number;
 }
