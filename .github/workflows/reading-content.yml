@@ -24,6 +24,7 @@ jobs:
       - run: npx playwright install
       - run: PIPELINE_LANGUAGE=en npx tsx scripts/reading-content-pipeline.ts --scrape-first
         env:
+          PIPELINE_GRADES: "3,4,5,6,7"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -42,7 +43,7 @@ jobs:
           cache: npm
       - run: npm install
       - run: npx playwright install
-      - run: PIPELINE_LANGUAGE=zh npx tsx scripts/reading-content-pipeline.ts --scrape-first
+      - run: PIPELINE_LANGUAGE=zh PIPELINE_GRADES=3,4,5,6,7 npx tsx scripts/reading-content-pipeline.ts --scrape-first
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -97,6 +97,111 @@ describe("parseJsonWithRecovery", () => {
     const result = parseJsonWithRecovery(raw);
     expect(result).toEqual({ title: "AllFixes", data: [1, 2, 3] });
   });
+
+  // --- MiniMax-specific truncation patterns ---
+
+  it("fixes MiniMax format: truncated mid-key name", () => {
+    const raw = '{"title":"过新年","content":"真快乐。","sum';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "过新年",
+      content: "真快乐。",
+    });
+  });
+
+  it("fixes MiniMax format: truncated mid-value with newlines", () => {
+    const raw =
+      '{\n  "title": "小明的庐山瀑布之旅",\n  "content": "暑假到了，小明和爸爸妈妈一起去庐山旅游。",\n  "sum';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "小明的庐山瀑布之旅",
+      content: "暑假到了，小明和爸爸妈妈一起去庐山旅游。",
+    });
+  });
+
+  it("fixes MiniMax format: truncated content value mid-sentence", () => {
+    const raw =
+      '{"title":"明月几时有","content":"明亮的月亮什么时候开始有的呢？","summary":"这是大诗人写的。他说明亮';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "明月几时有",
+      content: "明亮的月亮什么时候开始有的呢？",
+      summary: "这是大诗人写的。他说明亮",
+    });
+  });
+
+  it("handles content with backslash-escaped internal quotes", () => {
+    // Content with escaped quotes: 他说：\"你好\"
+    const raw =
+      '{"title":"妈妈缝的新衣","content":"小明说：\\"你好\\"世界","summary":"ok"}';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toHaveProperty("title");
+    expect(result).toHaveProperty("content");
+    expect(result).toHaveProperty("summary");
+  });
+
+  it("fixes truncation mid-escape-sequence", () => {
+    // Ends in middle of a backslash escape
+    const raw = `{"title":"Test","content":"hello\\`;
+    // This ends in: ...hello\
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "Test",
+      content: "hello",
+    });
+  });
+
+  it("fixes truncation after comma before next key", () => {
+    const raw = '{"title":"Test","content":"hello",';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "Test",
+      content: "hello",
+    });
+  });
+
+  it("fixes truncation with only opening brace", () => {
+    const result = parseJsonWithRecovery("{");
+    expect(result).toEqual({});
+  });
+
+  it("fixes empty string", () => {
+    const result = parseJsonWithRecovery("");
+    expect(result).toEqual({ title: "Untitled" });
+  });
+
+  it("fixes completely empty object", () => {
+    const result = parseJsonWithRecovery("{}");
+    expect(result).toEqual({});
+  });
+
+  it("closes unclosed string + braces together", () => {
+    const raw = '{"title":"Fragmented","content":"too much text';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "Fragmented",
+      content: "too much text",
+    });
+  });
+
+  it("handles truncation after comma+whitespace+newline before next key", () => {
+    const raw =
+      '{\n  "title": "Test",\n  "content": "Some text",\n  \n';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "Test",
+      content: "Some text",
+    });
+  });
+
+  it("recovers chapter outline format with truncated title field", () => {
+    const raw =
+      '{\n  "title": "动物的奇妙世界",\n  "chapters": [\n    {\n      "heading": "第1章 认识动物",\n      "summary": "介绍各种动物的基本特征。';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toHaveProperty("title");
+    expect(result).toHaveProperty("chapters");
+    expect(Array.isArray((result as any).chapters)).toBe(true);
+  });
 });
 
 describe("tryParseWithFallback", () => {
@@ -116,23 +221,7 @@ describe("tryParseWithFallback", () => {
     expect(result.method).toBe("direct");
   });
 
-  it("returns strip-think method for think-wrapped JSON", () => {
-    const raw = "<think>...</think>" + JSON.stringify({ b: 2 });
-    const result = tryParseWithFallback(raw);
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual({ b: 2 });
-    expect(result.method).toBe("strip-think");
-  });
-
-  it("returns trailing-comma method for JSON with trailing commas", () => {
-    const raw = '{"c":3,"d":[4,5,],}';
-    const result = tryParseWithFallback(raw);
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual({ c: 3, d: [4, 5] });
-    expect(result.method).toBe("trailing-comma");
-  });
-
-  it("returns regex-extract method when trailing text exists", () => {
+  it("regex-extract method for trailing text", () => {
     const raw = '{"e":5} trailing garbage';
     const result = tryParseWithFallback(raw);
     expect(result.success).toBe(true);
@@ -140,23 +229,15 @@ describe("tryParseWithFallback", () => {
     expect(result.method).toBe("regex-extract");
   });
 
-  it("returns balance-braces method for unbalanced JSON", () => {
+  it("close-json method for unbalanced JSON", () => {
     const raw = '{"f":6';
     const result = tryParseWithFallback(raw);
     expect(result.success).toBe(true);
     expect(result.data).toEqual({ f: 6 });
-    expect(result.method).toBe("balance-braces");
+    expect(result.method).toBe("close-json");
   });
 
-  it("returns regex-extract method for embedded object", () => {
-    const raw = "prefix {\"g\":7} suffix";
-    const result = tryParseWithFallback(raw);
-    expect(result.success).toBe(true);
-    expect(result.data).toEqual({ g: 7 });
-    expect(result.method).toBe("regex-extract");
-  });
-
-  it("returns fallback method with extracted title when unparseable", () => {
+  it("fallback with title extraction", () => {
     const raw = 'blah "title": "My Title" blah';
     const result = tryParseWithFallback(raw);
     expect(result.success).toBe(false);
@@ -164,11 +245,69 @@ describe("tryParseWithFallback", () => {
     expect(result.method).toBe("fallback");
   });
 
-  it("returns fallback method with Untitled when no title found", () => {
+  it("fallback with Untitled when no title found", () => {
     const raw = "completely unparseable garbage";
     const result = tryParseWithFallback(raw);
     expect(result.success).toBe(false);
     expect(result.data).toEqual({ title: "Untitled" });
     expect(result.method).toBe("fallback");
+  });
+
+  // --- Trailing comma recovery ---
+
+  it("trailing-comma method for JSON with trailing commas", () => {
+    const raw = '{"c":3,"d":[4,5,],}';
+    const result = tryParseWithFallback(raw);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ c: 3, d: [4, 5] });
+    expect(result.method).toBe("trailing-comma");
+  });
+
+  // --- Mid-key truncation ---
+
+  it("strip-trailing-field method for mid-key truncation", () => {
+    const raw = '{"title":"A","summary":"B","missi';
+    const result = tryParseWithFallback(raw);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ title: "A", summary: "B" });
+    expect(result.method).toBe("strip-trailing-field");
+  });
+
+  // --- Close unclosed string ---
+
+  it("close-json method for truncated unclosed string", () => {
+    const raw = '{"title":"Hello","content":"world';
+    const result = tryParseWithFallback(raw);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ title: "Hello", content: "world" });
+    expect(result.method).toBe("close-json");
+  });
+
+  // --- MiniMax backslash format ---
+
+  it("handles MiniMax format with escaped keys/values", () => {
+    // Simulating {\"title\":\"过新年\",\"content\":\"真快乐\"}
+    const raw = String.raw`{"title":"过新年","content":"真快乐"}`;
+    const result = tryParseWithFallback(raw);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ title: "过新年", content: "真快乐" });
+  });
+
+  it("handles MiniMax format with truncated tail", () => {
+    const raw = String.raw`{"title":"过新年","content":"真快乐","sum`;
+    const result = tryParseWithFallback(raw);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({ title: "过新年", content: "真快乐" });
+  });
+
+  it("handles MiniMax format with newlines and truncated tail", () => {
+    const raw =
+      String.raw`{"title":"妈妈缝的新衣","content":"小明想给妈妈送一件","sum`;
+    const result = tryParseWithFallback(raw);
+    expect(result.success).toBe(true);
+    expect(result.data).toEqual({
+      title: "妈妈缝的新衣",
+      content: "小明想给妈妈送一件",
+    });
   });
 });

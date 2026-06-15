@@ -108,6 +108,10 @@ async function processArticle(
         scene: article.scene_description || article.title,
         title: article.title,
       });
+      if (!cover) {
+        console.warn(`[backfill] Cover: SKIP (all providers failed)`);
+        return;
+      }
 
       const { error: updateErr } = await supabase
         .from("reading_articles")

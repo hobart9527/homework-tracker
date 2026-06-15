@@ -281,9 +281,11 @@ async function runPipeline(
         title: article.title,
         sourceImageUrl: topic.source_image_url ?? undefined,
       });
-      coverUrl = cover.url;
-      coverSource = cover.source;
-      coverSourceUrl = cover.source_url;
+      if (cover) {
+        coverUrl = cover.url;
+        coverSource = cover.source;
+        coverSourceUrl = cover.source_url;
+      }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       console.warn(`[refresh-news] cover generation failed for ${topicKey} G${grade}: ${reason}`);

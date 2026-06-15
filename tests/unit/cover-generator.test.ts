@@ -302,19 +302,18 @@ describe("generateCover - MiniMax HTTP 5xx falls back", () => {
   });
 });
 
-// --- generateCover: Pollinations failure → throw -------------------------
+// --- generateCover: all providers failed → null -------------------------
 
-describe("generateCover - Pollinations failure throws", () => {
-  it("throws `cover generation failed: <reason>` when Pollinations download fails", async () => {
+describe("generateCover - all providers failed returns null", () => {
+  it("returns null when Pollinations download fails", async () => {
     setQuota(false); // skip MiniMax → straight to Pollinations
     downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 502"));
 
-    await expect(generateCover(defaultOpts())).rejects.toThrow(
-      /cover generation failed: fetch failed: 502/
-    );
+    const result = await generateCover(defaultOpts());
+    expect(result).toBeNull();
   });
 
-  it("throws `cover generation failed` when MiniMax AND Pollinations both fail", async () => {
+  it("returns null when MiniMax AND Pollinations both fail", async () => {
     setQuota(true);
     const fetchMock = vi
       .fn()
@@ -322,9 +321,8 @@ describe("generateCover - Pollinations failure throws", () => {
     vi.stubGlobal("fetch", fetchMock);
     downloadAndUploadMock.mockRejectedValue(new Error("pollinations down"));
 
-    await expect(generateCover(defaultOpts())).rejects.toThrow(
-      /cover generation failed: pollinations down/
-    );
+    const result = await generateCover(defaultOpts());
+    expect(result).toBeNull();
     // MiniMax attempted once, then Pollinations attempted once via uploader
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(1);
@@ -360,13 +358,12 @@ describe("generateCover - Pollinations retry on transient failures", () => {
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(2);
   });
 
-  it("throws after maxAttempts (4) consecutive 429 retriable failures", async () => {
+  it("returns null after maxAttempts (4) consecutive 429 retriable failures", async () => {
     setQuota(false); // skip MiniMax → straight to Pollinations
     downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 429"));
 
-    await expect(generateCover(defaultOpts())).rejects.toThrow(
-      /cover generation failed: fetch failed: 429/
-    );
+    const result = await generateCover(defaultOpts());
+    expect(result).toBeNull();
     // maxAttempts = 4 → uploader invoked exactly 4 times before the
     // outer try/catch wraps the final error.
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(4);
@@ -390,25 +387,22 @@ describe("generateCover - Pollinations retry on transient failures", () => {
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(2);
   });
 
-  it("throws after maxAttempts (4) consecutive 402 retriable failures", async () => {
+  it("returns null after maxAttempts (4) consecutive 402 retriable failures", async () => {
     setQuota(false); // skip MiniMax → straight to Pollinations
     downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 402"));
 
-    await expect(generateCover(defaultOpts())).rejects.toThrow(
-      /cover generation failed: fetch failed: 402/
-    );
-    // maxAttempts = 4 → uploader invoked exactly 4 times before the
-    // outer try/catch wraps the final error.
+    const result = await generateCover(defaultOpts());
+    expect(result).toBeNull();
+    // maxAttempts = 4 → uploader invoked exactly 4 times before exhausting
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(4);
   });
 
-  it("does NOT retry on non-retriable 4xx (e.g. 400) and throws immediately", async () => {
+  it("returns null on non-retriable 4xx (e.g. 400)", async () => {
     setQuota(false);
     downloadAndUploadMock.mockRejectedValue(new Error("fetch failed: 400"));
 
-    await expect(generateCover(defaultOpts())).rejects.toThrow(
-      /cover generation failed: fetch failed: 400/
-    );
+    const result = await generateCover(defaultOpts());
+    expect(result).toBeNull();
     // No retries → exactly 1 invocation
     expect(downloadAndUploadMock).toHaveBeenCalledTimes(1);
   });

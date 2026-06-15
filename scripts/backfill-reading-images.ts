@@ -96,6 +96,11 @@ async function main(): Promise<void> {
           scene: a.scene_description || a.title,
           title: a.title,
         });
+        if (!result) {
+          console.log(`  Cover: SKIP (all providers failed)`);
+          coverFail++;
+          continue;
+        }
         const { error: ue } = await supabase
           .from("reading_articles")
           .update({

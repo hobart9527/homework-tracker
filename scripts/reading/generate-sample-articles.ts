@@ -152,6 +152,10 @@ async function runPipeline(topic: TopicRow, grade: number): Promise<{ ok: boolea
         title: article.title,
         sourceImageUrl: topic.source_image_url ?? undefined,
       });
+      if (!cover) {
+        console.warn(`    Cover: SKIP (all providers failed)`);
+        return { ok: false, error: "no cover" };
+      }
       await sb
         .from("reading_articles")
         .update({

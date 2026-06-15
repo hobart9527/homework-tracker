@@ -816,35 +816,46 @@ async function generateChapterOutline(
   grade: number,
   chapterCount: number,
   opts: GenerateReadingOptions
-): Promise<ArticleChapter[]> {
+): Promise<{ title: string; chapters: ArticleChapter[] }> {
   const lang = opts.language || "en";
   const isEn = lang === "en";
+  const isRouteB = opts.route === "B" && !!opts.sourceText;
+  const sourceSegment = opts.sourceText ? opts.sourceText.slice(0, 3000) : "";
+  const sourceGuidance = isRouteB
+    ? `\nIMPORTANT — Route B (rewrite): Base each chapter ON THE SOURCE TEXT structure. Split the source across ${chapterCount} logical chapters, rewriting for Grade ${grade} reading level. Preserve all key facts.`
+    : "";
 
   const outlinePrompt = isEn
     ? `Create a ${chapterCount}-chapter outline for a Grade ${grade} reading article.
 
 Topic: ${opts.topicKey}
 Category: ${opts.category}
-${opts.sourceText ? `Source text:\n${opts.sourceText.slice(0, 3000)}` : ""}
+${sourceSegment ? `Source text:\n${sourceSegment}` : ""}${sourceGuidance}
 
-Return ONLY a JSON array of chapter objects:
-[
-  { "heading": "Chapter title", "summary": "What this chapter covers (1-2 sentences)" },
-  ...
-]
+Return ONLY a JSON object:
+{
+  "title": "Engaging article title for Grade ${grade}",
+  "chapters": [
+    { "heading": "Chapter title", "summary": "What this chapter covers (1-2 sentences)" },
+    ...
+  ]
+}
 
 Exactly ${chapterCount} chapters.`
     : `为一个${grade}年级的阅读文章创建一个${chapterCount}章的提纲。
 
 主题：${displayTopicKey(opts)}
 类别：${opts.category}
-${opts.sourceText ? `原文参考：\n${opts.sourceText.slice(0, 2000)}` : ""}
+${sourceSegment ? `原文参考：\n${sourceSegment.slice(0, 2000)}` : ""}${sourceGuidance}
 
-返回严格JSON数组，每个元素包含：
-[
-  { "heading": "章节标题", "summary": "章节内容概述（1-2句话）" },
-  ...
-]
+返回严格JSON对象：
+{
+  "title": "为${grade}年级设计的文章标题",
+  "chapters": [
+    { "heading": "章节标题", "summary": "章节内容概述（1-2句话）" },
+    ...
+  ]
+}
 
 共${chapterCount}章。`;
 
@@ -863,12 +874,20 @@ ${opts.sourceText ? `原文参考：\n${opts.sourceText.slice(0, 2000)}` : ""}
     reasoning_split: true,
   } as any);
 
-  const rawText = completion.choices?.[0]?.message?.content || "[]";
+  const rawText = completion.choices?.[0]?.message?.content || "{}";
+  let articleTitle: string;
   let outlines: Array<{ heading?: string; summary?: string }>;
   try {
     const parsed = parseJsonWithRecovery(rawText) as Record<string, unknown>;
-    outlines = (Array.isArray(parsed) ? parsed : (parsed.chapters || parsed.outline || [])) as Array<{ heading?: string; summary?: string }>;
+    const chapters = (Array.isArray(parsed) ? parsed : (parsed.chapters || parsed.outline || [])) as Array<{ heading?: string; summary?: string }>;
+    outlines = Array.isArray(chapters) ? chapters : [];
+    articleTitle = typeof parsed.title === "string" ? parsed.title : "";
   } catch {
+    outlines = [];
+    articleTitle = "";
+  }
+
+  if (outlines.length === 0) {
     // Fallback: generate generic chapter headings
     outlines = Array.from({ length: chapterCount }, (_, i) => ({
       heading: isEn ? `Chapter ${i + 1}` : `第${i + 1}章`,
@@ -876,13 +895,97 @@ ${opts.sourceText ? `原文参考：\n${opts.sourceText.slice(0, 2000)}` : ""}
     }));
   }
 
-  return outlines.slice(0, chapterCount).map((ch, i) => ({
-    index: i,
-    heading: ch.heading || (isEn ? `Chapter ${i + 1}` : `第${i + 1}章`),
-    content: "",
-    word_count: 0,
-    summary: ch.summary || undefined,
-  }));
+  return {
+    title: articleTitle,
+    chapters: outlines.slice(0, chapterCount).map((ch, i) => ({
+      index: i,
+      heading: ch.heading || (isEn ? `Chapter ${i + 1}` : `第${i + 1}章`),
+      content: "",
+      word_count: 0,
+      summary: ch.summary || undefined,
+    })),
+  };
+}
+
+/**
+ * English chapter prompt — injects syntax/bloom/vocab/IB constraints from SSOT.
+ */
+function buildChapterPromptEn(
+  chapter: ArticleChapter,
+  grade: number,
+  chapterCount: number,
+  opts: GenerateReadingOptions,
+  wpc: { min: number; max: number },
+  questionsPerChapter: number
+): string {
+  const enStd = getEnglishStandard(grade);
+  const syntaxDist = getSyntaxDistribution(grade, "en");
+  const bloomDist = getBloomDistribution(grade, "en");
+  const vocab = getVocabScope(grade, "en");
+
+  // Build question type distribution from SSOT bloom's
+  const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
+  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const qTypes: string[] = [];
+  for (let i = 0; i < questionsPerChapter; i++) {
+    const pos = i % 4;
+    qTypes.push(blooms[pos] > 0 ? typeNames[pos] : "detail");
+  }
+  const typeExamples = qTypes.map((t, i) =>
+    `  Q${i + 1}: question_type="${t}"`
+  ).join("\n");
+
+  const isRouteB = opts.route === "B" && !!opts.sourceText;
+  const sourceSection = isRouteB
+    ? `\nSOURCE TEXT FOR THIS CHAPTER (rewrite — preserve all facts):
+${(opts.sourceText || "").slice(0, 2000)}`
+    : `\nSource reference:
+${(opts.sourceText || "").slice(0, 2000)}`;
+
+  return `Write Chapter ${chapter.index + 1} of ${chapterCount} for a Grade ${grade} reading article.
+
+Chapter heading: "${chapter.heading}"
+Chapter summary: ${chapter.summary || ""}
+
+Topic: ${displayTopicKey(opts)}
+Category: ${opts.category}
+${sourceSection}
+
+--- GRADE ${grade} SPECIFICATIONS (THIS CHAPTER) ---
+CRITICAL: Write between ${wpc.min} and ${wpc.max} words for this chapter.
+Sentence structure distribution:
+  - Simple sentences: ${syntaxDist.simple}%
+  - Compound sentences: ${syntaxDist.compound}%
+  - Complex sentences: ${syntaxDist.complex}%
+Vocabulary: ${vocab}
+Paragraphs: ${enStd.paragraphSentencesMin}-${enStd.paragraphSentencesMax} sentences each
+IB requirement: this chapter must include at least one inference or reflection opportunity.
+
+--- QUESTIONS (${questionsPerChapter} for this chapter) ---
+Generate EXACTLY ${questionsPerChapter} questions.
+Question type distribution:
+${typeExamples}
+Each question has 4 options (A/B/C/D), exactly one correct answer.
+Difficulty scale: 1 (easiest) to 5 (hardest).
+
+--- OUTPUT FORMAT ---
+CRITICAL: Return ONLY valid JSON. No explanations, no markdown, no code fences.
+
+{
+  "content": "Chapter text...",
+  "word_count": number,
+  "questions": [
+    {
+      "question_text": "...",
+      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
+      "correct_answer": "A",
+      "difficulty": number (1-5),
+      "hint": "Reading strategy tip (1-2 sentences), NOT the answer.",
+      "explanation": "Why the correct answer is right, in child-friendly language."
+    }
+  ]
+}`;
 }
 
 /**
@@ -912,6 +1015,13 @@ function buildChapterPromptZh(
     `  题${i + 1}: question_type="${t}"`
   ).join("\n");
 
+  const isRouteB = opts.route === "B" && !!opts.sourceText;
+  const sourceSection = isRouteB
+    ? `\n原文参考（改写——保留所有事实）：
+${(opts.sourceText || "").slice(0, 2000)}`
+    : `\n原文参考：
+${(opts.sourceText || "").slice(0, 2000)}`;
+
   return `请写${grade}年级阅读文章的第${chapter.index + 1}章。
 
 章节标题："${chapter.heading}"
@@ -920,20 +1030,19 @@ function buildChapterPromptZh(
 主题：${displayTopicKey(opts)}
 类别：${opts.category}
 第${chapter.index + 1}章，共${chapterCount}章
-
-原文参考：
-${(opts.sourceText || "").slice(0, 2000)}
+${sourceSection}
 
 要求：本章${wpc.min}-${wpc.max}字。
 句子结构：简单句${syntaxDist.simple}%、并列句${syntaxDist.compound}%、复合句${syntaxDist.complex}%
 词汇范围：${vocab}
+IB要求：本章必须包含至少一个推理或思考的机会。
 
 同时创建${questionsPerChapter}道阅读理解题。
 题型分布（基于${grade}年级标准）:
 ${typeExamples}
 每道题4个选项（A/B/C/D），只有一个正确答案。
 
-返回严格JSON：
+返回严格JSON（只返回JSON，不要markdown代码块）：
 {
   "content": "章节内容...",
   "word_count": number,
@@ -943,7 +1052,9 @@ ${typeExamples}
       "question_type": "main_idea|detail|inference|vocabulary|sequence",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
-      "difficulty": number (1-5)
+      "difficulty": number (1-5),
+      "hint": "阅读策略提示（1-2句话），不是答案",
+      "explanation": "为什么正确答案是对的，用儿童友好语言解释"
     }
   ]
 }`;
@@ -965,38 +1076,7 @@ async function generateSingleChapter(
   const questionsPerChapter = getQuestionsPerChapter(grade, lang);
 
   const chapterPrompt = isEn
-    ? `Write Chapter ${chapter.index + 1} of a Grade ${grade} reading article.
-
-Chapter heading: "${chapter.heading}"
-Chapter summary: ${chapter.summary || ""}
-
-Topic: ${displayTopicKey(opts)}
-Category: ${opts.category}
-Chapter ${chapter.index + 1} of ${chapterCount}
-
-Source reference:
-${(opts.sourceText || "").slice(0, 4000)}
-
-CRITICAL: Write between ${wpc.min} and ${wpc.max} words for this chapter.
-
-Also create EXACTLY ${questionsPerChapter} comprehension questions for this chapter.
-Question types: main_idea, detail, inference, vocabulary, sequence.
-Each question has 4 options (A/B/C/D), exactly one correct answer.
-
-Return STRICT JSON:
-{
-  "content": "Chapter text...",
-  "word_count": number,
-  "questions": [
-    {
-      "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
-      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
-      "correct_answer": "A",
-      "difficulty": number (1-5)
-    }
-  ]
-}`
+    ? buildChapterPromptEn(chapter, grade, chapterCount, opts, wpc, questionsPerChapter)
     : buildChapterPromptZh(chapter, grade, chapterCount, opts, wpc, questionsPerChapter);
 
   const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
@@ -1050,15 +1130,18 @@ async function generateChapterizedContent(
 }> {
   const chapterCount = getChapterCount(grade, lang);
 
-  // Phase 1: outline
-  const outlines = await generateChapterOutline(grade, chapterCount, opts);
+  // Phase 1: outline (returns title + chapters array)
+  const { title: outlineTitle, chapters: outlineChapters } = await generateChapterOutline(grade, chapterCount, opts);
+
+  // Use LLM-generated title if available, fall back to topicKey cleanup
+  const articleTitle = outlineTitle || opts.topicKey.replace(/^(en|zh)-/, "").replace(/-/g, " ") || "Untitled";
 
   // Phase 2: generate each chapter sequentially (respect API rate limits)
   // Future optimization: parallel with Pacer
   const chapters: ArticleChapter[] = [];
   const allQuestions: GeneratedQuestion[] = [];
 
-  for (const outline of outlines) {
+  for (const outline of outlineChapters) {
     const result = await generateSingleChapter(outline, grade, chapterCount, opts);
     chapters.push({
       index: outline.index,
@@ -1075,7 +1158,7 @@ async function generateChapterizedContent(
 
   return {
     article: {
-      title: opts.topicKey.replace(/^(en|zh)-/, "").replace(/-/g, " ") || "Untitled",
+      title: articleTitle,
       content: fullContent,
       summary: chapters[0]?.summary || "",
       word_count: totalWordCount,

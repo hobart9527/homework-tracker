@@ -276,7 +276,7 @@ async function generateViaPollinations(opts: {
  */
 export async function generateCover(
   opts: GenerateCoverOptions
-): Promise<CoverResult> {
+): Promise<CoverResult | null> {
   // Source-image-first path: try the source website image before AI generation.
   if (opts.sourceImageUrl) {
     const sourceCover = await generateCoverFromSource(
@@ -313,6 +313,7 @@ export async function generateCover(
     });
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    throw new Error(`cover generation failed: ${reason}`);
+    console.warn(`[cover-generator] all strategies failed: ${reason}`);
+    return null;
   }
 }

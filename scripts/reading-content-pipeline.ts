@@ -295,6 +295,7 @@ interface UpsertArticleData {
   gradeLevel: number;
   title: string;
   content: string;
+  source: string | null;
   sourceUrl: string | null;
   category: string;
   wordCount: number;
@@ -323,7 +324,7 @@ async function upsertArticle(
         grade_level: articleData.gradeLevel,
         title: articleData.title,
         content: articleData.content,
-        source: "curated_news",
+        source: articleData.source ?? "llm",
         source_url: articleData.sourceUrl,
         content_source: articleData.contentSource,
         category: articleData.category,
@@ -532,10 +533,16 @@ function checkSourceQuality(sourceText: string | undefined, grade: number, langu
       else complex++;
     }
   } else {
-    // Chinese: skip syntax analysis (no reliable heuristic without NLP)
-    simple = sentences.length;
-    compound = 0;
-    complex = 0;
+    // Chinese syntax classification using coordinating/subordinating conjunctions
+    const coordConj = /\b(并|且|而|但|而且|但是|可是|不过|或者|还是|因为|所以|于是|并且|或者|然而|不仅|不但|與|和|與此同時|另一方面)\b/;
+    const subordConj = /\b(虽然|即使|儘管|尽管|除非|无论|無論|如果|既然|只要|为了|為了|以便|以免|不管|若|假如|倘若)\b/;
+    for (const s of sentences) {
+      const hasCoord = coordConj.test(s);
+      const hasSubord = subordConj.test(s);
+      if (!hasCoord && !hasSubord) simple++;
+      else if (hasCoord && !hasSubord) compound++;
+      else complex++;
+    }
   }
 
   const total = sentences.length || 1;
@@ -804,6 +811,7 @@ async function processWorkItem(
       gradeLevel: grade,
       title: article.title,
       content: article.content,
+      source: topic.source,
       sourceUrl: topic.source_url,
       category: topic.category,
       wordCount: sanitized.word_count,
