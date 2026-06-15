@@ -42,6 +42,19 @@ import {
   COVER_STYLES,
 } from "@/lib/reading/cover-style-presets";
 
+// Stub Math.random so variant selection is deterministic in tests.
+let mathRandomValue = 0;
+
+function setRandomValue(v: number): void {
+  mathRandomValue = v;
+}
+
+beforeEach(() => {
+  mathRandomValue = 0.3;
+  // Override Math.random globally for our tests
+  vi.spyOn(Math, "random").mockImplementation(() => mathRandomValue);
+});
+
 // --- Helpers --------------------------------------------------------------
 
 function setQuota(result: boolean | null, error: string | null = null): void {
@@ -70,9 +83,8 @@ beforeEach(() => {
   downloadAndUploadMock.mockReset();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  // Stub console.warn to keep test output clean while still letting us
-  // observe fallback log messages via spy if needed.
-  vi.spyOn(console, "warn").mockImplementation(() => {});
+  // Re-apply Math.random stub (restoreAllMocks clears it)
+  vi.spyOn(Math, "random").mockImplementation(() => mathRandomValue);
   // Force retry backoff to 1ms (jittered range 0.5-1.5ms) so retry tests
   // don't introduce real wait time. Production default is 500ms.
   process.env.COVER_RETRY_BASE_DELAY_MS = "1";
@@ -85,24 +97,35 @@ afterEach(() => {
 // --- buildCoverPrompt -----------------------------------------------------
 
 describe("buildCoverPrompt", () => {
-  it("includes category-specific positive style for 成语故事 (ink painting)", () => {
+  it("picks a random positive variant from the preset's array", () => {
+    setRandomValue(0.1);
     const { positive } = buildCoverPrompt(
       "成语故事",
       "a fox at the well at dusk"
     );
-    expect(positive).toContain("ink painting");
+    // At random=0.1, picks variant index 0
+    expect(COVER_STYLES["成语故事"].positive).toContain(positive.split(", scene:")[0]);
     expect(positive).toContain("scene: a fox at the well at dusk");
+  });
+
+  it("injects title as article theme when provided", () => {
+    const { positive } = buildCoverPrompt("科学", "atoms", "奇妙原子");
+    expect(positive).toContain("article theme: '奇妙原子'");
+    expect(positive).toContain("scene: atoms");
+  });
+
+  it("does NOT inject article theme when title is omitted", () => {
+    const { positive } = buildCoverPrompt("科学", "atoms");
+    expect(positive).not.toContain("article theme:");
+    expect(positive).toContain("scene: atoms");
   });
 
   it("falls back to 现代文 preset for unknown categories", () => {
     const { positive, negative } = buildCoverPrompt("未知分类", "a child reads");
-    expect(positive).toContain(COVER_STYLES["现代文"].positive);
-    expect(negative).toBe(COVER_STYLES["现代文"].negative);
-  });
-
-  it("injects the scene as `scene: <scene>` substring in positive prompt", () => {
-    const { positive } = buildCoverPrompt("科学", "atoms orbiting a nucleus");
-    expect(positive).toContain("scene: atoms orbiting a nucleus");
+    // The positive array — check that any variant starts with the same prefix
+    const modernPreset = COVER_STYLES["现代文"];
+    expect(modernPreset.positive.some((p: string) => positive.startsWith(p))).toBe(true);
+    expect(negative).toBe(modernPreset.negative);
   });
 
   it("returns negative prompt with child-friendly safety tokens", () => {
@@ -116,6 +139,24 @@ describe("buildCoverPrompt", () => {
 
   it("ships at least 10 category presets", () => {
     expect(Object.keys(COVER_STYLES).length).toBeGreaterThanOrEqual(10);
+  });
+
+  it("each preset has at least 2 positive style variants", () => {
+    for (const [key, preset] of Object.entries(COVER_STYLES)) {
+      expect(
+        preset.positive.length,
+        `"${key}" should have >= 2 style variants`
+      ).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("produces different positive prompts for different random values", () => {
+    setRandomValue(0.1);
+    const r1 = buildCoverPrompt("成语故事", "scene one");
+    setRandomValue(0.6);
+    const r2 = buildCoverPrompt("成语故事", "scene one");
+    // With 3 variants and distinct random seeds, should get different variants
+    expect(r1.positive).not.toBe(r2.positive);
   });
 });
 

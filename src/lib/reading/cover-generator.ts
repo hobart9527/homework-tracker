@@ -287,7 +287,7 @@ export async function generateCover(
     // fall through to AI generation
   }
 
-  const { positive, negative } = buildCoverPrompt(opts.category, opts.scene);
+  const { positive, negative } = buildCoverPrompt(opts.category, opts.scene, opts.title);
 
   const quotaOk = await checkAndConsumeQuota();
   if (quotaOk) {
