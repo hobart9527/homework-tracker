@@ -220,6 +220,38 @@ describe("parseJsonWithRecovery", () => {
     expect(result).toHaveProperty("chapters");
     expect(Array.isArray((result as any).chapters)).toBe(true);
   });
+
+  it("escapes bare unescaped quotes inside content string (Chinese dialogue)", () => {
+    // MiniMax often outputs bare " inside string values for Chinese dialogue
+    // e.g., 老师说："锄禾日当午"，锄禾就是除草的意思。
+    const raw =
+      '{"title":"悯农","content":"老师说："锄禾日当午"，锄禾就是除草的意思。"}';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "悯农",
+      content: '老师说："锄禾日当午"，锄禾就是除草的意思。',
+    });
+  });
+
+  it("handles multiple bare quotes inside content value", () => {
+    const raw =
+      '{"title":"对话","content":"他说："你好"她说："再见""}';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "对话",
+      content: '他说："你好"她说："再见"',
+    });
+  });
+
+  it("handles bare quotes + literal newlines together", () => {
+    const raw =
+      '{\n  "title": "春晓",\n  "content": "孟浩然说："春眠不觉晓"处处闻啼鸟"\n}';
+    const result = parseJsonWithRecovery(raw);
+    expect(result).toEqual({
+      title: "春晓",
+      content: '孟浩然说："春眠不觉晓"处处闻啼鸟',
+    });
+  });
 });
 
 describe("tryParseWithFallback", () => {

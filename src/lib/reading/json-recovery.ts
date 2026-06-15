@@ -155,20 +155,50 @@ function stripIncompleteTrailingField(text: string): string {
 }
 
 /**
- * Escape control characters (U+0000–U+001F) inside JSON string values.
- * MiniMax often returns JSON with literal newlines (U+000A) in article content,
- * which causes JSON.parse to throw.
+ * Sanitize JSON string values: escape control characters and bare
+ * unescaped ASCII `"` inside string values.
+ *
+ * MiniMax often returns JSON with:
+ *   1. Literal newlines (U+000A) in content fields
+ *   2. Bare ASCII `"` used as Chinese dialogue quotes
+ *      (e.g. 老师说："你好"世界)
+ *
+ * Both are invalid per JSON spec and cause JSON.parse to throw.
  */
-function escapeStringControls(text: string): string {
+function sanitizeJsonStrings(text: string): string {
   let result = "";
   let inString = false;
   let esc = false;
 
-  for (const ch of text) {
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
     if (esc) { esc = false; result += ch; continue; }
     if (ch === "\\" && inString) { esc = true; result += ch; continue; }
-    if (ch === '"') { inString = !inString; result += ch; continue; }
 
+    if (ch === '"') {
+      if (!inString) {
+        result += ch;
+        inString = true;
+        continue;
+      }
+      // Inside string: check if this quote is structural (closing the value)
+      // or content (bare dialogue quote). Look ahead for structural char.
+      let j = i + 1;
+      while (j < text.length && (text[j] === " " || text[j] === "\t" || text[j] === "\n" || text[j] === "\r")) j++;
+      const next = text[j];
+      if (next === "," || next === ":" || next === "}" || next === "]" || next === undefined) {
+        // Structural delimiter or end of input → closing quote
+        inString = false;
+        result += ch;
+      } else {
+        // Content quote (e.g. Chinese dialogue) → escape it
+        result += '\\"';
+      }
+      continue;
+    }
+
+    // Control characters inside strings → escape
     if (inString && ch < " ") {
       switch (ch) {
         case "\n": result += "\\n"; break;
@@ -313,9 +343,11 @@ function tryParseWithFallbackInner(t: string): FallbackResult {
     text = text.slice(jsonStart);
   }
 
-  // Escape literal control characters inside string values
-  // (MiniMax often includes literal newlines in content fields)
-  text = escapeStringControls(text);
+  // Sanitize string values: escape control chars + bare quotes
+  // Only apply when we have a JSON object structure
+  if (text.includes("{") && text.includes("}")) {
+    text = sanitizeJsonStrings(text);
+  }
 
   try {
     return {
