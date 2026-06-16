@@ -1,10 +1,6 @@
 name: Reading Content Pipeline
 
 on:
-  schedule:
-    # 08:00 CST = 00:00 UTC — daily content generation
-    # Use minute 7 to avoid GitHub scheduler peak-hour skip risk
-    - cron: "7 0 * * *"
   workflow_dispatch:
 
 jobs:
@@ -12,7 +8,7 @@ jobs:
     name: Generate English reading content
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +30,7 @@ jobs:
     name: Generate Chinese reading content
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +51,7 @@ jobs:
     name: Backfill cover images & illustrations
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4

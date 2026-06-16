@@ -440,8 +440,8 @@ Article:
 Create {{QUESTION_COUNT}} comprehension questions.
 Question types: {{FOCUS_AREAS}}
 Mix of: main_idea, detail, inference, vocabulary, sequence.
-Each question has 4 options (A/B/C/D), exactly one correct answer.
-Difficulty scale: 1 (easiest) to 5 (hardest).
+Each question MUST have EXACTLY 4 options labeled "A", "B", "C", "D" with non-empty text.
+Exactly one correct answer. Difficulty scale: 1 (easiest) to 5 (hardest).
 
 Also provide:
 - scene_description: one vivid sentence describing a key scene
@@ -462,7 +462,20 @@ Return STRICT JSON:
   "genre": "narrative|informative|opinion|literary",
   "author_purpose": "to inform|to entertain|to persuade|to explain",
   "illustrations": [{ "paragraph_index": 0, "scene_description": "..." }],
-  "questions": [{ "question_text": "...", "question_type": "...", "options": [{"label":"A","text":"..."},...], "correct_answer": "A", "difficulty": number }]
+  "questions": [
+    {
+      "question_text": "What is the main idea of the passage?",
+      "question_type": "main_idea",
+      "options": [
+        {"label":"A","text":"First option text here"},
+        {"label":"B","text":"Second option text here"},
+        {"label":"C","text":"Third option text here"},
+        {"label":"D","text":"Fourth option text here"}
+      ],
+      "correct_answer": "A",
+      "difficulty": 3
+    }
+  ]
 }`;
 
 const ROUTE_A_PROMPT_ZH =
@@ -474,8 +487,8 @@ const ROUTE_A_PROMPT_ZH =
 创建{{QUESTION_COUNT}}道阅读理解题。
 题型：{{FOCUS_AREAS}}
 混合题型：main_idea（主旨）、detail（细节）、inference（推理）、vocabulary（词汇）、sequence（顺序）。
-每道题4个选项（A/B/C/D），只有一个正确答案。
-难度：1（最简单）到5（最难）。
+每道题必须有且仅有4个选项，标记为"A"、"B"、"C"、"D"，每个选项必须有文字内容。
+只有一个正确答案。难度：1（最简单）到5（最难）。
 
 还需提供：
 - scene_description：一句话描述关键场景
@@ -486,7 +499,7 @@ const ROUTE_A_PROMPT_ZH =
 
 题型分布标注在下方各题具体说明中，请严格按每道题指定的 question_type 执行。
 
-返回严格JSON：
+返回严格JSON（每个选项必须包含 label 和 text 字段）：
 {
   "summary": "一句话总结",
   "scene_description": "关键场景描述",
@@ -494,7 +507,20 @@ const ROUTE_A_PROMPT_ZH =
   "cultural_connection": "文化关联描述",
   "classical_quote": { "original": "原文", "pinyin": "拼音", "translation": "译文" },
   "illustrations": [{ "paragraph_index": 0, "scene_description": "..." }],
-  "questions": [{ "question_text": "...", "question_type": "...", "options": [...], "correct_answer": "A", "difficulty": number }]
+  "questions": [
+    {
+      "question_text": "这篇文章的主要内容是什么？",
+      "question_type": "main_idea",
+      "options": [
+        {"label":"A","text":"第一个选项"},
+        {"label":"B","text":"第二个选项"},
+        {"label":"C","text":"第三个选项"},
+        {"label":"D","text":"第四个选项"}
+      ],
+      "correct_answer": "A",
+      "difficulty": 3
+    }
+  ]
 }`;
 
 function buildEnglishRouteAPrompt(options: GenerateReadingOptions): string {
@@ -771,6 +797,10 @@ function normalizeQuestions(result: Record<string, unknown>): GeneratedQuestion[
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((q): q is Record<string, unknown> => q !== null && typeof q === "object")
+    .filter((q) => {
+      const opts = q.options;
+      return Array.isArray(opts) && opts.length >= 4;
+    })
     .map((q) => {
       const options = normalizeQuestionOptions(q);
       return {
@@ -1253,13 +1283,18 @@ export async function generateReadingContent(
         factual_accuracy: undefined,
       } satisfies GeneratedArticle,
       questions: Array.isArray(result.questions)
-        ? (result.questions as Record<string, unknown>[]).map((q) => ({
-            question_text: (q.question_text as string) || "",
-            question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
-            options: (q.options as { label: string; text: string }[]) || [],
-            correct_answer: (q.correct_answer as string) || "A",
-            difficulty: (q.difficulty as number) || 3,
-          }))
+        ? (result.questions as Record<string, unknown>[])
+            .filter((q) => {
+              const opts = q.options;
+              return Array.isArray(opts) && opts.length >= 4;
+            })
+            .map((q) => ({
+              question_text: (q.question_text as string) || "",
+              question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
+              options: (q.options as { label: string; text: string }[]) || [],
+              correct_answer: (q.correct_answer as string) || "A",
+              difficulty: (q.difficulty as number) || 3,
+            }))
         : [],
       illustrations: Array.isArray(result.illustrations)
         ? (result.illustrations as Record<string, unknown>[]).map((ill) => ({

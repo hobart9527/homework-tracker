@@ -56,37 +56,17 @@ function countWords(text: string): number {
 // Grade expansion — widen target_grades when word count qualifies
 // ---------------------------------------------------------------------------
 
+/**
+ * Grade expansion removed per content quality refresh.
+ * Each topic generates exactly for its target grade(s).
+ * No cascading — grade coverage comes from having enough topics per level.
+ */
 export function expandGrades(
-  wordCount: number,
+  _wordCount: number,
   baseGrade: number,
-  lang: "zh" | "en"
+  _lang: "zh" | "en"
 ): number[] {
-  const grades = [baseGrade];
-
-  if (lang === "en") {
-    // G3 → G4 if text reaches G4 word-count floor
-    if (baseGrade === 3 && wordCount >= getWordCountRange("en", 4).min * 0.85) {
-      grades.push(4);
-    }
-    // G5 → G6
-    if (baseGrade === 5 && wordCount >= getWordCountRange("en", 6).min * 0.85) {
-      grades.push(6);
-    }
-    // G6 → G7 / G8
-    if (baseGrade === 6) {
-      if (wordCount >= getWordCountRange("en", 7).min * 0.85) grades.push(7);
-      if (wordCount >= getWordCountRange("en", 8).min * 0.85) grades.push(8);
-    }
-  }
-
-  if (lang === "zh") {
-    const nextBounds = getWordCountRange("zh", baseGrade + 1);
-    if (wordCount >= nextBounds.min * 0.85) {
-      grades.push(baseGrade + 1);
-    }
-  }
-
-  return [...new Set(grades)].sort((a, b) => a - b);
+  return [baseGrade];
 }
 
 // ---------------------------------------------------------------------------

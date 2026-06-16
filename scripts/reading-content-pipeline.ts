@@ -17,12 +17,14 @@
  *   PIPELINE_GRADES           (optional, comma-separated, e.g. "4,7")
  *   PIPELINE_LEVELS           (optional, default: "L1,L2,L3" — used when PIPELINE_GRADES is not set)
  *   PIPELINE_TOPIC_LIMIT      (optional, default: 0 = all topics)
+ *   PIPELINE_DRY_RUN          (optional, set "1" to skip DB writes for trial run)
  *   MINIMAX_DAILY_QUOTA       (optional, default: 50)
  *
  * Usage:
  *   npx tsx scripts/reading-content-pipeline.ts
  *   PIPELINE_GRADES="4,7" PIPELINE_TOPIC_LIMIT=2 npx tsx scripts/reading-content-pipeline.ts
  *   npx tsx scripts/reading-content-pipeline.ts --scrape-first
+ *   npx tsx scripts/reading-content-pipeline.ts --dry-run          # preview only, no DB writes
  *
  * Exit codes:
  *   0 - all succeeded or partially skipped (no failures)
@@ -596,10 +598,12 @@ async function main(): Promise<void> {
   }
 
   const gradesDisplay = gradesEnv ? grades.join(", ") : grades.join(", ") + " (mapped from levels)";
+  const dryRun = process.argv.includes("--dry-run") || process.env.PIPELINE_DRY_RUN === "1";
   console.log(`Grades:     ${gradesDisplay}`);
   console.log(`Language:   ${pipelineLanguage}`);
   console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M3"}`);
   console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1"}`);
+  if (dryRun) console.log("DRY RUN:    quality checks will run but NO data will be written to DB");
   console.log("");
 
   const supabase = await getSupabaseClient();
@@ -637,7 +641,7 @@ async function main(): Promise<void> {
   // Create global pacer for LLM call concurrency (max 3 concurrent across all tasks)
   const pacer = new Pacer(3);
   const tasks = workItems.map((item, index) =>
-    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer)
+    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun)
   );
 
   const results = await Promise.all(tasks);
@@ -691,7 +695,8 @@ async function processWorkItem(
   grades: number[],
   topics: ReadingTopicRow[],
   supabase: SupabaseClient<PipelineDatabase>,
-  pacer: InstanceType<typeof Pacer>
+  pacer: InstanceType<typeof Pacer>,
+  dryRun: boolean = false
 ): Promise<ProcessResult> {
   const { topic, grade } = item;
   const key = `${topic.topic_key}|G${grade}`;
@@ -802,9 +807,26 @@ async function processWorkItem(
 
     // Route A: skip factual gate (original text is the ground truth)
     const effectiveFactualPass = qualityCheck.fitsLevel ? true : factualGate.pass;
-    const status: "draft" | "published" = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
+    const qualityPass = gate.pass && ibGate.pass && effectiveFactualPass;
+
+    // Quality gate block: skip DB insert when quality check fails
+    if (!qualityPass) {
+      const issueCount = allIssues.length;
+      const sampleIssues = allIssues.slice(0, 3).map((i: any) => i.message || i.code).join("; ");
+      console.log(`\n  QUALITY FAIL (${issueCount} issues): ${sampleIssues}${dryRun ? " [dry-run, skipping DB]" : ""}`);
+      if (!dryRun) {
+        console.log("  SKIPPING — article not stored");
+        return { status: "skipped", reason: `quality-fail:${issueCount} issues` };
+      }
+    }
+
+    const status: "draft" | "published" = qualityPass ? "published" : "draft";
 
     // Step 5: Upsert article FIRST to get real articleId
+    if (dryRun) {
+      console.log("\n  DRY RUN — would upsert article, skipping all DB writes");
+      return { status: "succeeded" };
+    }
     const sanitized = sanitizeArticleNumbers(article, pipelineLanguage);
     const articleId = await upsertArticle(supabase, {
       topicKey: topic.topic_key,
