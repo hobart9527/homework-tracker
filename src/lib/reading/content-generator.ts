@@ -1158,7 +1158,9 @@ async function generateChapterizedContent(
   questions: GeneratedQuestion[];
   illustrations: LocalGeneratedIllustration[];
 }> {
-  const chapterCount = getChapterCount(grade, lang);
+  // G3 uses 2 chapters (standards.json has chapterCount=1 for G3)
+  // For G4+, use the standards-defined count
+  const chapterCount = grade <= 3 ? 2 : getChapterCount(grade, lang);
 
   // Phase 1: outline (returns title + chapters array)
   const { title: outlineTitle, chapters: outlineChapters } = await generateChapterOutline(grade, chapterCount, opts);
@@ -1213,9 +1215,11 @@ export async function generateReadingContent(
 }> {
   const effectiveGradeForDifficulty = deriveEffectiveGrade(opts);
 
-  // If grade >= 4, use chapterized generation
+  // G3+ uses chapterized generation for better depth and token management
+  // G3 gets 2 chapters (gradeHasChapters returns false for G3 since JSON has chapterCount=1)
   const lang = opts.language || "en";
-  if (opts.route !== "A" && gradeHasChapters(effectiveGradeForDifficulty, lang)) {
+  const useChapters = opts.route !== "A" && (gradeHasChapters(effectiveGradeForDifficulty, lang) || effectiveGradeForDifficulty <= 3);
+  if (useChapters) {
     return generateChapterizedContent(opts, effectiveGradeForDifficulty, lang);
   }
 
