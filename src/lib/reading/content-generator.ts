@@ -702,7 +702,7 @@ export async function generateArticleContent(
 ): Promise<{ article: LocalGeneratedArticle; questions: LocalGeneratedQuestion[] }> {
   const prompt = buildGenerationPrompt(options);
 
-  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
   const completion = await getOpenAI().chat.completions.create({
@@ -859,7 +859,7 @@ ${sourceSegment ? `原文参考：\n${sourceSegment.slice(0, 2000)}` : ""}${sour
 
 共${chapterCount}章。`;
 
-  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
   const completion = await getOpenAI().chat.completions.create({
@@ -1079,7 +1079,7 @@ async function generateSingleChapter(
     ? buildChapterPromptEn(chapter, grade, chapterCount, opts, wpc, questionsPerChapter)
     : buildChapterPromptZh(chapter, grade, chapterCount, opts, wpc, questionsPerChapter);
 
-  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
   const completion = await getOpenAI().chat.completions.create({
@@ -1209,9 +1209,9 @@ export async function generateReadingContent(
     }).difficulty;
 
     // LLM call: only for questions + metadata. Short prompt, low max_tokens.
-    const isMiniMax = (process.env.OPENAI_READING_MODEL || "MiniMax-M3").toLowerCase().includes("minimax");
+    const isMiniMax = (process.env.OPENAI_READING_MODEL || "MiniMax-M2.7").toLowerCase().includes("minimax");
     const completion = await getOpenAI().chat.completions.create({
-      model: process.env.OPENAI_READING_MODEL || "MiniMax-M3",
+      model: process.env.OPENAI_READING_MODEL || "MiniMax-M2.7",
       messages: [
         {
           role: "system",
@@ -1275,7 +1275,7 @@ export async function generateReadingContent(
     ? (opts.language === "zh" ? buildChineseRouteBPrompt(opts) : buildEnglishRouteBPrompt(opts))
     : (opts.language === "zh" ? buildChinesePrompt(opts) : buildEnglishPrompt(opts));
 
-  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M3";
+  const modelName = process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
   const completion = await getOpenAI().chat.completions.create({
