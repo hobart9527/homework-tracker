@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "minArticlesRead": 15,
+  "minAccuracyPct": 75,
+  "gradeSequence": [3, 4, 5, 6, 7, 8, 9, 10],
+  "allowGradeSkip": false
+}

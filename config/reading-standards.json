@@ -64,6 +64,16 @@
       "syntax": { "simple": 15, "compound": 45, "complex": 40 },
       "blooms": { "literal": 0, "infer": 2, "evaluate": 2, "synthesize": 1 },
       "vocabulary": "GSL full + AWL full + academic words, 12-15 theme words per article"
+    },
+    "L4": {
+      "label": "MYP phase 5 / DP prep",
+      "gradeRange": [10],
+      "razLevels": ["Z1", "Z2"],
+      "lexileBand": { "min": 1200, "max": 1400 },
+      "wordCount": { "min": 1500, "max": 3000 },
+      "syntax": { "simple": 5, "compound": 35, "complex": 60 },
+      "blooms": { "literal": 0, "infer": 1, "evaluate": 3, "synthesize": 3 },
+      "vocabulary": "GSL full + AWL full + academic vocabulary. Use domain-specific terminology, nuanced arguments, rhetorical devices, and evidence-based reasoning."
     }
   },
   "ibThemes": {
@@ -84,7 +94,8 @@
   },
   "textTypeDistribution": {
     "L1": { "fiction": 40, "non-fiction": 40, "poetry": 10, "drama": 5, "media": 5, "academic": 0 },
-    "L2": { "fiction": 30, "non-fiction": 35, "poetry": 10, "drama": 10, "media": 10, "academic": 5 },
-    "L3": { "fiction": 25, "non-fiction": 30, "poetry": 10, "drama": 10, "media": 15, "academic": 10 }
+    "L2": { "fiction": 25, "non-fiction": 30, "poetry": 10, "drama": 10, "media": 10, "academic": 15 },
+    "L3": { "fiction": 20, "non-fiction": 25, "poetry": 10, "drama": 10, "media": 15, "academic": 20 },
+    "L4": { "fiction": 10, "non-fiction": 20, "poetry": 5, "drama": 5, "media": 20, "academic": 40 }
   }
 }

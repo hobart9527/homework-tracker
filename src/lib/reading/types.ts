@@ -9,7 +9,7 @@ export type ReadingQuestionType = "main_idea" | "detail" | "inference" | "vocabu
 
 export type ReadingAssignmentStatus = "recommended" | "in_progress" | "completed";
 
-export type ReadingArticleStatus = "draft" | "published";
+export type ReadingArticleStatus = "draft" | "published" | "archived";
 
 export interface ReadingArticle {
   id: string;
