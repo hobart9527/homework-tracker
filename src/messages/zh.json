@@ -394,6 +394,10 @@
       "back": "返回",
       "autoCheckinNote": "{group}阅读自动打卡 — 文章: {id}, 得分: {score}/{total}"
     },
+    "checkin": {
+      "success": "打卡成功！阅读作业已完成",
+      "failed": "自动打卡未成功，请手动打卡"
+    },
     "levelProgress": {
       "currentLevel": "当前级别",
       "streakLabel": "连续正确率: {streak}/3",

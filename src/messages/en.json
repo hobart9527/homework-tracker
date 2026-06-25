@@ -394,6 +394,10 @@
       "back": "Back",
       "autoCheckinNote": "{group} reading auto check-in — Article: {id}, Score: {score}/{total}"
     },
+    "checkin": {
+      "success": "Homework check-in complete!",
+      "failed": "Auto check-in didn't work. You can check in manually."
+    },
     "levelProgress": {
       "currentLevel": "Current Level",
       "streakLabel": "Accuracy Streak: {streak}/3",

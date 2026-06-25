@@ -78,6 +78,7 @@ function ReadingArticleContent({
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"reading" | "quiz">("reading");
   const [pinyinEnabled, setPinyinEnabled] = useState(false);
+  const [checkinStatus, setCheckinStatus] = useState<"pending" | "success" | "failed" | null>(null);
 
   const articleReaderRef = useRef<ArticleReaderRef>(null);
   const supabaseRef = useRef(createClient());
@@ -169,6 +170,7 @@ function ReadingArticleContent({
       // ── Reading auto-checkin ──
       if (!childId) return;
 
+      setCheckinStatus("pending");
       try {
         const supabase = createClient();
 
@@ -187,8 +189,11 @@ function ReadingArticleContent({
         const matchingHomeworks =
           readingHomeworks?.filter(
             (hw: any) =>
-              hw.group?.name === targetGroupName &&
-              shouldAutoCompleteReading(hw)
+              shouldAutoCompleteReading(hw) &&
+              (hw.group?.name === targetGroupName ||
+                // Fallback: type_name itself encodes language
+                (article?.language === "en" && hw.type_name === "英文阅读") ||
+                (article?.language === "zh" && hw.type_name === "中文阅读"))
           ) ?? [];
 
         for (const hw of matchingHomeworks) {
@@ -232,9 +237,11 @@ function ReadingArticleContent({
             });
           }
         }
+        setCheckinStatus("success");
       } catch (err) {
         // Auto-checkin is best-effort; never block the quiz flow.
         console.error("Reading auto-checkin failed:", err);
+        setCheckinStatus("failed");
       }
     },
     [childId, params.id, article?.language]
@@ -385,6 +392,39 @@ function ReadingArticleContent({
               );
             }}
           />
+        </div>
+      )}
+
+      {/* Auto-checkin status feedback */}
+      {checkinStatus === "success" && (
+        <div className="mx-auto max-w-2xl px-4 pb-6">
+          <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium"
+            style={{
+              backgroundColor: "var(--color-success-bg, #ecfdf5)",
+              color: "var(--color-success-text, #065f46)",
+              border: "1px solid var(--color-success-border, #a7f3d0)",
+            }}>
+            <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            {t('reading.checkin.success')}
+          </div>
+        </div>
+      )}
+
+      {checkinStatus === "failed" && (
+        <div className="mx-auto max-w-2xl px-4 pb-6">
+          <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium"
+            style={{
+              backgroundColor: "var(--color-warning-bg, #fffbeb)",
+              color: "var(--color-warning-text, #92400e)",
+              border: "1px solid var(--color-warning-border, #fde68a)",
+            }}>
+            <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            {t('reading.checkin.failed')}
+          </div>
         </div>
       )}
     </>
