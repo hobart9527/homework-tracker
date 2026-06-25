@@ -53,11 +53,27 @@ export async function POST(request: Request) {
     .from("homeworks")
     .select("*")
     .eq("id", homework_id)
-    .eq("child_id", session.user.id)
     .single();
 
   if (homeworkError || !homework) {
     return NextResponse.json({ error: "Homework not found" }, { status: 404 });
+  }
+
+  // Resolve acting child: direct child auth or parent acting for child
+  let activeChildId: string;
+  if (homework.child_id === session.user.id) {
+    activeChildId = session.user.id;
+  } else {
+    const { data: childRecord } = await supabase
+      .from("children")
+      .select("id")
+      .eq("id", homework.child_id)
+      .eq("parent_id", session.user.id)
+      .maybeSingle();
+    if (!childRecord) {
+      return NextResponse.json({ error: "Homework not found" }, { status: 404 });
+    }
+    activeChildId = homework.child_id;
   }
 
   const now = new Date();
@@ -73,7 +89,7 @@ export async function POST(request: Request) {
   const { data: existingSameDay, error: existingError } = await supabase
     .from("check_ins")
     .select("*")
-    .eq("child_id", session.user.id)
+    .eq("child_id", activeChildId)
     .eq("homework_id", homework.id)
     .gte("completed_at", dayStart)
     .lte("completed_at", dayEnd);
@@ -114,7 +130,7 @@ export async function POST(request: Request) {
 
   const primaryPayload = buildCheckInInsertPayload({
     homeworkId: homework.id,
-    childId: session.user.id,
+    childId: activeChildId,
     completedAt,
     submittedAt,
     note,
@@ -135,7 +151,7 @@ export async function POST(request: Request) {
       .insert(
         buildLegacyCheckInInsertPayload({
           homeworkId: homework.id,
-          childId: session.user.id,
+          childId: activeChildId,
           completedAt,
           note,
           result: decision,
