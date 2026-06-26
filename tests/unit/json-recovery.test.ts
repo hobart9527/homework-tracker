@@ -252,6 +252,19 @@ describe("parseJsonWithRecovery", () => {
       content: '孟浩然说："春眠不觉晓"处处闻啼鸟',
     });
   });
+
+  it("fixes MiniMax literal \\\\n in content (actual newlines)", () => {
+    const raw = '{"title":"Paragraphs","content":"First paragraph.\\n\\nSecond paragraph."}';
+    const result = parseJsonWithRecovery(raw) as Record<string, unknown>;
+    expect(result.title).toBe("Paragraphs");
+    expect((result.content as string).includes("\n")).toBe(true);
+  });
+
+  it("fixes MiniMax literal \\\\t in content", () => {
+    const raw = '{"title":"Tabbed","content":"Column1\\tColumn2"}';
+    const result = parseJsonWithRecovery(raw) as Record<string, unknown>;
+    expect((result.content as string).includes("\t")).toBe(true);
+  });
 });
 
 describe("tryParseWithFallback", () => {

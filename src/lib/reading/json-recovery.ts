@@ -218,6 +218,52 @@ function sanitizeJsonStrings(text: string): string {
   return result;
 }
 
+/**
+ * Replace literal backslash-escape sequences inside JSON string values.
+ * MiniMax M2.7 often outputs "content":"第一段。\\n\\n第二段。"
+ * where \\n is literal backslash+n, not a newline.
+ */
+function unescapeMinimaxLiterals(text: string): string {
+  let result = "";
+  let inString = false;
+  let esc = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (esc) {
+      esc = false;
+      // We're after a backslash inside a string
+      if (inString) {
+        switch (ch) {
+          case "n": result += "\n"; continue;
+          case "t": result += "\t"; continue;
+          case "r": result += "\r"; continue;
+          case "\\": result += "\\"; continue;
+          case '"': result += '"'; continue;
+          default: result += ch; continue;
+        }
+      }
+      result += ch;
+      continue;
+    }
+
+    if (ch === "\\") {
+      esc = true;
+      result += ch;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = !inString;
+    }
+
+    result += ch;
+  }
+
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Main recovery chain
 // ---------------------------------------------------------------------------
@@ -255,6 +301,22 @@ function tryParseWithFallback(rawText: string): FallbackResult {
   if (unescaped) {
     const fromUnescaped = tryParseWithFallbackInner(unescaped);
     if (fromUnescaped.success) return fromUnescaped;
+  }
+
+  // Try recovery on MiniMax literal-escaped text (\\n, \\t, \\r patterns)
+  const literalUnescaped = unescapeMinimaxLiterals(original);
+  if (literalUnescaped !== original) {
+    const fromLiteral = tryParseWithFallbackInner(literalUnescaped);
+    if (fromLiteral.success) return fromLiteral;
+  }
+
+  // Also try literal unescape on smart-unescaped text
+  if (unescaped) {
+    const literalUnescaped2 = unescapeMinimaxLiterals(unescaped);
+    if (literalUnescaped2 !== unescaped) {
+      const fromLiteral2 = tryParseWithFallbackInner(literalUnescaped2);
+      if (fromLiteral2.success) return fromLiteral2;
+    }
   }
 
   // Both paths failed — return the original's partial result

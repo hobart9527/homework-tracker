@@ -182,8 +182,7 @@ function ReadingArticleContent({
           .select(
             "id, type_name, point_value, required_checkpoint_type, type_group_id, group:homework_type_groups(name)"
           )
-          .eq("child_id", childId)
-          .is("deleted_at", null);
+          .eq("child_id", childId);
 
         const targetGroupName = article?.language === "en" ? "英文" : "中文";
         const matchingHomeworks =

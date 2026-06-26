@@ -972,6 +972,31 @@ ${(opts.sourceText || "").slice(0, 2000)}`
     : `\nSource reference:
 ${(opts.sourceText || "").slice(0, 2000)}`;
 
+  const depthAnchor = grade >= 6
+    ? `\nACADEMIC DEPTH REQUIREMENTS (Grade ${grade}):
+- Include ONE direct or paraphrased reference to a real source/expert/citation
+- Use at least 3 AWL (Academic Word List) tier-2 words appropriate for Grade ${grade}
+- Present at least ONE viewpoint and, where applicable, a contrasting perspective
+- Each paragraph must advance a specific idea — no filler sentences`
+    : grade >= 4
+    ? `\nREASONING DEPTH REQUIREMENTS (Grade ${grade}):
+- Include ONE inference opportunity where the reader must connect two facts
+- Use at least 2 vocabulary words from the Grade ${grade} scope
+- Each paragraph should build on the previous one`
+    : `\nCOMPREHENSION DEPTH (Grade 3):
+- Use simple cause-effect connections between sentences
+- Include ONE "why do you think" moment for the reader`;
+
+  const transitionCheck = chapter.index > 0
+    ? `\nTRANSITION CHECK: This is chapter ${chapter.index + 1} of ${chapterCount}.
+- DO NOT repeat facts, setting, or background already covered in chapter ${chapter.index}
+- DO NOT jump ahead to events belonging in chapter ${chapter.index + 2}
+- Start with a natural transition from where chapter ${chapter.index} ended
+- If chapter ${chapter.index} had a question unanswered, address it here`
+    : `\nTRANSITION CHECK: This is the FIRST chapter.
+- Set the scene, introduce the topic
+- Do NOT resolve the main question — leave it for later chapters`;
+
   return `Write Chapter ${chapter.index + 1} of ${chapterCount} for a Grade ${grade} reading article.
 
 Chapter heading: "${chapter.heading}"
@@ -990,6 +1015,7 @@ Sentence structure distribution:
 Vocabulary: ${vocab}
 Paragraphs: ${enStd.paragraphSentencesMin}-${enStd.paragraphSentencesMax} sentences each
 IB requirement: this chapter must include at least one inference or reflection opportunity.
+${depthAnchor}
 
 --- QUESTIONS (${questionsPerChapter} for this chapter) ---
 Generate EXACTLY ${questionsPerChapter} questions.
@@ -1015,7 +1041,8 @@ CRITICAL: Return ONLY valid JSON. No explanations, no markdown, no code fences.
       "explanation": "Why the correct answer is right, in child-friendly language."
     }
   ]
-}`;
+}
+${transitionCheck}`;
 }
 
 /**
@@ -1052,6 +1079,31 @@ ${(opts.sourceText || "").slice(0, 2000)}`
     : `\n原文参考：
 ${(opts.sourceText || "").slice(0, 2000)}`;
 
+  const depthAnchorZh = grade >= 6
+    ? `\n学术深度要求（${grade}年级）：
+- 至少包含一处对真实资料/专家/引用的直接或转述引用
+- 至少使用3个适合${grade}年级的学术词汇
+- 至少呈现一个观点，并在适用处提供对比视角
+- 每个段落必须有明确论点，不得出现填充句`
+    : grade >= 4
+    ? `\n推理深度要求（${grade}年级）：
+- 至少包含一处推理机会，读者需连接两个事实得出结论
+- 至少使用2个${grade}年级词汇范围内的词汇
+- 每个段落应承接上一段内容`
+    : `\n理解深度（3年级）：
+- 运用简单的因果关系连接句子
+- 包含一处"你觉得为什么"的思考契机`;
+
+  const transitionCheckZh = chapter.index > 0
+    ? `\n章节过渡检查：本章为第${chapter.index + 1}章，共${chapterCount}章。
+- 不要重复第${chapter.index}章已覆盖的事实、背景或设定
+- 不要跳至第${chapter.index + 2}章才应出现的内容
+- 从第${chapter.index}章结尾处自然过渡
+- 如第${chapter.index}章留有未解答的问题，本章应予以回应`
+    : `\n章节过渡检查：本章为第一章。
+- 介绍场景与话题
+- 不要解决核心问题——留给后续章节`;
+
   return `请写${grade}年级阅读文章的第${chapter.index + 1}章。
 
 章节标题："${chapter.heading}"
@@ -1066,6 +1118,7 @@ ${sourceSection}
 句子结构：简单句${syntaxDist.simple}%、并列句${syntaxDist.compound}%、复合句${syntaxDist.complex}%
 词汇范围：${vocab}
 IB要求：本章必须包含至少一个推理或思考的机会。
+${depthAnchorZh}
 
 同时创建${questionsPerChapter}道阅读理解题。
 题型分布（基于${grade}年级标准）:
@@ -1087,7 +1140,8 @@ ${typeExamples}
       "explanation": "为什么正确答案是对的，用儿童友好语言解释"
     }
   ]
-}`;
+}
+${transitionCheckZh}`;
 }
 
 /**

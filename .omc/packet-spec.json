@@ -1,48 +1,150 @@
 {
   "schema_version": "2.1",
-  "task_id": "fix-parent-ui-wave-1",
-  "risk_mode": "Light",
-  "goal": "Fix parent UI styles across all pages: color tokens, layout, fonts, spacing",
+  "task_id": "fix-reading-auto-checkin-chain-v1",
+  "request_id": "723fdd52-fca5-41cd-b3ab-2a7763d237f0",
+  "risk_mode": "Standard",
+  "goal": "Fix the reading-completion auto-checkin chain: P0 query bug, RLS gaps, client-side checkin moved to server, state-matrix UI for honest feedback, missing unit tests.",
+  "walkthrough_source": "report://722f7c3a-reading-auto-checkin-walkthrough (delivered by orchestrator)",
+  "eux_contract_ref": "/Users/haobo/.claude/omc/state/agent-contract/reports/materialized-contracts/723fdd52-fca5-41cd-b3ab-2a7763d237f0/frontend-contract.json",
+  "obligation_ref": "obl-723fdd52-fca5-41cd-b3ab-2a7763d237f0-specialist_contract-D-product_experience.v1",
   "tasks": [
     {
-      "task_id": "p1-config",
-      "goal": "Add semantic color aliases to tailwind.config.ts and LXGW WenKai font to globals.css",
-      "write_scope": ["tailwind.config.ts", "src/styles/globals.css"],
-      "read_scope": ["tailwind.config.ts", "src/styles/globals.css"],
-      "acceptance": ["success/info/danger colors added to tailwind config", "LXGW WenKai font imported in globals.css"],
-      "verification": ["diff shows added colors and font import"]
+      "task_id": "t1-server-side-checkin",
+      "agent": "adhd-agent",
+      "goal": "Move reading auto-checkin from client (page.tsx handleQuizComplete) to server (/api/reading/quiz/submit). Server inserts check_ins row in the same transaction as the quiz attempt, returns checkin status in response. Eliminates race window and silent client-side failures.",
+      "write_scope": [
+        "src/app/api/reading/quiz/submit/route.ts",
+        "src/lib/auto-checkins.ts",
+        "src/lib/reading/__tests__/auto-checkin-flow.test.ts"
+      ],
+      "read_scope": [
+        "src/app/[locale]/(reader)/reading/[id]/page.tsx",
+        "src/lib/auto-checkins.ts",
+        "src/lib/learning-event-auto-checkins.ts",
+        "src/app/api/reading/quiz/submit/route.ts",
+        "src/lib/supabase/server.ts",
+        "src/lib/homework-utils.ts"
+      ],
+      "acceptance": [
+        "createReadingAutoCheckin callable from /api/reading/quiz/submit using server supabase client",
+        "API response includes checkin_status: 'created' | 'deduped' | 'skipped' | 'failed' with server-side error reason on failed",
+        "createReadingAutoCheckin no longer silently swallows errors — returns { ok, error } instead of null",
+        "Vitest covers: (a) created on first attempt, (b) deduped on second attempt same day same article, (c) skipped when no matching homework, (d) failed surfaces the underlying error",
+        "Existing applyAutoCheckinMatches tests still pass"
+      ],
+      "verification": [
+        "npx vitest run tests/unit/auto-checkins.test.ts src/lib/reading/__tests__/auto-checkin-flow.test.ts",
+        "diff shows API returns checkin_status field",
+        "diff shows client-side handleQuizComplete no longer inserts into check_ins"
+      ]
     },
     {
-      "task_id": "p2-settings",
-      "goal": "Fix SettingsShell nested layout and replace non-token colors in settings pages",
-      "write_scope": ["src/components/parent/SettingsShell.tsx", "src/app/(parent)/settings/channels/page.tsx", "src/app/(parent)/settings/integrations/page.tsx"],
-      "read_scope": ["src/components/parent/SettingsShell.tsx", "src/app/(parent)/settings/channels/page.tsx", "src/app/(parent)/settings/integrations/page.tsx"],
-      "acceptance": ["SettingsShell no longer has min-h-screen bg-background", "amber/sky/emerald/primary replaced with honey/ink/forest tokens"],
-      "verification": ["diff shows layout fix and color replacements"]
+      "task_id": "t2-rls-migrations",
+      "agent": "adhd-agent",
+      "goal": "Add DB RLS policies to fix the silent-failure chain: (1) child can UPDATE own check_ins for the re-read dedup, (2) child can UPDATE own children row on reading_level_zh/_en/_zh_max/_en_max columns so auto-level bump actually applies. Both policies must be narrow (column-scoped where possible) to avoid widening attack surface.",
+      "write_scope": [
+        "supabase/migrations/060_child_rls_check_in_update.sql",
+        "supabase/migrations/061_child_rls_children_reading_level.sql"
+      ],
+      "read_scope": [
+        "supabase/migrations/001_initial_schema.sql",
+        "supabase/migrations/007_check_in_scoring_fields.sql",
+        "supabase/migrations/029_add_check_in_audio_duration.sql",
+        "supabase/migrations/033_reading_level_system.sql",
+        "supabase/migrations/039_per_child_reading_v2.sql"
+      ],
+      "acceptance": [
+        "060 adds: CREATE POLICY 'Child can update own check_ins' ON check_ins FOR UPDATE USING (child_id IN (SELECT id FROM children WHERE auth.uid() = id))",
+        "061 adds: CREATE POLICY 'Child can update own reading level' ON children FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id) — note: column-scoped UPDATE is not natively supported in Postgres RLS, so this policy allows the child to update their own row but trust boundary requires that the API code only writes the level columns; add a server-side guard in /api/reading/quiz/submit that constructs the update object with only the level keys",
+        "Both migrations are idempotent (DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL)",
+        "Migrations apply cleanly against a fresh DB AND against the existing migration chain",
+        "No new INSERT/DELETE policy on children (parent-only remains)"
+      ],
+      "verification": [
+        "psql or supabase db push dry-run shows no errors",
+        "npx vitest run (existing tests still pass)",
+        "Manual verify (deferred to QA): a child user can now successfully UPDATE check_ins.note and children.reading_level_zh"
+      ]
     },
     {
-      "task_id": "p3-pages",
-      "goal": "Fix container layout and spacing tokens on homework and children pages",
-      "write_scope": ["src/app/(parent)/homework/page.tsx", "src/app/(parent)/children/page.tsx"],
-      "read_scope": ["src/app/(parent)/homework/page.tsx", "src/app/(parent)/children/page.tsx"],
-      "acceptance": ["Both pages have max-w-7xl mx-auto wrapper", "Raw spacing values replaced with token values"],
-      "verification": ["diff shows container and spacing fixes"]
+      "task_id": "t3-state-matrix-ui",
+      "agent": "adhd-frontend-agent",
+      "goal": "Replace the misleading client-side checkinStatus state in page.tsx with server-driven states from /api/reading/quiz/submit response. Build an interaction_state_matrix: loading-pending / success-created / success-deduped / skipped-no-homework / failed-with-reason. Honest copy in zh + en. Drop the green success stamp when the server says failed.",
+      "write_scope": [
+        "src/app/[locale]/(reader)/reading/[id]/page.tsx",
+        "src/components/reading/QuizView.tsx",
+        "src/components/reading/CheckinStatusCard.tsx",
+        "src/messages/zh.json",
+        "src/messages/en.json"
+      ],
+      "read_scope": [
+        "src/app/[locale]/(reader)/reading/[id]/page.tsx",
+        "src/components/reading/QuizView.tsx",
+        "src/messages/zh.json",
+        "src/messages/en.json",
+        "src/components/reading/CompletionStamp.tsx"
+      ],
+      "acceptance": [
+        "CheckinStatusCard accepts a discriminated state: { kind: 'pending' | 'created' | 'deduped' | 'skipped' | 'failed', reason?: string, pointsEarned?: number }",
+        "Five visible states map to existing color tokens (success/warning/info/danger) — no new hex values",
+        "Copy localized in both zh and en; uses existing message keys or adds new ones under reading.checkin.*",
+        "page.tsx renders CheckinStatusCard based on QuizView's onComplete payload (which now carries server response), not a client try/catch",
+        "Retry button visible only on 'failed' state, calls /api/reading/quiz/submit with idempotency-safe payload (idempotency is a follow-up — see out-of-scope)",
+        "No accessibility regression: states expose aria-live='polite' for screen readers"
+      ],
+      "verification": [
+        "npx vitest run tests/unit/ (no new test failures from this change)",
+        "Diff shows CheckinStatusCard.tsx created and wired",
+        "Diff shows page.tsx no longer calls createReadingAutoCheckin directly",
+        "Manual: trigger the failed state by stubbing supabase and confirm the red 'failed' UI renders instead of green 'success'"
+      ]
     },
     {
-      "task_id": "p4-components",
-      "goal": "Fix font sizes and color tokens in ParentMonthCalendar and ParentCheckInHeatmap",
-      "write_scope": ["src/components/parent/ParentMonthCalendar.tsx", "src/components/parent/ParentCheckInHeatmap.tsx"],
-      "read_scope": ["src/components/parent/ParentMonthCalendar.tsx", "src/components/parent/ParentCheckInHeatmap.tsx"],
-      "acceptance": ["text-[10px]/[8px]/[11px] replaced with text-ui-xs", "ringColor hex values use token palette", "rounded-lg replaced with rounded-radius-lg"],
-      "verification": ["diff shows font size and token fixes"]
+      "task_id": "t4-remove-deleted-at",
+      "agent": "adhd-agent",
+      "goal": "Remove the .is('deleted_at', null) filter from the two homeworks queries that reference a non-existent column. This is the #1 P0 chain breaker.",
+      "write_scope": [
+        "src/app/[locale]/(reader)/reading/[id]/page.tsx",
+        "src/components/reading/ArticleReader.tsx"
+      ],
+      "read_scope": [
+        "src/app/[locale]/(reader)/reading/[id]/page.tsx",
+        "src/components/reading/ArticleReader.tsx",
+        "supabase/migrations/001_initial_schema.sql"
+      ],
+      "acceptance": [
+        "Both .is('deleted_at', null) calls removed",
+        "If soft-delete is desired later, track as a separate ticket; do NOT add the column in this packet",
+        "Existing queries still narrow by is_active=true where appropriate (check current query and add if missing)"
+      ],
+      "verification": [
+        "Grep confirms no remaining .is('deleted_at') in src/",
+        "npx vitest run tests/unit/auto-checkins.test.ts tests/unit/learning-event-auto-checkins.test.ts",
+        "Manual: a child user with reading homework can complete a quiz and see the check-in row inserted"
+      ]
     }
   ],
   "dependencies": {
-    "p1-config": [],
-    "p2-settings": [],
-    "p3-pages": [],
-    "p4-components": []
+    "t1-server-side-checkin": [],
+    "t2-rls-migrations": ["t1-server-side-checkin"],
+    "t3-state-matrix-ui": ["t1-server-side-checkin"],
+    "t4-remove-deleted-at": []
   },
-  "shared_contracts": ["tailwind.config.ts"],
-  "resource_budget": "targeted"
+  "shared_contracts": [
+    "supabase/migrations/*",
+    "src/lib/auto-checkins.ts",
+    "src/messages/zh.json",
+    "src/messages/en.json"
+  ],
+  "resource_budget": "targeted",
+  "rollback": [
+    "Migrations: drop the two new policies (DROP POLICY IF EXISTS)",
+    "Code: revert src/app/[locale]/(reader)/reading/[id]/page.tsx handleQuizComplete; restore client-side check-in insert",
+    "DB rows: zero impact — no schema changes, only new policies on existing tables"
+  ],
+  "residual_risk": [
+    "Migrations 061 widens children UPDATE to all child-actor updates; API code MUST keep update object limited to {reading_level_zh, reading_level_en, reading_level_zh_max, reading_level_en_max} keys — add server-side guard as part of t1 follow-up if t1 lands first",
+    "Idempotency on the auto-checkin INSERT is best-effort; double-tap on the same quiz submit could create two rows. Add a unique partial index as a separate ticket.",
+    "23 vitest files currently fail (mock issues unrelated to this packet); not in scope here."
+  ]
 }

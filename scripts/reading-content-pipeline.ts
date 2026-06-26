@@ -48,6 +48,9 @@ validateEnv();
 // Pipeline language: controls target language for topic loading and content generation.
 const pipelineLanguage = (process.env.PIPELINE_LANGUAGE || "en") as "en" | "zh";
 
+// Per-grade cap for published articles
+const TARGET_PER_GRADE = 40;
+
 // Dynamic imports are REQUIRED because content-generator.ts initializes its
 // OpenAI client at module load time (needs OPENAI_API_KEY). Static imports
 // would run before dotenv loads, causing an empty API key.
@@ -61,6 +64,9 @@ const generateIllustrations = readingMod.generateIllustrations;
 const validateContent = readingMod.validateContent;
 const validateIBCriteria = readingMod.validateIBCriteria;
 const validateFactualAccuracy = readingMod.validateFactualAccuracy;
+const coherenceMod = await import("@/lib/reading/coherence-check");
+const checkChapterCoherence = coherenceMod.checkChapterCoherence;
+
 const createServiceRoleClient = supabaseMod.createServiceRoleClient;
 const Pacer = concurrencyMod.Pacer;
 const withRetry = concurrencyMod.withRetry;
@@ -566,6 +572,74 @@ function checkSourceQuality(sourceText: string | undefined, grade: number, langu
   return { fitsLevel, needsExpansion, wordCount: words, simplePct, compoundPct, complexPct };
 }
 
+// ---------------------------------------------------------------------------
+// Per-grade cap enforcement and lifecycle management
+// ---------------------------------------------------------------------------
+
+async function getGradeCounts(supabase: SupabaseClient, language: string): Promise<Record<number, number>> {
+  const { data } = await supabase
+    .from("reading_articles")
+    .select("grade_level")
+    .eq("language", language)
+    .eq("status", "published");
+  const counts: Record<number, number> = {};
+  for (const a of (data || []) as { grade_level: number }[]) {
+    counts[a.grade_level] = (counts[a.grade_level] || 0) + 1;
+  }
+  for (let g = 3; g <= 10; g++) {
+    if (counts[g] === undefined) counts[g] = 0;
+  }
+  return counts;
+}
+
+async function archiveSurplus(supabase: SupabaseClient, language: string, targetPerGrade: number): Promise<void> {
+  for (let grade = 3; grade <= 10; grade++) {
+    const { data: articles } = await supabase
+      .from("reading_articles")
+      .select("id, created_at")
+      .eq("language", language)
+      .eq("status", "published")
+      .eq("grade_level", grade)
+      .order("created_at", { ascending: true });
+
+    if (!articles || articles.length <= targetPerGrade) continue;
+
+    const toArchive = articles.slice(0, articles.length - targetPerGrade);
+    if (toArchive.length === 0) continue;
+
+    const ids = toArchive.map(a => a.id);
+    console.log(`  G${grade}: archiving ${ids.length} oldest articles (surplus)`);
+
+    const { error } = await supabase
+      .from("reading_articles")
+      .update({ status: "archived" })
+      .in("id", ids);
+
+    if (error) console.error(`  Archive error G${grade}: ${error.message}`);
+  }
+}
+
+async function rotateStale(supabase: SupabaseClient, language: string): Promise<void> {
+  for (let grade = 3; grade <= 10; grade++) {
+    const { data: articles } = await supabase
+      .from("reading_articles")
+      .select("id, created_at")
+      .eq("language", language)
+      .eq("status", "published")
+      .eq("grade_level", grade)
+      .order("created_at", { ascending: true });
+
+    if (!articles || articles.length < 5) continue;
+
+    const rotateCount = Math.max(1, Math.floor(articles.length * 0.2));
+    const toRotate = articles.slice(0, rotateCount);
+    const ids = toRotate.map(a => a.id);
+
+    console.log(`  G${grade}: rotating ${ids.length} stale articles (20%)`);
+    await supabase.from("reading_articles").update({ status: "archived" }).in("id", ids);
+  }
+}
+
 async function main(): Promise<void> {
   console.log("=== Reading Content Pipeline ===\n");
 
@@ -625,6 +699,16 @@ async function main(): Promise<void> {
     console.warn("WARNING: No active topics found in reading_topics table.");
   }
 
+  // Per-grade cap enforcement
+  console.log("=== CURRENT DISTRIBUTION ===");
+  const gradeCounts = await getGradeCounts(supabase, pipelineLanguage);
+  for (let g = 3; g <= 10; g++) {
+    const count = gradeCounts[g] || 0;
+    const status = count >= TARGET_PER_GRADE ? "CAP" : `${count}/${TARGET_PER_GRADE}`;
+    console.log(`  G${g}: ${status}`);
+  }
+  console.log("");
+
   // Collect all work items (topic, grade) pairs
   const workItems: WorkItem[] = [];
   for (const grade of grades) {
@@ -641,7 +725,7 @@ async function main(): Promise<void> {
   // Create global pacer for LLM call concurrency (max 3 concurrent across all tasks)
   const pacer = new Pacer(3);
   const tasks = workItems.map((item, index) =>
-    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun)
+    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts)
   );
 
   const results = await Promise.all(tasks);
@@ -661,6 +745,14 @@ async function main(): Promise<void> {
 
   if (failed > 0) {
     process.exit(1);
+  }
+
+  // Archive surplus and rotate stale articles
+  if (!dryRun) {
+    console.log("\n=== LIFECYCLE: archive surplus ===");
+    await archiveSurplus(supabase, pipelineLanguage, TARGET_PER_GRADE);
+    console.log("\n=== LIFECYCLE: rotate stale ===");
+    await rotateStale(supabase, pipelineLanguage);
   }
 }
 
@@ -696,7 +788,8 @@ async function processWorkItem(
   topics: ReadingTopicRow[],
   supabase: SupabaseClient<PipelineDatabase>,
   pacer: InstanceType<typeof Pacer>,
-  dryRun: boolean = false
+  dryRun: boolean = false,
+  gradeCounts: Record<number, number> = {}
 ): Promise<ProcessResult> {
   const { topic, grade } = item;
   const key = `${topic.topic_key}|G${grade}`;
@@ -714,6 +807,12 @@ async function processWorkItem(
 
     if (existing.exists && existing.status === "published") {
       console.log("SKIP (already published)");
+      return { status: "skipped" };
+    }
+
+    // Step 1b: Check per-grade cap
+    if ((gradeCounts[grade] || 0) >= TARGET_PER_GRADE) {
+      console.log(`SKIP (G${grade} at cap ${TARGET_PER_GRADE})`);
       return { status: "skipped" };
     }
 
@@ -808,6 +907,21 @@ async function processWorkItem(
     // Route A: skip factual gate (original text is the ground truth)
     const effectiveFactualPass = qualityCheck.fitsLevel ? true : factualGate.pass;
     const qualityPass = gate.pass && ibGate.pass && effectiveFactualPass;
+
+    // Step 4b: Cross-chapter coherence check
+    if (article.chapters && article.chapters.length > 1) {
+      const coherenceResult = checkChapterCoherence(article.chapters, grade, pipelineLanguage);
+      (allIssues as any[]).push(
+        ...coherenceResult.issues.map(i => ({ ...i, source: "coherence" }))
+      );
+      if (!coherenceResult.pass) {
+        console.log(`\n  COHERENCE FAIL: ${coherenceResult.issues.filter(i => i.severity === "error").map(i => i.message).join("; ")}`);
+        if (!dryRun) {
+          console.log("  SKIPPING — article not stored (coherence fail)");
+          return { status: "skipped", reason: "coherence-fail" };
+        }
+      }
+    }
 
     // Quality gate block: skip DB insert when quality check fails
     if (!qualityPass) {

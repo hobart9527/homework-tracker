@@ -2,6 +2,7 @@ import {
   resolveAutoCheckinDecision,
   selectPrimaryHomeworkMatch,
 } from "@/lib/learning-sync";
+import { getLocalDayBounds } from "@/lib/homework-utils";
 
 type SupabaseInsertResult<T> = {
   data: T | null;
@@ -142,6 +143,15 @@ export async function applyAutoCheckinMatches(input: {
   };
 }
 
+/* ── Reading auto-checkin types ── */
+
+export type ReadingCheckinResult = {
+  status: "created" | "deduped" | "skipped" | "failed";
+  check_in_id?: string;
+  reason?: string;
+  homework_id: string | null;
+};
+
 /* ── Reading auto-checkin ── */
 
 /**
@@ -166,6 +176,131 @@ export function shouldAutoCompleteReading(homework: {
 }
 
 /**
+ * Server-side version: find matching reading homework, insert/create check_in
+ * for the article, return structured ReadingCheckinResult.
+ *
+ * Dedup key: a check_in on the same (child_id, homework_id) day whose `note`
+ * contains "文章: <articleId>" → UPDATE its note with the new score instead
+ * of inserting a second row.
+ *
+ * Homework filter matches page.tsx: shouldAutoCompleteReading(hw) AND
+ * (group.name == 中文/英文 type group OR type_name fallback).
+ */
+export async function createReadingAutoCheckinServer(input: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+  childId: string;
+  articleId: string;
+  articleLanguage?: "zh" | "en";
+  score: number;
+  total: number;
+}): Promise<ReadingCheckinResult> {
+  const { supabase, childId, articleId, articleLanguage, score, total } = input;
+  const targetGroupName = articleLanguage === "en" ? "英文" : "中文";
+  const langLabel = targetGroupName;
+
+  try {
+    // Step 1: find homeworks for this child
+    const { data: readingHomeworks } = await supabase
+      .from("homeworks")
+      .select(
+        "id, type_name, point_value, required_checkpoint_type, type_group_id, group:homework_type_groups(name)"
+      )
+      .eq("child_id", childId);
+
+    if (!readingHomeworks || readingHomeworks.length === 0) {
+      return { status: "skipped", reason: "No reading homeworks found", homework_id: null };
+    }
+
+    const matchingHomeworks = readingHomeworks.filter(
+      (hw: {
+        type_name: string;
+        required_checkpoint_type: string | null;
+        group?: { name: string } | null;
+      }) =>
+        shouldAutoCompleteReading(hw) &&
+        (hw.group?.name === targetGroupName ||
+          (articleLanguage === "en" && hw.type_name === "英文阅读") ||
+          (articleLanguage === "zh" && hw.type_name === "中文阅读"))
+    );
+
+    if (matchingHomeworks.length === 0) {
+      return {
+        status: "skipped",
+        reason: `No matching ${targetGroupName} reading homework`,
+        homework_id: null,
+      };
+    }
+
+    // Use first matching homework
+    const hw = matchingHomeworks[0] as { id: string; point_value: number | null };
+
+    // Step 2: check for existing check_in today
+    const { start, end } = getLocalDayBounds(new Date());
+    const { data: existingCheckIns } = await supabase
+      .from("check_ins")
+      .select("id, note")
+      .eq("homework_id", hw.id)
+      .gte("completed_at", start)
+      .lte("completed_at", end);
+
+    const articleRef = `文章: ${articleId}`;
+    const sameArticleCheckIn = existingCheckIns?.find(
+      (ci: { note?: string | null }) => ci.note?.includes(articleRef)
+    );
+
+    const noteLine = `${langLabel}阅读自动打卡 — ${articleRef}, 得分: ${score}/${total}`;
+
+    if (sameArticleCheckIn) {
+      // Dedup → update score line
+      const { error: updateError } = await supabase
+        .from("check_ins")
+        .update({ note: noteLine })
+        .eq("id", sameArticleCheckIn.id);
+
+      if (updateError) {
+        return { status: "failed", reason: updateError.message, homework_id: hw.id };
+      }
+      return {
+        status: "deduped",
+        check_in_id: sameArticleCheckIn.id,
+        homework_id: hw.id,
+      };
+    }
+
+    // Step 3: insert new check_in
+    const { data: newCheckIn, error: insertError } = await supabase
+      .from("check_ins")
+      .insert({
+        child_id: childId,
+        homework_id: hw.id,
+        completed_at: new Date().toISOString(),
+        submitted_at: new Date().toISOString(),
+        points_earned: hw.point_value ?? 0,
+        awarded_points: hw.point_value ?? 0,
+        is_scored: true,
+        is_late: false,
+        proof_type: null,
+        note: noteLine,
+      })
+      .select()
+      .single();
+
+    if (insertError || !newCheckIn) {
+      return {
+        status: "failed",
+        reason: insertError?.message || "No data returned from insert",
+        homework_id: hw.id,
+      };
+    }
+
+    return { status: "created", check_in_id: newCheckIn.id, homework_id: hw.id };
+  } catch (err) {
+    return { status: "failed", reason: String(err), homework_id: null };
+  }
+}
+
+/**
  * Create a check-in record that auto-completes a reading homework after
  * the child finishes the article + quiz.
  *
@@ -173,6 +308,9 @@ export function shouldAutoCompleteReading(homework: {
  * use eslint-disable and an opaque type to avoid builder-chain mismatches.
  *
  * Returns the created row or null on error (errors are logged, not thrown).
+ *
+ * NOTE: This is the client-side version. t3 will remove its callers.
+ * The server-side replacement is createReadingAutoCheckinServer above.
  */
 export async function createReadingAutoCheckin(input: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

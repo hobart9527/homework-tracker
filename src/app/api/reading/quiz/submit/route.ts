@@ -6,6 +6,7 @@ import {
   recomputeStats,
   type AutoLevelDecision,
 } from "@/lib/reading/auto-level";
+import { createReadingAutoCheckinServer } from "@/lib/auto-checkins";
 
 const BASE_READING_POINTS = 10;
 const RECENT_ATTEMPTS_LIMIT = 25;
@@ -265,6 +266,34 @@ export async function POST(request: Request) {
       );
     }
 
+    // -----------------------------------------------------------------
+    // Auto-checkin side-effect (best-effort).
+    // Insert/update check_ins for the matched reading homework.
+    // -----------------------------------------------------------------
+    let checkinResult: { status: string; check_in_id?: string; reason?: string; homework_id: string | null } | null = null;
+    try {
+      // Fetch article language fresh (not available from auto-level scope)
+      let articleLang: "zh" | "en" | undefined;
+      const { data: langData } = await supabase
+        .from("reading_articles")
+        .select("language")
+        .eq("id", articleId)
+        .single();
+      articleLang = (langData as { language?: string | null } | null)?.language === "zh" ? "zh" : "en";
+
+      checkinResult = await createReadingAutoCheckinServer({
+        supabase,
+        childId,
+        articleId,
+        articleLanguage: articleLang,
+        score,
+        total,
+      });
+    } catch (checkinErr) {
+      console.warn("[auto-checkin] unexpected error; quiz submission unaffected", checkinErr);
+      checkinResult = { status: "failed", reason: String(checkinErr), homework_id: null };
+    }
+
     return NextResponse.json({
       score,
       total,
@@ -276,6 +305,7 @@ export async function POST(request: Request) {
         explanation: q.explanation,
       })),
       ...(levelChange ? { level_change: levelChange } : {}),
+      ...(checkinResult ? { checkin: checkinResult } : {}),
     });
   } catch (error) {
     console.error("Quiz submit error:", error);

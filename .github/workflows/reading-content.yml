@@ -1,6 +1,9 @@
 name: Reading Content Pipeline
 
 on:
+  schedule:
+    # 1st of each month at 09:07 CST (01:07 UTC) — content refresh
+    - cron: "7 1 1 * *"
   workflow_dispatch:
 
 jobs:
@@ -8,7 +11,6 @@ jobs:
     name: Generate English reading content
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -30,7 +32,6 @@ jobs:
     name: Generate Chinese reading content
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -51,8 +52,6 @@ jobs:
     name: Backfill cover images & illustrations
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    if: github.event_name == 'workflow_dispatch'
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -284,8 +284,7 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         .from('homeworks')
         .select('id, type_group_id, group:homework_type_groups(name)')
         .eq('child_id', session.user.id)
-        .eq('type_name', '阅读')
-        .is('deleted_at', null);
+        .eq('type_name', '阅读');
 
       const targetGroup = article.language === 'en' ? '英文' : '中文';
       const matchedHw = readingHomeworks?.find((hw: any) =>
