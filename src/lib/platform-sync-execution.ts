@@ -15,9 +15,6 @@ import {
   markPlatformSyncJobFailed,
   markPlatformAccountAttentionRequired,
 } from "@/lib/platform-sync";
-import { decryptCredential, getPlatformCredentialsKey } from "@/lib/crypto";
-import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
-import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
 import { sendTelegramTextMessage } from "@/lib/telegram";
 import type { LearningEventInput } from "@/lib/learning-events";
 import type { Json } from "@/lib/supabase/types";
@@ -151,63 +148,6 @@ export async function importNormalizedEvent(input: {
     typeBindingsById: context.typeBindingsById,
     subjectMappings: context.subjectMappings,
   });
-}
-
-async function tryAutoLoginRefresh(
-  supabase: SupabaseLike,
-  account: PlatformAccount
-): Promise<boolean> {
-  if (!account.auto_login_enabled || !account.login_credentials_encrypted) {
-    return false;
-  }
-
-  let key: string;
-  try {
-    key = getPlatformCredentialsKey();
-  } catch {
-    return false;
-  }
-
-  let credentials: { username: string; password: string };
-  try {
-    const decrypted = decryptCredential(account.login_credentials_encrypted, key);
-    credentials = JSON.parse(decrypted);
-  } catch {
-    return false;
-  }
-
-  const loginResult =
-    account.platform === "ixl"
-      ? await simulateIxlLogin(credentials.username, credentials.password)
-      : account.platform === "khan-academy"
-        ? await simulateKhanLogin(credentials.username, credentials.password)
-        : null;
-
-  if (!loginResult || !loginResult.success) {
-    return false;
-  }
-
-  // Merge new cookies with existing payload to preserve headers and activityUrl
-  const mergedPayload = {
-    ...(account.managed_session_payload ?? {}),
-    cookies: loginResult.cookies,
-  };
-
-  // Update the account with new session payload
-  await (supabase as any)
-    .from("platform_accounts")
-    .update({
-      managed_session_payload: mergedPayload,
-      managed_session_captured_at: new Date().toISOString(),
-      status: "active",
-      last_sync_error_summary: null,
-    })
-    .eq("id", account.id);
-
-  // Mutate the local account object so downstream sync uses the new payload
-  account.managed_session_payload = mergedPayload;
-
-  return true;
 }
 
 async function notifyParentSessionExpired(
@@ -362,46 +302,21 @@ export async function executeManagedSessionSync(input: {
   }
 
   async function handleSessionExpired(error: Error) {
-    // Try to refresh session automatically
-    const refreshed = await tryAutoLoginRefresh(input.supabase, input.account);
-    if (!refreshed) {
-      // Notify parent via Telegram
-      await notifyParentSessionExpired(input.supabase, input.account);
+    // Session refresh handled externally by GHA refresh-sessions job.
+    // Vercel cannot run Playwright — just mark attention_required + notify.
+    await notifyParentSessionExpired(input.supabase, input.account);
 
-      await markPlatformAccountAttentionRequired({
-        supabase: input.supabase as any,
-        jobId: input.jobId,
-        platformAccountId: input.account.id,
-        errorSummary: error.message,
-      });
+    await markPlatformAccountAttentionRequired({
+      supabase: input.supabase as any,
+      jobId: input.jobId,
+      platformAccountId: input.account.id,
+      errorSummary: error.message,
+    });
 
-      return {
-        status: "attention_required" as const,
-        error: error.message,
-      };
-    }
-
-    // Refresh succeeded — retry sync
-    try {
-      const connectorResult = await runConnectorSync(input.account);
-      return await handleSuccess(connectorResult as any);
-    } catch (retryError) {
-      const retrySummary =
-        retryError instanceof Error ? retryError.message : "Retry sync failed";
-
-      await notifyParentSessionExpired(input.supabase, input.account);
-      await markPlatformAccountAttentionRequired({
-        supabase: input.supabase as any,
-        jobId: input.jobId,
-        platformAccountId: input.account.id,
-        errorSummary: retrySummary,
-      });
-
-      return {
-        status: "attention_required" as const,
-        error: retrySummary,
-      };
-    }
+    return {
+      status: "attention_required" as const,
+      error: error.message,
+    };
   }
 
   try {

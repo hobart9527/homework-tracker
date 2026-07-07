@@ -4,8 +4,8 @@ on:
   schedule:
     # 16:00-23:45 CST = 08:00-15:45 UTC — 每天下午4点后每15分钟同步 IXL/Khan/RAZ/Epic
     - cron: "*/15 8-15 * * *"
-    # 16:00 CST Mon = 08:00 UTC Mon — 每周刷新平台登录态
-    - cron: "0 8 * * 1"
+    # 每6小时刷新平台登录态 — 确保 session 不过期
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 jobs:
