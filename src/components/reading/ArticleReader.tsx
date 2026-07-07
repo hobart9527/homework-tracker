@@ -1186,17 +1186,19 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
           backdropFilter: "blur(12px)",
         }}
       >
-        <div className="flex items-center gap-4">
-          {/* Previous page button */}
+        <div className="flex items-center gap-4 overflow-x-auto hide-scrollbar flex-shrink-0" style={{ scrollbarWidth: 'none' }}>
+          {/* Previous page button — zero width when invisible */}
           <button
             onClick={() => goToPage(currentPage - 1)}
-            className="flex items-center justify-center w-12 h-12 rounded-full transition-all active:scale-95"
+            className="flex items-center justify-center rounded-full transition-all active:scale-95"
             style={{
+              width: currentPage > 0 ? '48px' : '0px',
+              height: currentPage > 0 ? '48px' : '0px',
+              overflow: 'hidden',
               color: currentPage > 0 ? 'var(--reader-text-muted)' : 'transparent',
               pointerEvents: currentPage > 0 ? 'auto' : 'none',
             }}
             aria-label="上一页"
-            disabled={currentPage <= 0}
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="15 18 9 12 15 6"/>
@@ -1292,16 +1294,18 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
             </svg>
           </button>
 
-          {/* Next page button */}
+          {/* Next page button — zero width when invisible */}
           <button
             onClick={() => goToPage(currentPage + 1)}
-            className="flex items-center justify-center w-12 h-12 rounded-full transition-all active:scale-95"
+            className="flex items-center justify-center rounded-full transition-all active:scale-95"
             style={{
+              width: currentPage < totalPages - 1 ? '48px' : '0px',
+              height: currentPage < totalPages - 1 ? '48px' : '0px',
+              overflow: 'hidden',
               color: currentPage < totalPages - 1 ? 'var(--reader-text-muted)' : 'transparent',
               pointerEvents: currentPage < totalPages - 1 ? 'auto' : 'none',
             }}
             aria-label="下一页"
-            disabled={currentPage >= totalPages - 1}
           >
             <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <polyline points="9 18 15 12 9 6"/>
