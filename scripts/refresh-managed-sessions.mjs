@@ -61,11 +61,12 @@ let query = supabase
   .from("platform_accounts")
   .select("*")
   .in("platform", ["ixl", "khan-academy"])
-  .not("login_credentials_encrypted", "is", null)
-  .in("status", ["active", "attention_required"]);
+  .not("login_credentials_encrypted", "is", null);
 
 if (targetAccountId) {
   query = query.eq("id", targetAccountId);
+} else {
+  query = query.in("status", ["active", "attention_required"]);
 }
 
 const { data: accounts, error } = await query;
