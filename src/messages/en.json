@@ -398,6 +398,11 @@
       "success": "Homework check-in complete!",
       "failed": "Auto check-in didn't work. You can check in manually."
     },
+    "complete": {
+      "title": "Great reading!",
+      "description": "You've finished reading this article. Keep exploring!",
+      "backToList": "Back to article list"
+    },
     "levelProgress": {
       "currentLevel": "Current Level",
       "streakLabel": "Accuracy Streak: {streak}/3",

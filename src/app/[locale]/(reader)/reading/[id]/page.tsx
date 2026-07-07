@@ -76,7 +76,7 @@ function ReadingArticleContent({
   const [childId, setChildId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"reading" | "quiz">("reading");
+  const [phase, setPhase] = useState<"reading" | "quiz" | "completed">("reading");
   const [pinyinEnabled, setPinyinEnabled] = useState(false);
   const [checkinStatus, setCheckinStatus] = useState<"pending" | "success" | "failed" | null>(null);
 
@@ -375,7 +375,11 @@ function ReadingArticleContent({
               setPinyinEnabled(newVal);
             }}
             onStartQuiz={() => {
-              setPhase("quiz");
+              if (!questions || questions.length === 0) {
+                setPhase("completed");
+              } else {
+                setPhase("quiz");
+              }
             }}
           />
         </>
@@ -395,6 +399,26 @@ function ReadingArticleContent({
               );
             }}
           />
+        </div>
+      )}
+
+      {/* Phase 2b: No questions — show completion screen */}
+      {phase === "completed" && (
+        <div className="mx-auto max-w-2xl px-4 py-12 text-center">
+          <div className="mb-6">
+            <svg className="w-16 h-16 mx-auto text-forest-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="22 4 12 14.01 9 11.01" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-forest-800 mb-2">{t('reading.complete.title')}</h2>
+          <p className="text-ink-600 mb-8">{t('reading.complete.description')}</p>
+          <button
+            onClick={() => router.push(`/${locale}/reading`)}
+            className="rounded-full bg-primary px-8 py-3 text-base font-medium text-white transition hover:bg-primary/90 active:scale-95"
+          >
+            {t('reading.complete.backToList')}
+          </button>
         </div>
       )}
 

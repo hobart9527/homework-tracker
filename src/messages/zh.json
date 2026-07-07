@@ -398,6 +398,11 @@
       "success": "打卡成功！阅读作业已完成",
       "failed": "自动打卡未成功，请手动打卡"
     },
+    "complete": {
+      "title": "阅读完成！",
+      "description": "你已经读完了这篇文章，继续探索吧！",
+      "backToList": "返回文章列表"
+    },
     "levelProgress": {
       "currentLevel": "当前级别",
       "streakLabel": "连续正确率: {streak}/3",
