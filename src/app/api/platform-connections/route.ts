@@ -210,7 +210,7 @@ export async function POST(request: Request) {
   if (existingAccount) {
     // Preserve existing credentials when updating in manual session mode
     const effectiveCredentials =
-      authMode === "auto_login"
+      authMode === "auto_login" && loginCredentialsEncrypted
         ? loginCredentialsEncrypted
         : existingAccount.login_credentials_encrypted;
     const effectiveAutoLogin =

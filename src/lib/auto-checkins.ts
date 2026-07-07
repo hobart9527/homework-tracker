@@ -164,15 +164,10 @@ export type ReadingCheckinResult = {
  */
 export function shouldAutoCompleteReading(homework: {
   type_name: string;
-  required_checkpoint_type: string | null;
 }): boolean {
-  const isReadingType = homework.type_name === "阅读" ||
+  return homework.type_name === "阅读" ||
     homework.type_name === "英文阅读" ||
     homework.type_name === "中文阅读";
-  const noRecordingRequired =
-    homework.required_checkpoint_type === "" ||
-    homework.required_checkpoint_type === null;
-  return isReadingType && noRecordingRequired;
 }
 
 /**

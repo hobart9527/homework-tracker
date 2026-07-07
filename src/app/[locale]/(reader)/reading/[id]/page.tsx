@@ -195,6 +195,8 @@ function ReadingArticleContent({
                 (article?.language === "zh" && hw.type_name === "中文阅读"))
           ) ?? [];
 
+        let anyActionTaken = false;
+
         for (const hw of matchingHomeworks) {
           const todayStart = new Date();
           todayStart.setHours(0, 0, 0, 0);
@@ -216,13 +218,13 @@ function ReadingArticleContent({
           const noteLine = `${targetGroupName}阅读自动打卡 — 文章: ${params.id}, 得分: ${result.score}/${result.total}`;
 
           if (sameArticleCheckIn) {
-            // Same article re-read → update score line
             await supabase
               .from("check_ins")
               .update({ note: noteLine })
               .eq("id", sameArticleCheckIn.id);
+            anyActionTaken = true;
           } else {
-            await createReadingAutoCheckin({
+            const newCheckIn = await createReadingAutoCheckin({
               supabase,
               childId,
               homework: {
@@ -234,9 +236,11 @@ function ReadingArticleContent({
               total: result.total,
               articleLanguage: article?.language,
             });
+            if (newCheckIn) anyActionTaken = true;
           }
         }
-        setCheckinStatus("success");
+
+        setCheckinStatus(anyActionTaken ? "success" : "failed");
       } catch (err) {
         // Auto-checkin is best-effort; never block the quiz flow.
         console.error("Reading auto-checkin failed:", err);

@@ -1,12 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
-import { encryptCredential, decryptCredential, getPlatformCredentialsKey } from "@/lib/crypto";
-import { simulateIxlLogin } from "@/lib/platform-adapters/ixl-auth";
-import { simulateKhanLogin } from "@/lib/platform-adapters/khan-auth";
 import { NextResponse } from "next/server";
 
-function getEncryptionKey(): string {
-  return getPlatformCredentialsKey();
-}
+const GITHUB_API = "https://api.github.com";
+const REPO = "hobart9527/homework-tracker";
+const WORKFLOW_FILE = "sync-learning.yml";
 
 export async function POST(
   request: Request,
@@ -44,7 +41,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  // If no encrypted credentials, cannot auto-refresh
+  // Check credentials exist
   if (!account.login_credentials_encrypted) {
     return NextResponse.json(
       { error: "该账号未配置自动登录凭据，无法刷新 Session。" },
@@ -52,91 +49,58 @@ export async function POST(
     );
   }
 
-  let credentials: { username: string; password: string };
-  try {
-    const key = getEncryptionKey();
-    const decrypted = decryptCredential(account.login_credentials_encrypted, key);
-    credentials = JSON.parse(decrypted);
-  } catch {
+  const githubPat = process.env.GITHUB_PAT;
+  if (!githubPat) {
     return NextResponse.json(
-      { error: "解密登录凭据失败，请重新绑定账号。" },
+      { error: "GITHUB_PAT 未配置，请联系管理员设置 GitHub Token。" },
       { status: 500 }
     );
   }
 
-  const platform = account.platform;
-
+  // Trigger GHA workflow to refresh this specific account
   try {
-    const loginResult =
-      platform === "ixl"
-        ? await simulateIxlLogin(credentials.username, credentials.password)
-        : platform === "khan-academy"
-          ? await simulateKhanLogin(credentials.username, credentials.password)
-          : null;
-
-    if (!loginResult) {
-      return NextResponse.json(
-        { error: "Unsupported platform for auto-login refresh" },
-        { status: 400 }
-      );
-    }
-
-    if (!loginResult.success) {
-      // Update account status and error summary
-      await supabase
-        .from("platform_accounts")
-        .update({
-          status: "attention_required",
-          last_sync_error_summary: loginResult.message,
-        })
-        .eq("id", accountId);
-
-      return NextResponse.json(
-        {
-          error: loginResult.message,
-          reason: loginResult.reason,
-          logs: loginResult.logs,
-          hint:
-            loginResult.reason === "captcha_required" ||
-            loginResult.reason === "two_factor_required" ||
-            loginResult.reason === "unsupported"
-              ? "请切换到手动 Session 模式补录 Cookie。"
-              : undefined,
+    const response = await fetch(
+      `${GITHUB_API}/repos/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${githubPat}`,
+          "User-Agent": "homework-tracker-vercel",
+          Accept: "application/vnd.github+json",
         },
-        { status: 400 }
-      );
-    }
+        body: JSON.stringify({
+          ref: "main",
+          inputs: {
+            account_id: accountId,
+          },
+        }),
+      }
+    );
 
-    // Update the managed session payload
-    const { error: updateError } = await supabase
-      .from("platform_accounts")
-      .update({
-        managed_session_payload: { cookies: loginResult.cookies },
-        managed_session_captured_at: new Date().toISOString(),
-        status: "active",
-        last_sync_error_summary: null,
-      })
-      .eq("id", accountId);
-
-    if (updateError) {
+    if (!response.ok) {
+      const body = await response.text();
+      console.error(`GitHub API error (${response.status}): ${body}`);
       return NextResponse.json(
-        { error: updateError.message || "更新 Session 失败" },
-        { status: 500 }
+        { error: `触发 GitHub Actions 失败 (${response.status})` },
+        { status: 502 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: loginResult.message || "Session 刷新成功",
-      logs: loginResult.logs,
+      message:
+        "✅ Session 刷新任务已提交到 GitHub Actions，约 2-5 分钟后完成。请稍后刷新页面查看状态。",
     });
   } catch (error) {
+    console.error("Failed to trigger GHA workflow:", error);
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "刷新 Session 时发生未知错误",
+          error instanceof Error
+            ? error.message
+            : "触发 GitHub Actions 时发生网络错误",
       },
-      { status: 500 }
+      { status: 502 }
     );
   }
 }

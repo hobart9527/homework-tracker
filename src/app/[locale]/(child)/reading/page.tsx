@@ -161,11 +161,15 @@ export default function ReadingBrowserPage() {
       const articleParams = new URLSearchParams({ limit: "20" });
       if (gradeRange.minGrade !== undefined) articleParams.set("minGrade", String(gradeRange.minGrade));
       if (gradeRange.maxGrade !== undefined) articleParams.set("maxGrade", String(gradeRange.maxGrade));
-      const [articlesRes, assignmentsRes] = await Promise.all([
+      const [articlesRes, assignmentsRes, attemptsRes] = await Promise.all([
         fetch(`/api/reading/articles?${articleParams.toString()}`),
         supabase
           .from("reading_assignments")
           .select("article_id, status, score")
+          .eq("child_id", childId),
+        supabase
+          .from("reading_quiz_attempts")
+          .select("article_id")
           .eq("child_id", childId),
       ]);
 
@@ -184,15 +188,24 @@ export default function ReadingBrowserPage() {
         }
       }
 
-      // Enrich articles with status, isNew, isInProgress flags
+      // Build set of article_ids that have been quizzed (read)
+      const attemptedArticleIds = new Set<string>();
+      if (attemptsRes.data) {
+        for (const a of attemptsRes.data) {
+          attemptedArticleIds.add(a.article_id);
+        }
+      }
+
+      // Enrich articles with status, isNew, isInProgress, isCompleted flags
       const enrichedArticles = fetchedArticles.map((article: Article) => {
         const assignment = assignmentMap[article.id];
         const status = assignment?.status;
+        const hasTakenQuiz = attemptedArticleIds.has(article.id);
         return {
           ...article,
           status,
-          isCompleted: status === "completed",
-          isNew: !status || status === "recommended",
+          isCompleted: status === "completed" || hasTakenQuiz,
+          isNew: hasTakenQuiz ? false : !status || status === "recommended",
           isInProgress: status === "in_progress",
           score: assignment?.score,
         };

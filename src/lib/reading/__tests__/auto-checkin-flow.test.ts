@@ -186,8 +186,10 @@ describe("createReadingAutoCheckinServer", () => {
   });
 
   it("(c) skipped when no matching homework", async () => {
+    // mockHomeworkAudio has group: { name: "中文" } — query with English
+    // so group mismatch → no match found
     const supabase = createMockChain({
-      homeworks: [mockHomeworkAudio], // has required_checkpoint_type=audio → filtered out
+      homeworks: [mockHomeworkAudio],
       existingCheckIns: [],
     });
 
@@ -195,7 +197,7 @@ describe("createReadingAutoCheckinServer", () => {
       supabase,
       childId: "child-1",
       articleId: "art-1",
-      articleLanguage: "zh",
+      articleLanguage: "en", // English, but only 中文 homework exists
       score: 8,
       total: 10,
     });
@@ -268,24 +270,18 @@ describe("createReadingAutoCheckinServer", () => {
 });
 
 describe("shouldAutoCompleteReading", () => {
-  it("returns true for 阅读 with no recording", () => {
-    expect(
-      shouldAutoCompleteReading({ type_name: "阅读", required_checkpoint_type: null })
-    ).toBe(true);
-  });
-
-  it("returns false for 阅读 with audio required", () => {
-    expect(
-      shouldAutoCompleteReading({ type_name: "阅读", required_checkpoint_type: "audio" })
-    ).toBe(false);
+  it("returns true for 阅读 (any checkpoint type)", () => {
+    expect(shouldAutoCompleteReading({ type_name: "阅读" })).toBe(true);
   });
 
   it("returns true for 英文阅读 and 中文阅读", () => {
-    expect(
-      shouldAutoCompleteReading({ type_name: "英文阅读", required_checkpoint_type: null })
-    ).toBe(true);
-    expect(
-      shouldAutoCompleteReading({ type_name: "中文阅读", required_checkpoint_type: null })
-    ).toBe(true);
+    expect(shouldAutoCompleteReading({ type_name: "英文阅读" })).toBe(true);
+    expect(shouldAutoCompleteReading({ type_name: "中文阅读" })).toBe(true);
+  });
+
+  it("returns false for unrelated types", () => {
+    expect(shouldAutoCompleteReading({ type_name: "练习" })).toBe(false);
+    expect(shouldAutoCompleteReading({ type_name: "课程" })).toBe(false);
+    expect(shouldAutoCompleteReading({ type_name: "钢琴" })).toBe(false);
   });
 });

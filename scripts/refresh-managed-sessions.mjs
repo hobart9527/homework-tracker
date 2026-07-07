@@ -55,12 +55,20 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
 });
 
-const { data: accounts, error } = await supabase
+const targetAccountId = process.argv[2];
+
+let query = supabase
   .from("platform_accounts")
   .select("*")
   .in("platform", ["ixl", "khan-academy"])
   .not("login_credentials_encrypted", "is", null)
   .in("status", ["active", "attention_required"]);
+
+if (targetAccountId) {
+  query = query.eq("id", targetAccountId);
+}
+
+const { data: accounts, error } = await query;
 
 if (error) {
   console.error("Failed to fetch platform accounts:", error.message);

@@ -2,18 +2,25 @@ name: Sync Learning Data
 
 on:
   schedule:
-    # 16:00-23:45 CST = 08:00-15:45 UTC — 每天下午4点后每15分钟同步 IXL/Khan/RAZ/Epic
+    # 08:00-15:45 UTC = 16:00-23:45 CST — 每天下午4点后每15分钟同步 IXL/Khan/RAZ/Epic
     - cron: "*/15 8-15 * * *"
     # 每6小时刷新平台登录态 — 确保 session 不过期
     - cron: "0 */6 * * *"
   workflow_dispatch:
+    inputs:
+      account_id:
+        description: "Optional: only refresh this platform account ID"
+        type: string
+        required: false
 
 jobs:
   platform-sync:
     name: Platform daily sync
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: github.event_name == 'schedule' && github.event.schedule == '*/15 8-15 * * *' || github.event_name == 'workflow_dispatch'
+    if: |
+      github.event_name == 'schedule' && github.event.schedule == '*/15 8-15 * * *'
+      || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Trigger platform sync
@@ -34,7 +41,9 @@ jobs:
     name: Refresh platform sessions
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name == 'schedule' && github.event.schedule == '0 8 * * 1' || github.event_name == 'workflow_dispatch'
+    if: |
+      github.event_name == 'schedule' && github.event.schedule == '0 */6 * * *'
+      || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +53,7 @@ jobs:
           cache: npm
       - run: npm install
       - run: npx playwright install --with-deps chromium
-      - run: node scripts/refresh-managed-sessions.mjs
+      - run: node scripts/refresh-managed-sessions.mjs ${{ inputs.account_id || '' }}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
