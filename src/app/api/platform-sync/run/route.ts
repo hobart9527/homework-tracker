@@ -14,7 +14,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
 const CRON_SECRET = process.env.CRON_SECRET;
-const DEFAULT_PLATFORMS = ["ixl", "khan-academy", "raz-kids", "epic"] as const;
+const DEFAULT_PLATFORMS = ["ixl", "raz-kids", "epic"] as const;
 const DEFAULT_HOUSEHOLD_TIME_ZONE = "Asia/Shanghai";
 
 export async function GET(request: Request) {

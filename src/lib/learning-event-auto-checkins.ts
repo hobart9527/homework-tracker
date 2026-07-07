@@ -74,38 +74,23 @@ export async function loadAutoCheckinContext(input: {
   const localDate = new Date(year, month - 1, day);
   const { start, end } = getLocalDayBounds(localDate);
 
-  const homeworksSelect = input.supabase.from("homeworks")
-    .select as unknown as (columns?: string) => {
-    eq: (column: string, value: string) => Promise<{
-      data: Record<string, unknown>[] | null;
-      error: { message: string } | null;
-    }>;
-  };
+  // Use (supabase as any) to avoid unbinding .select from its builder context.
+  // Extracting .select as an unbound property causes 'Cannot read properties of
+  // undefined (reading 'cloneRequestState')' in @supabase/postgrest-js.
+  const sb = input.supabase as any;
 
-  const { data: homeworks, error: homeworkError } = await homeworksSelect("*").eq(
-    "child_id",
-    input.childId
-  );
+  const { data: homeworks, error: homeworkError } = await sb
+    .from("homeworks")
+    .select("*")
+    .eq("child_id", input.childId);
 
   if (homeworkError) {
     throw new Error(homeworkError.message);
   }
 
-  const checkInsSelect = input.supabase.from("check_ins")
-    .select as unknown as (columns?: string) => {
-    eq: (column: string, value: string) => {
-      gte: (column: string, value: string) => {
-        lte: (column: string, value: string) => Promise<{
-          data: Record<string, unknown>[] | null;
-          error: { message: string } | null;
-        }>;
-      };
-    };
-  };
-
-  const { data: checkIns, error: checkInError } = await checkInsSelect(
-    "id, homework_id"
-  )
+  const { data: checkIns, error: checkInError } = await sb
+    .from("check_ins")
+    .select("id, homework_id")
     .eq("child_id", input.childId)
     .gte("completed_at", start)
     .lte("completed_at", end);
@@ -140,14 +125,10 @@ export async function loadAutoCheckinContext(input: {
   const groupIds = [...new Set(candidateHomeworks.map((h) => h.type_group_id).filter(Boolean))];
   let groupNamesById: Record<string, string> = {};
   if (groupIds.length > 0) {
-    const groupsSelect = input.supabase.from("homework_type_groups")
-      .select as unknown as (columns?: string) => {
-      in: (column: string, values: string[]) => Promise<{
-        data: Record<string, unknown>[] | null;
-        error: { message: string } | null;
-      }>;
-    };
-    const { data: groupsData } = await groupsSelect("id, name").in("id", groupIds as string[]);
+    const { data: groupsData } = await sb
+      .from("homework_type_groups")
+      .select("id, name")
+      .in("id", groupIds as string[]);
     groupNamesById = Object.fromEntries(
       (groupsData ?? []).map((g) => [String(g.id), String(g.name)])
     );
@@ -157,14 +138,9 @@ export async function loadAutoCheckinContext(input: {
   const typeIds = [...new Set(candidateHomeworks.map((h) => h.type_id).filter(Boolean))];
   let typeBindingsById: Record<string, { allowed_platforms: string[]; match_keywords: string[] }> = {};
   if (typeIds.length > 0) {
-    const bindingsSelect = input.supabase.from("homework_type_bindings")
-      .select as unknown as (columns?: string) => {
-      in: (column: string, values: string[]) => Promise<{
-        data: Record<string, unknown>[] | null;
-        error: { message: string } | null;
-      }>;
-    };
-    const { data: bindingsData } = await bindingsSelect("type_id, allowed_platforms, match_keywords")
+    const { data: bindingsData } = await sb
+      .from("homework_type_bindings")
+      .select("type_id, allowed_platforms, match_keywords")
       .in("type_id", typeIds as string[]);
     typeBindingsById = Object.fromEntries(
       (bindingsData ?? []).map((b) => [
@@ -175,19 +151,16 @@ export async function loadAutoCheckinContext(input: {
   }
 
   // Fetch all subject mappings (small table, ~9 rows)
-  let subjectMappings: Array<{ platform: string; platform_subject: string; type_id: string; confidence: number }> = [];
-  const mappingsSelect = input.supabase.from("platform_subject_mappings")
-    .select as unknown as (columns?: string) => Promise<{
-    data: Record<string, unknown>[] | null;
-    error: { message: string } | null;
-  }>;
-  const { data: allMappingsData } = await mappingsSelect("platform, platform_subject, type_id, confidence");
-  subjectMappings = (allMappingsData ?? []).map((m) => ({
-    platform: String(m.platform),
-    platform_subject: String(m.platform_subject),
-    type_id: String(m.type_id),
-    confidence: Number(m.confidence),
-  }));
+  const { data: allMappingsData } = await sb
+    .from("platform_subject_mappings")
+    .select("platform, platform_subject, type_id, confidence");
+  const subjectMappings: Array<{ platform: string; platform_subject: string; type_id: string; confidence: number }> =
+    (allMappingsData ?? []).map((m: any) => ({
+      platform: String(m.platform),
+      platform_subject: String(m.platform_subject),
+      type_id: String(m.type_id),
+      confidence: Number(m.confidence),
+    }));
 
   const existingCheckInsByHomeworkId = Object.fromEntries(
     ((checkIns ?? []) as ExistingCheckIn[]).map((checkIn) => [

@@ -2,10 +2,12 @@ name: Sync Learning Data
 
 on:
   schedule:
-    # 08:00-15:45 UTC = 16:00-23:45 CST — 每天下午4点后每15分钟同步 IXL/Khan/RAZ/Epic
+    # 08:00-15:45 UTC = 16:00-23:45 CST — 每天下午4点后每15分钟同步 IXL/RAZ/Epic
     - cron: "*/15 8-15 * * *"
     # 每6小时刷新平台登录态 — 确保 session 不过期
     - cron: "0 */6 * * *"
+    # 每6小时同步 Khan Academy 数据（需要 Playwright，无法在 Vercel 运行）
+    - cron: "15 */6 * * *"
   workflow_dispatch:
     inputs:
       account_id:
@@ -19,8 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: |
-      github.event_name == 'schedule' && github.event.schedule == '*/15 8-15 * * *'
-      || github.event_name == 'workflow_dispatch'
+      (github.event_name == 'schedule' && github.event.schedule == '*/15 8-15 * * *')
+      || (github.event_name == 'workflow_dispatch' && inputs.account_id == '')
 
     steps:
       - name: Trigger platform sync
@@ -42,8 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: |
-      github.event_name == 'schedule' && github.event.schedule == '0 */6 * * *'
-      || github.event_name == 'workflow_dispatch'
+      (github.event_name == 'schedule' && github.event.schedule == '0 */6 * * *')
+      || (github.event_name == 'workflow_dispatch')
 
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +56,27 @@ jobs:
       - run: npm install
       - run: npx playwright install --with-deps chromium
       - run: node scripts/refresh-managed-sessions.mjs ${{ inputs.account_id || '' }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  khan-sync:
+    name: Khan Academy data sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      (github.event_name == 'schedule' && github.event.schedule == '15 */6 * * *')
+      || (github.event_name == 'workflow_dispatch')
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/sync-khan.mjs
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
