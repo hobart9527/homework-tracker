@@ -130,7 +130,7 @@ export async function loadAutoCheckinContext(input: {
       .select("id, name")
       .in("id", groupIds as string[]);
     groupNamesById = Object.fromEntries(
-      (groupsData ?? []).map((g) => [String(g.id), String(g.name)])
+      (groupsData ?? []).map((g: any) => [String(g.id), String(g.name)])
     );
   }
 
@@ -143,7 +143,7 @@ export async function loadAutoCheckinContext(input: {
       .select("type_id, allowed_platforms, match_keywords")
       .in("type_id", typeIds as string[]);
     typeBindingsById = Object.fromEntries(
-      (bindingsData ?? []).map((b) => [
+      (bindingsData ?? []).map((b: any) => [
         String(b.type_id),
         { allowed_platforms: (b.allowed_platforms as string[]) || [], match_keywords: (b.match_keywords as string[]) || [] },
       ])
