@@ -155,6 +155,14 @@ function checkQuestionTypeDistribution(
   issues: QualityGateIssue[]
 ): void {
   const { questions, gradeLevel } = input;
+  if (!questions || questions.length === 0) {
+    issues.push({
+      code: "no-questions",
+      severity: "error",
+      message: "Article has no questions — cannot be published.",
+    });
+    return;
+  }
   if (questions.length < 4) return;
   const counts = new Map<string, number>();
   for (const q of questions) {
