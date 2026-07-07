@@ -113,7 +113,7 @@ for (const account of accounts) {
       continue;
     }
 
-    // Store cookies back to Supabase
+    // Store cookies back + reset status to active
     const { error: updateError } = await supabase
       .from("platform_accounts")
       .update({
@@ -122,6 +122,9 @@ for (const account of accounts) {
           updated_at: new Date().toISOString(),
           updated_by: "github-actions-refresh",
         },
+        managed_session_captured_at: new Date().toISOString(),
+        status: "active",
+        last_sync_error_summary: null,
       })
       .eq("id", account.id);
 

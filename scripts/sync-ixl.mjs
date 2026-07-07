@@ -297,6 +297,8 @@ async function syncIxlAccount(account) {
           .update({
             managed_session_payload: newPayload,
             managed_session_captured_at: new Date().toISOString(),
+            status: "active",
+            last_sync_error_summary: null,
           })
           .eq("id", account.id);
 
