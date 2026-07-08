@@ -166,11 +166,6 @@ export async function POST(request: Request) {
       supabase: supabase as any,
       jobId: String(claimResult.job?.id),
       platformAccountId: account.id,
-      rawSummary: {
-        ingestStatus: result.ingestStatus,
-        localDateKey: result.localDateKey,
-        autoCheckinCount: result.homeworkResults.length,
-      },
     });
 
     return NextResponse.json({

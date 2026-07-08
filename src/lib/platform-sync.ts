@@ -60,7 +60,6 @@ export async function completePlatformSyncJob(input: {
   supabase: SupabaseLike;
   jobId: string;
   platformAccountId: string;
-  rawSummary: Record<string, unknown>;
 }) {
   const finishedAt = new Date().toISOString();
 
@@ -68,7 +67,6 @@ export async function completePlatformSyncJob(input: {
     .from("platform_sync_jobs")
     .update!({
       status: "completed",
-      raw_summary: input.rawSummary,
       finished_at: finishedAt,
     })
     .eq("id", input.jobId);

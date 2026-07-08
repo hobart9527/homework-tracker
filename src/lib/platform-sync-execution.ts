@@ -227,10 +227,6 @@ export async function executeManagedSessionSync(input: {
         supabase: input.supabase as any,
         jobId: input.jobId,
         platformAccountId: input.account.id,
-        rawSummary: {
-          ingestStatus: "no_events",
-          fetchSummary: connectorResult.summary,
-        },
       });
 
       return {
@@ -279,13 +275,6 @@ export async function executeManagedSessionSync(input: {
       supabase: input.supabase as any,
       jobId: input.jobId,
       platformAccountId: input.account.id,
-      rawSummary: {
-        ingestStatus,
-        localDateKey,
-        autoCheckinCount: homeworkResults.length,
-        importedEventCount: importedResults.length,
-        fetchSummary: connectorResult.summary,
-      },
     });
 
     return {
