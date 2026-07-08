@@ -939,7 +939,7 @@ export function CheckInModal({
                 {t('common.cancel')}
               </Button>
               <Button
-                variant="accent"
+                variant="default"
                 onClick={() => {
                   setUnsavedConfirmPending(false);
                   onClose();

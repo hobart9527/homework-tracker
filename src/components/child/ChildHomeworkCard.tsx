@@ -268,8 +268,8 @@ export function ChildHomeworkCard({
               </div>
             ) : isOverdue ? (
               <Button
-                variant="accent"
-                size="md"
+                variant="default"
+                size="default"
                 onClick={homework.type_icon === "📚" || homework.type_icon === "📖" ? () => router.push(`/${locale}/reading?lang=${homework.type_icon === "📖" ? "zh" : "en"}`) : homework.platform_url ? () => window.open(homework.platform_url ?? '', '_blank', 'noopener,noreferrer') : onComplete}
                 className="min-h-[44px] w-full sm:w-auto"
               >
@@ -277,7 +277,7 @@ export function ChildHomeworkCard({
               </Button>
             ) : (
               <Button
-                size="md"
+                size="default"
                 onClick={homework.type_icon === "📚" || homework.type_icon === "📖" ? () => router.push(`/${locale}/reading?lang=${homework.type_icon === "📖" ? "zh" : "en"}`) : homework.platform_url ? () => window.open(homework.platform_url ?? '', '_blank', 'noopener,noreferrer') : onComplete}
                 className="min-h-[44px] w-full sm:w-auto"
               >

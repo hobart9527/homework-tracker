@@ -365,8 +365,8 @@ export default function ReadingStandardsPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
-              variant="primary"
-              size="md"
+              variant="default"
+              size="default"
               disabled={!dirty || saving}
               onClick={handleSave}
             >

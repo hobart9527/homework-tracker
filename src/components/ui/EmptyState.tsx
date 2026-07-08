@@ -33,7 +33,7 @@ export function EmptyState({
         <p className="text-ui-sm text-ink-500 mb-6 max-w-xs">{subtitle}</p>
       )}
       {action && (
-        <Button variant="primary" onClick={action.onClick}>
+        <Button variant="default" onClick={action.onClick}>
           {action.label}
         </Button>
       )}

@@ -65,7 +65,7 @@ export function PriorityHomeworkCard({
         {/* 右侧：按钮 */}
         <div className="shrink-0 w-full sm:w-auto">
           <Button
-            size="md"
+            size="default"
             onClick={onOpen}
             className="min-h-[44px] w-full sm:w-auto"
           >

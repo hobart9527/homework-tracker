@@ -82,6 +82,12 @@ const config: Config = {
           400: "#FF8259", 500: "#F26033", 600: "#D54A1F", 700: "#A53814",
           800: "#7A2A0E", 900: "#6B220D", 950: "#3D1207",
         },
+        // ── Shadcn / CSS variable mappings ──
+        border: "var(--border)",
+        input: "var(--input)",
+        ring: "var(--ring)",
+        background: "var(--background)",
+        foreground: "var(--foreground)",
         // ── Legacy aliases (backward compatible) ──
         primary: {
           DEFAULT: "#56AB91",
@@ -89,7 +95,7 @@ const config: Config = {
           dark: "#3D8B76",
         },
         accent: "#FF6B6B",
-        background: "#F8FFF8",
+        "bg-legacy": "#F8FFF8",
       },
 
       // ── Font Families ─────────────────────────────────────────────
