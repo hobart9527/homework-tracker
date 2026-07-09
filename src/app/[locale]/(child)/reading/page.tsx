@@ -56,14 +56,21 @@ const FALLBACK_EN_CATEGORIES = [
   { key: "stories", label: "Stories" },
 ];
 
-// Helper to detect language from article content/title
+// Helper to detect reading section from article.
+// Returns "zh" or "en" based on category naming (not just content language field).
+// Category in Chinese chars → Chinese reading section regardless of content language.
 function inferLanguage(article: Article): "zh" | "en" {
+  // Chinese-named categories (时事, 科学, 人物…) signal Chinese reading section
+  if (article.category && /[一-鿿]/.test(article.category)) {
+    return "zh";
+  }
+  // Explicit language field from DB
   if (article.language) return article.language;
-  // If category is in English list (legacy + v2), it's English
+  // English legacy categories
   if (["news", "current", "history", "science", "biography", "nature", "culture", "stories"].includes(article.category)) {
     return "en";
   }
-  // If title/content has mostly ASCII, it's English
+  // Fallback: detect from title character ratio
   const text = article.title || "";
   if (text.length === 0) return "zh";
   const asciiRatio = text.replace(/[^\x00-\x7F]/g, "").length / text.length;
