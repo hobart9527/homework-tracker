@@ -168,6 +168,7 @@ export default function ReadingBrowserPage() {
       const articleParams = new URLSearchParams({ limit: "20" });
       if (gradeRange.minGrade !== undefined) articleParams.set("minGrade", String(gradeRange.minGrade));
       if (gradeRange.maxGrade !== undefined) articleParams.set("maxGrade", String(gradeRange.maxGrade));
+      articleParams.set("language", activeLanguage);
       const [articlesRes, assignmentsRes, attemptsRes] = await Promise.all([
         fetch(`/api/reading/articles?${articleParams.toString()}`),
         supabase
@@ -224,7 +225,7 @@ export default function ReadingBrowserPage() {
     } finally {
       setLoading(false);
     }
-  }, [router, supabase, gradeFilter, t]);
+  }, [router, supabase, gradeFilter, activeLanguage, t]);
 
   useEffect(() => {
     void fetchReadingData();

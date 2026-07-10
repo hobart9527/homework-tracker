@@ -15,6 +15,7 @@ export async function GET(request: Request) {
   const maxGrade = searchParams.get("maxGrade");
   const category = searchParams.get("category");
   const search = searchParams.get("search");
+  const language = searchParams.get("language");
 
   let query = supabase
     .from("reading_articles")
@@ -40,6 +41,10 @@ export async function GET(request: Request) {
 
   if (search) {
     query = query.ilike("title", `%${search}%`);
+  }
+
+  if (language && (language === "zh" || language === "en")) {
+    query = query.eq("language", language);
   }
 
   const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 200);
