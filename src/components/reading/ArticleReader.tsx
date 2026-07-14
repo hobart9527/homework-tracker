@@ -74,7 +74,11 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
     word: string;
     x: number;
     y: number;
+    definition?: string | null;
+    pinyin?: string | null;
+    loading?: boolean;
   } | null>(null);
+  const dictAbortRef = useRef<AbortController | null>(null);
   const [isLandscape, setIsLandscape] = useState(false);
   const [orientationLocked, setOrientationLocked] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -588,10 +592,57 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
   // Handle text click for dictionary lookup
   const handleTextClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
+    // Detect ruby-pinyin clicks: if target is <rt> or child of <ruby>,
+    // extract Chinese character directly from the <ruby> element.
+    let target = e.target as HTMLElement | null;
+    if (target?.closest) {
+      const ruby = target.closest('ruby');
+      if (ruby) {
+        // <ruby> contains <rp>(</rp><rt>pinyin</rt><rp>)</rp>
+        // The text node before the first <rp> is the Chinese character.
+        const textBeforeRp = ruby.textContent?.split('(')[0]?.trim();
+        if (textBeforeRp && /[\u4e00-\u9fa5]/.test(textBeforeRp)) {
+          const word = textBeforeRp;
+          dictAbortRef.current?.abort();
+          const abort = new AbortController();
+          dictAbortRef.current = abort;
+
+          setDictLookup({
+            word,
+            x: e.clientX,
+            y: e.clientY,
+            loading: true,
+          });
+
+          fetch(`/api/reading/dictionary?word=${encodeURIComponent(word)}`, {
+            signal: abort.signal,
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+              if (abort.signal.aborted) return;
+              setDictLookup((prev) =>
+                prev?.word === word
+                  ? { ...prev, definition: data?.definition, pinyin: data?.pinyin, loading: false }
+                  : prev
+              );
+            })
+            .catch((err) => {
+              if (err.name === "AbortError") return;
+              setDictLookup((prev) =>
+                prev?.word === word
+                  ? { ...prev, definition: null, pinyin: null, loading: false }
+                  : prev
+              );
+            });
+          return;
+        }
+      }
+    }
+
     // Use caretPositionFromPoint (standard) or caretRangeFromPoint (WebKit) to get clicked word
     let clickedText = '';
-    
+
     if (document.caretPositionFromPoint) {
       const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
       if (pos && pos.offsetNode && pos.offsetNode.nodeType === Node.TEXT_NODE) {
@@ -618,23 +669,66 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
         clickedText = beforeWord + afterWord;
       }
     }
-    
+
     if (!clickedText) return;
 
-    // For Chinese, get single character; for English, get the word
+    // Extract the word
     let word: string;
     if (/[\u4e00-\u9fa5]/.test(clickedText)) {
-      word = clickedText.match(/[\u4e00-\u9fa5]/)?.[0] || clickedText[0];
+      // Chinese: single character
+      word = clickedText[0];
     } else {
+      // English: the full contiguous word
       word = clickedText.split(/\s+/)[0] || clickedText;
     }
 
     if (word) {
+      // Cancel any in-flight request
+      dictAbortRef.current?.abort();
+      const abort = new AbortController();
+      dictAbortRef.current = abort;
+
+      // Bail if only whitespace/punctuation
+      if (!/[一-龥a-zA-Z]/.test(word)) return;
+
       setDictLookup({
         word,
         x: e.clientX,
         y: e.clientY,
+        loading: true,
       });
+
+      // Fetch definition from dictionary API
+      if (/[一-龥]/.test(word)) {
+        // Chinese word lookup
+        fetch(`/api/reading/dictionary?word=${encodeURIComponent(word)}`, {
+          signal: abort.signal,
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (abort.signal.aborted) return;
+            setDictLookup((prev) =>
+              prev?.word === word
+                ? { ...prev, definition: data?.definition, pinyin: data?.pinyin, loading: false }
+                : prev
+            );
+          })
+          .catch((err) => {
+            if (err.name === "AbortError") return;
+            setDictLookup((prev) =>
+              prev?.word === word
+                ? { ...prev, definition: null, pinyin: null, loading: false }
+                : prev
+            );
+          });
+      } else {
+        // English word lookup — could use a separate API, for now just show the word
+        setDictLookup((prev) =>
+          prev?.word === word
+            ? { ...prev, loading: false }
+            : prev
+        );
+      }
     }
   }, []);
 
@@ -1009,26 +1103,52 @@ export const ArticleReader = forwardRef<ArticleReaderRef, ArticleReaderProps>(fu
       {/* Dictionary Popup */}
       {dictLookup && (
         <div
-          className="fixed z-50 rounded-xl shadow-2xl border p-4 min-w-[140px] max-w-[200px]"
-          style={{ 
-            left: Math.min(dictLookup.x, window.innerWidth - 220), 
-            top: Math.min(dictLookup.y + 10, window.innerHeight - 120),
+          className="fixed z-50 rounded-xl shadow-2xl border p-4 min-w-[160px] max-w-[260px]"
+          style={{
+            left: Math.min(dictLookup.x, window.innerWidth - 280),
+            top: Math.min(dictLookup.y + 10, window.innerHeight - 160),
             backgroundColor: "var(--reader-surface)",
             borderColor: "var(--reader-border)",
           }}
-          onClick={() => setDictLookup(null)}
+          onClick={() => { dictAbortRef.current?.abort(); setDictLookup(null); }}
         >
           <div className="text-3xl font-bold mb-1" style={{ color: "var(--reader-text)" }}>
             {dictLookup.word}
           </div>
-          {isChineseArticle && pinyinEnabled && (
-            <div className="text-sm font-medium mb-2" style={{ color: "var(--reader-accent)" }}>
+
+          {/* Loading */}
+          {dictLookup.loading && (
+            <div className="flex items-center gap-2 py-2">
+              <div className="h-3 w-3 animate-spin rounded-full border-2 border-forest-500 border-t-transparent" />
+              <span className="text-xs" style={{ color: "var(--reader-text-muted)" }}>查字典中...</span>
+            </div>
+          )}
+
+          {/* API pinyin (preferred) or fallback to pinyinContent */}
+          {!dictLookup.loading && dictLookup.pinyin && (
+            <div className="text-sm font-medium mb-1" style={{ color: "var(--reader-accent)" }}>
+              {dictLookup.pinyin}
+            </div>
+          )}
+          {!dictLookup.loading && !dictLookup.pinyin && isChineseArticle && pinyinEnabled && (
+            <div className="text-sm font-medium mb-1" style={{ color: "var(--reader-accent)" }}>
               {getPinyinForChar(dictLookup.word)}
             </div>
           )}
-          <div className="text-xs" style={{ color: "var(--reader-text-muted)" }}>
-            点击关闭
-          </div>
+
+          {/* Definition from API */}
+          {!dictLookup.loading && dictLookup.definition && (
+            <div className="text-xs leading-relaxed mt-1" style={{ color: "var(--reader-text-muted)" }}>
+              {dictLookup.definition}
+            </div>
+          )}
+
+          {/* No definition found */}
+          {!dictLookup.loading && dictLookup.definition == null && (
+            <div className="text-xs mt-1" style={{ color: "var(--reader-text-muted)" }}>
+              未找到释义
+            </div>
+          )}
         </div>
       )}
 
