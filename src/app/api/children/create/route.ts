@@ -3,6 +3,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import bcrypt from "bcrypt";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
+import { normalizePasscode } from "@/lib/auth/normalize-passcode";
 
 export async function POST(request: Request) {
   const limited = await checkRateLimit(request, 10, 60_000);
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   const signupEmail = `child-${Date.now()}@child.local`;
   const { data: authData, error: authError } = await serviceSupabase.auth.admin.createUser({
     email: signupEmail,
-    password: rawPassword,
+    password: normalizePasscode(rawPassword),
     email_confirm: true,
   });
 

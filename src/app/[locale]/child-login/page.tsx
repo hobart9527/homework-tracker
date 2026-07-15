@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PasscodeInput } from "@/components/ui/PasscodeInput";
 import { createClient } from "@/lib/supabase/client";
+import { normalizePasscode } from "@/lib/auth/normalize-passcode";
 
 export default function ChildLoginPage() {
   const router = useRouter();
@@ -45,7 +46,7 @@ export default function ChildLoginPage() {
       error: sessionError,
     } = await supabase.auth.signInWithPassword({
       email: `${child.id}@child.local`,
-      password: passcode,
+      password: normalizePasscode(passcode),
     });
 
     if (sessionError || !session) {
