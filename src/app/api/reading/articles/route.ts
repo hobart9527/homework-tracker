@@ -46,7 +46,7 @@ export async function GET(request: Request) {
   if (language === "zh") {
     // Chinese: match by Chinese category names too, since some articles
     // may have language='en' but Chinese-named categories.
-    query = query.or(`language.eq.zh,category.in.时事,历史,科学,自然,成语故事,寓言,文学,诗歌,艺术,人物,文化,中国史,美国史,世界史,经济与生活,数码与AI,太空与天文,医学健康,体育,环保`);
+    query = query.or(`language.eq.zh,category.in.(时事,历史,科学,自然,成语故事,寓言,文学,诗歌,艺术,人物,文化,中国史,美国史,世界史,经济与生活,数码与AI,太空与天文,医学健康,体育,环保)`);
   } else if (language === "en") {
     query = query.eq("language", "en");
   }
