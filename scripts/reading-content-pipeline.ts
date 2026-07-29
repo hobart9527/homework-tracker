@@ -717,15 +717,37 @@ async function main(): Promise<void> {
   console.log("");
 
   // Collect all work items (topic, grade) pairs
-  const workItems: WorkItem[] = [];
+  let workItems: WorkItem[] = [];
   for (const grade of grades) {
     for (const topic of topics) {
       workItems.push({ topic, grade });
     }
   }
 
-  // Daily mode: shuffle work items for varied distribution, track per-run limit
+  // Daily mode: pre-filter to only missing (topic, grade) pairs for efficiency
   if (dailyMode) {
+    const existingPairs = new Set<string>();
+    const { data: existing } = await supabase
+      .from("reading_articles")
+      .select("topic_key, grade_level")
+      .eq("language", pipelineLanguage)
+      .in("status", ["published", "draft"]);
+    if (existing) {
+      for (const row of existing) {
+        existingPairs.add(`${row.topic_key}|${row.grade_level}`);
+      }
+    }
+    // Also respect per-grade cap
+    const filtered: WorkItem[] = [];
+    for (const item of workItems) {
+      const key = `${item.topic.topic_key}|${item.grade}`;
+      const count = gradeCounts[item.grade] || 0;
+      if (!existingPairs.has(key) && count < TARGET_PER_GRADE) {
+        filtered.push(item);
+      }
+    }
+    console.log(`Daily pre-filter: ${workItems.length} → ${filtered.length} candidate work items`);
+    workItems = filtered;
     workItems.sort(() => Math.random() - 0.5);
   }
   const dailyCounter = dailyMode ? { count: 0, limit: dailyLimit } : null;
