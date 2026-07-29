@@ -42,8 +42,8 @@ export class Pacer {
     // Enforce minimum inter-request gap to smooth burst
     const now = Date.now();
     const elapsed = now - this.lastRunAt;
-    if (elapsed < 800) {
-      await sleep(800 - elapsed);
+    if (elapsed < 2000) {
+      await sleep(2000 - elapsed);
     }
 
     this.running++;

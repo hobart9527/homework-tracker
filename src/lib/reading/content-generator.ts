@@ -24,6 +24,33 @@ function getModel(): string {
   if (isDirectMiniMax()) return "MiniMax-M2.7";
   return process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
 }
+// ---------------------------------------------------------------------------
+// LLM call wrapper — per-call 429 retry with exponential backoff
+// ---------------------------------------------------------------------------
+async function callLLM(
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      return await getOpenAI().chat.completions.create(params);
+    } catch (err: any) {
+      const status = err?.status || err?.response?.status;
+      const is429 = status === 429;
+      const is5xx = status != null && status >= 500 && status < 600;
+      const isNetwork = !status && (err?.code === "ECONNRESET" || err?.code === "ETIMEDOUT" || err?.message?.includes("timeout"));
+      if ((is429 || is5xx || isNetwork) && attempt < MAX_RETRIES) {
+        const waitSec = is429 ? Math.min(15 * (attempt + 1), 60) : 5 * (attempt + 1);
+        console.warn(`[callLLM] ${status || "network"} error (attempt ${attempt + 1}/${MAX_RETRIES + 1}), retry in ${waitSec}s`);
+        await new Promise(r => setTimeout(r, waitSec * 1000));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("callLLM: unreachable");
+}
+
 
 // ---------------------------------------------------------------------------
 // Legacy types — kept for backward compatibility with existing callers.
@@ -741,7 +768,7 @@ export async function generateArticleContent(
   const modelName = getModel();
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
-  const completion = await getOpenAI().chat.completions.create({
+  const completion = await callLLM({
     model: modelName,
     messages: [
       {
@@ -902,7 +929,7 @@ ${sourceSegment ? `原文参考：\n${sourceSegment.slice(0, 2000)}` : ""}${sour
   const modelName = getModel();
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
-  const completion = await getOpenAI().chat.completions.create({
+  const completion = await callLLM({
     model: modelName,
     messages: [
       { role: "system", content: "You create structured outlines. Return only valid JSON." },
@@ -1176,7 +1203,7 @@ async function generateSingleChapter(
   const modelName = getModel();
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
-  const completion = await getOpenAI().chat.completions.create({
+  const completion = await callLLM({
     model: modelName,
     messages: [
       {
@@ -1310,7 +1337,7 @@ export async function generateReadingContent(
 
     // LLM call: only for questions + metadata. Short prompt, low max_tokens.
     const isMiniMax = getModel().toLowerCase().includes("minimax");
-    const completion = await getOpenAI().chat.completions.create({
+    const completion = await callLLM({
       model: getModel(),
       messages: [
         {
@@ -1383,7 +1410,7 @@ export async function generateReadingContent(
   const modelName = getModel();
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
-  const completion = await getOpenAI().chat.completions.create({
+  const completion = await callLLM({
     model: modelName,
     messages: [
       {
