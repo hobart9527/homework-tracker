@@ -673,11 +673,14 @@ async function main(): Promise<void> {
 
   const gradesDisplay = gradesEnv ? grades.join(", ") : grades.join(", ") + " (mapped from levels)";
   const dryRun = process.argv.includes("--dry-run") || process.env.PIPELINE_DRY_RUN === "1";
+  const dailyMode = process.argv.includes("--daily");
+  const dailyLimit = parseInt(process.env.PIPELINE_DAILY_LIMIT || "2", 10);
   console.log(`Grades:     ${gradesDisplay}`);
   console.log(`Language:   ${pipelineLanguage}`);
   console.log(`Model:      ${process.env.OPENAI_READING_MODEL || "MiniMax-M3"}`);
   console.log(`Base URL:   ${process.env.OPENAI_BASE_URL || "https://api.minimaxi.com/v1"}`);
   if (dryRun) console.log("DRY RUN:    quality checks will run but NO data will be written to DB");
+  if (dailyMode) console.log(`DAILY MODE: generating up to ${dailyLimit} new articles per grade`);
   console.log("");
 
   const supabase = await getSupabaseClient();
@@ -717,6 +720,12 @@ async function main(): Promise<void> {
     }
   }
 
+  // Daily mode: shuffle work items for varied distribution, track per-run limit
+  if (dailyMode) {
+    workItems.sort(() => Math.random() - 0.5);
+  }
+  const dailyCounter = dailyMode ? { count: 0, limit: dailyLimit } : null;
+
   let total = 0;
   let succeeded = 0;
   let skipped = 0;
@@ -725,7 +734,7 @@ async function main(): Promise<void> {
   // Create global pacer for LLM call concurrency (max 3 concurrent across all tasks)
   const pacer = new Pacer(3);
   const tasks = workItems.map((item, index) =>
-    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts)
+    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, dailyCounter)
   );
 
   const results = await Promise.all(tasks);
@@ -789,10 +798,17 @@ async function processWorkItem(
   supabase: SupabaseClient<PipelineDatabase>,
   pacer: InstanceType<typeof Pacer>,
   dryRun: boolean = false,
-  gradeCounts: Record<number, number> = {}
+  gradeCounts: Record<number, number> = {},
+  dailyCounter: { count: number; limit: number } | null = null
 ): Promise<ProcessResult> {
   const { topic, grade } = item;
   const key = `${topic.topic_key}|G${grade}`;
+
+  // Daily mode: check if limit reached before processing
+  if (dailyCounter && dailyCounter.count >= dailyCounter.limit) {
+    return { status: "skipped" };
+  }
+
   process.stdout.write(
     `[${index}/${total}] ${key} (${topic.category})... `
   );
@@ -825,90 +841,103 @@ async function processWorkItem(
 
     // Step 3: Check source text quality and decide route
     const qualityCheck = checkSourceQuality(sourceText, grade, pipelineLanguage);
-    let contentResult;
 
+    // Determine route upfront (shared across retries)
+    let route: "A" | "B" | "C";
+    let routeLog: string;
     if (qualityCheck.fitsLevel && hasUsableSource) {
-      // Route A: Source text fits the grade directly — use as-is with minor cleanup
-      console.log("USE-DIRECT");
-      contentResult = await pacer.run(() =>
-        withRetry(() =>
-          generateReadingContent({
-            topicKey: topic.topic_key,
-            language: pipelineLanguage,
-            category: topic.category,
-            schoolGrade: grade,
-            sourceText,
-            route: "A", // Direct use
-          })
-        )
-      );
+      route = "A";
+      routeLog = "USE-DIRECT";
     } else if (hasUsableSource) {
-      // Route B/C: Source text needs adaptation — rewrite/expand/compress
-      console.log("REWRITE");
-      contentResult = await pacer.run(() =>
-        withRetry(() =>
-          generateReadingContent({
-            topicKey: topic.topic_key,
-            language: pipelineLanguage,
-            category: topic.category,
-            schoolGrade: grade,
-            sourceText,
-            route: qualityCheck.needsExpansion ? "B" : "C",
-          })
-        )
-      );
+      route = qualityCheck.needsExpansion ? "B" : "C";
+      routeLog = "REWRITE";
     } else {
-      // No usable source — force route C (full generation from scratch)
-      console.log("NO-SOURCE → GENERATE");
-      contentResult = await pacer.run(() =>
-        withRetry(() =>
-          generateReadingContent({
-            topicKey: topic.topic_key,
-            language: pipelineLanguage,
-            category: topic.category,
-            schoolGrade: grade,
-            sourceText: undefined,
-            route: "C",
-          })
-        )
-      );
+      route = "C";
+      routeLog = "NO-SOURCE → GENERATE";
     }
 
-    const { article, questions, illustrations } = contentResult;
+    // Retry loop: re-generate content up to 3 times if quality gates fail
+    let qualityPass = false;
+    let allIssues: any[] = [];
+    let attempts = 0;
+    const MAX_QUALITY_RETRIES = 3;
+    let article: any = null;
+    let questions: any[] = [];
+    let illustrations: any[] = [];
+    // Track per-gate status for logging after retry loop
+    let lastQualityGatePass = false;
+    let lastIbGatePass = false;
+    let lastFactualGatePass = false;
 
-    // Step 4: Run quality gate, IB criteria gate, and factual accuracy gate
-    const gate = validateContent({
-      article,
-      questions,
-      language: pipelineLanguage,
-      gradeLevel: grade,
-    });
-    const ibGate = validateIBCriteria({
-      article,
-      questions,
-      language: pipelineLanguage,
-      gradeLevel: grade,
-    });
-    const factualGate = validateFactualAccuracy({
-      article,
-      sourceText,
-      keyFacts: topic.key_facts || undefined,
-      language: pipelineLanguage,
-      gradeLevel: grade,
-    });
+    while (!qualityPass && attempts < MAX_QUALITY_RETRIES) {
+      attempts++;
 
-    // Merge issues with source tagging
-    const allIssues = [
-      ...gate.issues.map(i => ({ ...i, source: "quality" as const })),
-      ...ibGate.issues.map(i => ({ ...i, source: "ib-criteria" as const })),
-      ...factualGate.issues.map(i => ({ ...i, source: "factual" as const })),
-    ];
+      if (attempts > 1) {
+        console.log(`\n  RETRY ${attempts}/${MAX_QUALITY_RETRIES} — re-generating content...`);
+      } else {
+        console.log(routeLog);
+      }
 
-    // Route A: skip factual gate (original text is the ground truth)
-    const effectiveFactualPass = qualityCheck.fitsLevel ? true : factualGate.pass;
-    const qualityPass = gate.pass && ibGate.pass && effectiveFactualPass;
+      // (Re-)generate content
+      const contentResult = await pacer.run(() =>
+        withRetry(() =>
+          generateReadingContent({
+            topicKey: topic.topic_key,
+            language: pipelineLanguage,
+            category: topic.category,
+            schoolGrade: grade,
+            sourceText: hasUsableSource ? sourceText : undefined,
+            route,
+          })
+        )
+      );
 
-    // Step 4b: Cross-chapter coherence check
+      article = contentResult.article;
+      questions = contentResult.questions;
+      illustrations = contentResult.illustrations;
+
+      // Step 4: Run quality gate, IB criteria gate, and factual accuracy gate
+      const gate = validateContent({
+        article,
+        questions,
+        language: pipelineLanguage,
+        gradeLevel: grade,
+      });
+      const ibGate = validateIBCriteria({
+        article,
+        questions,
+        language: pipelineLanguage,
+        gradeLevel: grade,
+      });
+      const factualGate = validateFactualAccuracy({
+        article,
+        sourceText,
+        keyFacts: topic.key_facts || undefined,
+        language: pipelineLanguage,
+        gradeLevel: grade,
+      });
+
+      // Merge issues with source tagging
+      allIssues = [
+        ...gate.issues.map(i => ({ ...i, source: "quality" as const })),
+        ...ibGate.issues.map(i => ({ ...i, source: "ib-criteria" as const })),
+        ...factualGate.issues.map(i => ({ ...i, source: "factual" as const })),
+      ];
+
+      // Route A: skip factual gate (original text is the ground truth)
+      lastQualityGatePass = gate.pass;
+      lastIbGatePass = ibGate.pass;
+      lastFactualGatePass = qualityCheck.fitsLevel ? true : factualGate.pass;
+
+      qualityPass = lastQualityGatePass && lastIbGatePass && lastFactualGatePass;
+
+      if (!qualityPass && attempts < MAX_QUALITY_RETRIES) {
+        const errorCodes = allIssues.filter(i => i.severity === 'error').map((i: any) => i.code).join(', ');
+        console.log(`  Quality fail (attempt ${attempts}): ${errorCodes}`);
+      }
+    }
+
+    // Step 4b: Cross-chapter coherence check (after retry loop)
     if (article.chapters && article.chapters.length > 1) {
       const coherenceResult = checkChapterCoherence(article.chapters, grade, pipelineLanguage);
       (allIssues as any[]).push(
@@ -939,6 +968,7 @@ async function processWorkItem(
     // Step 5: Upsert article FIRST to get real articleId
     if (dryRun) {
       console.log("\n  DRY RUN — would upsert article, skipping all DB writes");
+      if (dailyCounter) dailyCounter.count++;
       return { status: "succeeded" };
     }
     const sanitized = sanitizeArticleNumbers(article, pipelineLanguage);
@@ -970,7 +1000,7 @@ async function processWorkItem(
       const { error: chErr } = await (supabase as SupabaseClient)
         .from("reading_article_chapters")
         .upsert(
-          article.chapters.map((ch) => ({
+          article.chapters.map((ch: any) => ({
             article_id: articleId,
             index: ch.index,
             heading: ch.heading,
@@ -1061,12 +1091,13 @@ async function processWorkItem(
 
     const sourceCount = illustrationResults.filter(r => r.source === "source-website").length;
     const aiCount = illustrationResults.length - sourceCount;
-    const gateLabel = gate.pass && ibGate.pass && effectiveFactualPass ? "published" : "draft";
+    const gateLabel = lastQualityGatePass && lastIbGatePass && lastFactualGatePass ? "published" : "draft";
     const routeLabel = qualityCheck.fitsLevel ? "direct" : qualityCheck.needsExpansion ? "expand" : "rewrite";
     const chapterInfo = article.chapters?.length ? ` ${article.chapters.length}ch` : "";
     console.log(
-      `OK — "${article.title}" route=${routeLabel}${chapterInfo} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${gate.pass ? "pass" : "fail"}, ib=${ibGate.pass ? "pass" : "fail"}, factual=${effectiveFactualPass ? "pass" : "skip"}, ${gateLabel})`
+      `OK — "${article.title}" route=${routeLabel}${chapterInfo} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${lastQualityGatePass ? "pass" : "fail"}, ib=${lastIbGatePass ? "pass" : "fail"}, factual=${lastFactualGatePass ? "pass" : "skip"}, ${gateLabel})`
     );
+    if (dailyCounter) dailyCounter.count++;
     return { status: "succeeded" };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
