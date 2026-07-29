@@ -14,7 +14,7 @@
 //   wave to extend without touching unrelated groups.
 
 // ── content-generator (article + questions LLM pipeline) ─────────────────
-export { generateArticleContent, generateReadingContent, buildChinesePrompt, buildEnglishPrompt } from "./content-generator";
+export { generateArticleContent, generateReadingContent, regenerateQuestionsOnly, buildChinesePrompt, buildEnglishPrompt, resetTokenUsage, getTokenUsage } from "./content-generator";
 export type { GenerateArticleOptions, GenerateReadingOptions, LevelVariant } from "./content-generator";
 export type { LocalGeneratedIllustration } from "./content-generator";
 

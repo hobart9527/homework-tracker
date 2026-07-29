@@ -35,7 +35,7 @@ import { config } from "dotenv";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCorpusEntry } from "./reading/classic-corpus";
 import scrapeAllSources from "./reading/scrape-all-sources";
-import { getWordCountRange, getSyntaxDistribution, gradeHasChapters, getChapterCount } from "@/lib/reading/standards";
+import { getWordCountRange, getSyntaxDistribution, gradeHasChapters, getChapterCount, getTotalQuestionCount } from "@/lib/reading/standards";
 
 config({ path: ".env.local" });
 
@@ -59,11 +59,14 @@ const supabaseMod = await import("@/lib/supabase/server");
 const concurrencyMod = await import("@/lib/reading/concurrency");
 
 const generateReadingContent = readingMod.generateReadingContent;
+const regenerateQuestionsOnly = readingMod.regenerateQuestionsOnly;
 const generateCover = readingMod.generateCover;
 const generateIllustrations = readingMod.generateIllustrations;
 const validateContent = readingMod.validateContent;
 const validateIBCriteria = readingMod.validateIBCriteria;
 const validateFactualAccuracy = readingMod.validateFactualAccuracy;
+const resetTokenUsage = readingMod.resetTokenUsage;
+const getTokenUsage = readingMod.getTokenUsage;
 const coherenceMod = await import("@/lib/reading/coherence-check");
 const checkChapterCoherence = coherenceMod.checkChapterCoherence;
 
@@ -642,6 +645,7 @@ async function rotateStale(supabase: SupabaseClient, language: string): Promise<
 
 async function main(): Promise<void> {
   console.log("=== Reading Content Pipeline ===\n");
+  resetTokenUsage();
 
   // Validate environment
   validateEnv();
@@ -764,6 +768,14 @@ async function main(): Promise<void> {
     else if (result.status === "skipped") skipped++;
     else if (result.status === "failed") failed++;
   }
+
+  const usage = getTokenUsage();
+  console.log(`\n=== TOKEN USAGE ===`);
+  console.log(`LLM calls:      ${usage.calls}`);
+  console.log(`Prompt tokens:  ${usage.prompt_tokens.toLocaleString()}`);
+  console.log(`Output tokens:  ${usage.completion_tokens.toLocaleString()}`);
+  console.log(`Total tokens:   ${usage.total_tokens.toLocaleString()}`);
+  console.log(`Avg tokens/call: ${usage.calls > 0 ? Math.round(usage.total_tokens / usage.calls).toLocaleString() : 0}`);
 
   console.log("\n=== PIPELINE COMPLETE ===");
   console.log(`Total:     ${total}`);
@@ -892,28 +904,61 @@ async function processWorkItem(
       attempts++;
 
       if (attempts > 1) {
-        console.log(`\n  RETRY ${attempts}/${MAX_QUALITY_RETRIES} — re-generating content...`);
+        // Check if failures are ONLY about questions — smart retry
+        const questionOnlyCodes = ["question-type-distribution-skew", "critical-thinking-ratio-error"];
+        const failingCodes = allIssues.filter(i => i.severity === "error").map((i: any) => i.code);
+        const isQuestionOnlyFail = failingCodes.length > 0 && failingCodes.every(c => questionOnlyCodes.includes(c));
+
+        if (isQuestionOnlyFail && article) {
+          console.log(`\n  RETRY ${attempts}/${MAX_QUALITY_RETRIES} — regenerating questions only...`);
+          const newQuestions = await pacer.run(() =>
+            withRetry(() =>
+              regenerateQuestionsOnly(article, grade, pipelineLanguage, {
+                category: topic.category,
+                topicKey: topic.topic_key,
+              })
+            )
+          );
+          if (newQuestions && newQuestions.length >= getTotalQuestionCount(grade, pipelineLanguage)) {
+            questions = newQuestions;
+          }
+        } else {
+          console.log(`\n  RETRY ${attempts}/${MAX_QUALITY_RETRIES} — re-generating content...`);
+          const contentResult = await pacer.run(() =>
+            withRetry(() =>
+              generateReadingContent({
+                topicKey: topic.topic_key,
+                language: pipelineLanguage,
+                category: topic.category,
+                schoolGrade: grade,
+                sourceText: hasUsableSource ? sourceText : undefined,
+                route,
+              })
+            )
+          );
+          article = contentResult.article;
+          questions = contentResult.questions;
+          illustrations = contentResult.illustrations;
+        }
       } else {
         console.log(routeLog);
+        // First attempt: full generation
+        const contentResult = await pacer.run(() =>
+          withRetry(() =>
+            generateReadingContent({
+              topicKey: topic.topic_key,
+              language: pipelineLanguage,
+              category: topic.category,
+              schoolGrade: grade,
+              sourceText: hasUsableSource ? sourceText : undefined,
+              route,
+            })
+          )
+        );
+        article = contentResult.article;
+        questions = contentResult.questions;
+        illustrations = contentResult.illustrations;
       }
-
-      // (Re-)generate content
-      const contentResult = await pacer.run(() =>
-        withRetry(() =>
-          generateReadingContent({
-            topicKey: topic.topic_key,
-            language: pipelineLanguage,
-            category: topic.category,
-            schoolGrade: grade,
-            sourceText: hasUsableSource ? sourceText : undefined,
-            route,
-          })
-        )
-      );
-
-      article = contentResult.article;
-      questions = contentResult.questions;
-      illustrations = contentResult.illustrations;
 
       // Step 4: Run quality gate, IB criteria gate, and factual accuracy gate
       const gate = validateContent({

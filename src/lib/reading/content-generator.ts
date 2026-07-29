@@ -25,6 +25,27 @@ function getModel(): string {
   return process.env.OPENAI_READING_MODEL || "MiniMax-M2.7";
 }
 // ---------------------------------------------------------------------------
+// Token usage tracking — module-level accumulator
+// ---------------------------------------------------------------------------
+
+interface TokenUsage {
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+let _sessionUsage: TokenUsage = { calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+
+export function resetTokenUsage(): void {
+  _sessionUsage = { calls: 0, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
+}
+
+export function getTokenUsage(): TokenUsage {
+  return { ..._sessionUsage };
+}
+
+// ---------------------------------------------------------------------------
 // LLM call wrapper — per-call 429 retry with exponential backoff
 // ---------------------------------------------------------------------------
 async function callLLM(
@@ -33,7 +54,14 @@ async function callLLM(
   const MAX_RETRIES = 3;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await getOpenAI().chat.completions.create(params);
+      const result = await getOpenAI().chat.completions.create(params);
+      if (result.usage) {
+        _sessionUsage.calls++;
+        _sessionUsage.prompt_tokens += result.usage.prompt_tokens ?? 0;
+        _sessionUsage.completion_tokens += result.usage.completion_tokens ?? 0;
+        _sessionUsage.total_tokens += result.usage.total_tokens ?? 0;
+      }
+      return result;
     } catch (err: any) {
       const status = err?.status || err?.response?.status;
       const is429 = status === 429;
@@ -420,6 +448,22 @@ ${questionLines}
 
 每道题 4 个选项（A/B/C/D），仅一个正确答案。
 难度等级：1（最简单）到 5（最难）。
+
+inference 题目示例（必须模仿此格式生成至少1道类似题目）：
+{
+  "question_text": "从文中第三段可以推断出，主人公为什么选择了YYY？",
+  "question_type": "inference",
+  "options": [
+    {"label":"A","text":"因为..."},
+    {"label":"B","text":"因为..."},
+    {"label":"C","text":"因为..."},
+    {"label":"D","text":"因为..."}
+  ],
+  "correct_answer": "B",
+  "difficulty": 3,
+  "hint": "注意文中关于XXX的描写",
+  "explanation": "文中提到...，因此可以推断..."
+}
 
 --- IB MYP 中文阅读要求 ---
 1. 文体（genre）："记叙文" | "说明文" | "议论文" | "文学散文"
@@ -975,7 +1019,80 @@ ${sourceSegment ? `原文参考：\n${sourceSegment.slice(0, 2000)}` : ""}${sour
 }
 
 /**
- * English chapter prompt — injects syntax/bloom/vocab/IB constraints from SSOT.
+ * Build system message with shared grade specifications for chapter prompts.
+ * Moving these out of per-chapter user prompt saves ~1400 tokens per chapter call.
+ */
+function buildChapterSystemMessage(
+  grade: number,
+  lang: "en" | "zh",
+  opts: GenerateReadingOptions,
+): string {
+  const wpc = getWordsPerChapter(grade, lang);
+  if (lang === "en") {
+    const enStd = getEnglishStandard(grade);
+    const syntaxDist = getSyntaxDistribution(grade, "en");
+    const vocab = getVocabScope(grade, "en");
+
+    const depthAnchor = grade >= 6
+      ? `\nACADEMIC DEPTH (G${grade}):
+- Include ONE direct or paraphrased reference to a real source/expert/citation
+- Use at least 3 AWL tier-2 words
+- Present at least ONE viewpoint and a contrasting perspective
+- Each paragraph must advance a specific idea — no filler sentences`
+      : grade >= 4
+      ? `\nREASONING DEPTH (G${grade}):
+- Include ONE inference opportunity where reader connects two facts
+- Use at least 2 grade-${grade} scope words
+- Each paragraph should build on the previous one`
+      : `\nCOMPREHENSION DEPTH (G3):
+- Simple cause-effect connections between sentences
+- Include ONE "why do you think" moment`;
+
+    return `You write children's reading content. Return only valid JSON.
+
+--- GRADE ${grade} SPECIFICATIONS ---
+Each chapter: ${wpc.min}-${wpc.max} words.
+Sentence structure:
+  - Simple: ${syntaxDist.simple}%
+  - Compound: ${syntaxDist.compound}%
+  - Complex: ${syntaxDist.complex}%
+Vocabulary: ${vocab}
+Paragraphs: ${enStd.paragraphSentencesMin}-${enStd.paragraphSentencesMax} sentences each
+IB: include at least one inference or reflection opportunity per chapter.${depthAnchor}`;
+  }
+
+  const zhStd = getChineseStandard(grade);
+  const syntaxDistZh = getSyntaxDistribution(grade, "zh");
+  const vocabZh = getVocabScope(grade, "zh");
+
+  const depthAnchorZh = grade >= 6
+    ? `\n学术深度（${grade}年级）：
+- 至少一处对真实资料/专家/引用的直接或转述引用
+- 至少3个学术词汇
+- 至少一个观点及对比视角
+- 每个段落必须有明确论点`
+    : grade >= 4
+    ? `\n推理深度（${grade}年级）：
+- 至少一处推理机会，读者需连接两个事实
+- 至少2个${grade}年级词汇
+- 每个段落承接上一段`
+    : `\n理解深度（3年级）：
+- 简单因果关系
+- 包含一处"你觉得为什么"的思考`;
+
+  return `你创作儿童阅读内容。仅返回有效JSON。
+
+--- ${grade}年级规格 ---
+每章：${wpc.min}-${wpc.max}字。
+句子结构：简单句${syntaxDistZh.simple}%、并列句${syntaxDistZh.compound}%、复合句${syntaxDistZh.complex}%
+词汇范围：${vocabZh}
+段落：每段${zhStd.paragraphSentencesMin}-${zhStd.paragraphSentencesMax}句
+IB要求：每章至少包含一个推理或思考机会。${depthAnchorZh}`;
+}
+
+/**
+ * English chapter prompt — question distribution and output format.
+ * Grade specs (syntax, vocab, depth) are in the system message.
  */
 function buildChapterPromptEn(
   chapter: ArticleChapter,
@@ -985,12 +1102,7 @@ function buildChapterPromptEn(
   wpc: { min: number; max: number },
   questionsPerChapter: number
 ): string {
-  const enStd = getEnglishStandard(grade);
-  const syntaxDist = getSyntaxDistribution(grade, "en");
   const bloomDist = getBloomDistribution(grade, "en");
-  const vocab = getVocabScope(grade, "en");
-
-  // Build question type distribution from SSOT bloom's
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
   const typeNames = ["detail", "inference", "main_idea", "sequence"];
   const qTypes: string[] = [];
@@ -1004,25 +1116,10 @@ function buildChapterPromptEn(
 
   const isRouteB = opts.route === "B" && !!opts.sourceText;
   const sourceSection = isRouteB
-    ? `\nSOURCE TEXT FOR THIS CHAPTER (rewrite — preserve all facts):
+    ? `\nSOURCE TEXT FOR THIS CHAPTER (rewrite -- preserve all facts):
 ${(opts.sourceText || "").slice(0, 2000)}`
     : `\nSource reference:
 ${(opts.sourceText || "").slice(0, 2000)}`;
-
-  const depthAnchor = grade >= 6
-    ? `\nACADEMIC DEPTH REQUIREMENTS (Grade ${grade}):
-- Include ONE direct or paraphrased reference to a real source/expert/citation
-- Use at least 3 AWL (Academic Word List) tier-2 words appropriate for Grade ${grade}
-- Present at least ONE viewpoint and, where applicable, a contrasting perspective
-- Each paragraph must advance a specific idea — no filler sentences`
-    : grade >= 4
-    ? `\nREASONING DEPTH REQUIREMENTS (Grade ${grade}):
-- Include ONE inference opportunity where the reader must connect two facts
-- Use at least 2 vocabulary words from the Grade ${grade} scope
-- Each paragraph should build on the previous one`
-    : `\nCOMPREHENSION DEPTH (Grade 3):
-- Use simple cause-effect connections between sentences
-- Include ONE "why do you think" moment for the reader`;
 
   const transitionCheck = chapter.index > 0
     ? `\nTRANSITION CHECK: This is chapter ${chapter.index + 1} of ${chapterCount}.
@@ -1032,7 +1129,7 @@ ${(opts.sourceText || "").slice(0, 2000)}`;
 - If chapter ${chapter.index} had a question unanswered, address it here`
     : `\nTRANSITION CHECK: This is the FIRST chapter.
 - Set the scene, introduce the topic
-- Do NOT resolve the main question — leave it for later chapters`;
+- Do NOT resolve the main question -- leave it for later chapters`;
 
   return `Write Chapter ${chapter.index + 1} of ${chapterCount} for a Grade ${grade} reading article.
 
@@ -1043,16 +1140,7 @@ Topic: ${displayTopicKey(opts)}
 Category: ${opts.category}
 ${sourceSection}
 
---- GRADE ${grade} SPECIFICATIONS (THIS CHAPTER) ---
-CRITICAL: Write between ${wpc.min} and ${wpc.max} words for this chapter.
-Sentence structure distribution:
-  - Simple sentences: ${syntaxDist.simple}%
-  - Compound sentences: ${syntaxDist.compound}%
-  - Complex sentences: ${syntaxDist.complex}%
-Vocabulary: ${vocab}
-Paragraphs: ${enStd.paragraphSentencesMin}-${enStd.paragraphSentencesMax} sentences each
-IB requirement: this chapter must include at least one inference or reflection opportunity.
-${depthAnchor}
+Grade specs (word count, syntax, vocabulary, paragraphs): see system message.
 
 --- QUESTIONS (${questionsPerChapter} for this chapter) ---
 Generate EXACTLY ${questionsPerChapter} questions.
@@ -1083,7 +1171,8 @@ ${transitionCheck}`;
 }
 
 /**
- * Chinese chapter prompt — injects syntax/bloom/vocab constraints from SSOT.
+ * Chinese chapter prompt — question distribution and output format.
+ * Grade specs (syntax, vocab, depth) are in the system message.
  */
 function buildChapterPromptZh(
   chapter: ArticleChapter,
@@ -1093,11 +1182,7 @@ function buildChapterPromptZh(
   wpc: { min: number; max: number },
   questionsPerChapter: number
 ): string {
-  const syntaxDist = getSyntaxDistribution(grade, "zh");
   const bloomDist = getBloomDistribution(grade, "zh");
-  const vocab = getVocabScope(grade, "zh");
-
-  // Build question type distribution from SSOT bloom's
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
   const typeNames = ["detail", "inference", "main_idea", "sequence"];
   const qTypes: string[] = [];
@@ -1115,21 +1200,6 @@ function buildChapterPromptZh(
 ${(opts.sourceText || "").slice(0, 2000)}`
     : `\n原文参考：
 ${(opts.sourceText || "").slice(0, 2000)}`;
-
-  const depthAnchorZh = grade >= 6
-    ? `\n学术深度要求（${grade}年级）：
-- 至少包含一处对真实资料/专家/引用的直接或转述引用
-- 至少使用3个适合${grade}年级的学术词汇
-- 至少呈现一个观点，并在适用处提供对比视角
-- 每个段落必须有明确论点，不得出现填充句`
-    : grade >= 4
-    ? `\n推理深度要求（${grade}年级）：
-- 至少包含一处推理机会，读者需连接两个事实得出结论
-- 至少使用2个${grade}年级词汇范围内的词汇
-- 每个段落应承接上一段内容`
-    : `\n理解深度（3年级）：
-- 运用简单的因果关系连接句子
-- 包含一处"你觉得为什么"的思考契机`;
 
   const transitionCheckZh = chapter.index > 0
     ? `\n章节过渡检查：本章为第${chapter.index + 1}章，共${chapterCount}章。
@@ -1151,16 +1221,28 @@ ${(opts.sourceText || "").slice(0, 2000)}`;
 第${chapter.index + 1}章，共${chapterCount}章
 ${sourceSection}
 
-要求：本章${wpc.min}-${wpc.max}字。
-句子结构：简单句${syntaxDist.simple}%、并列句${syntaxDist.compound}%、复合句${syntaxDist.complex}%
-词汇范围：${vocab}
-IB要求：本章必须包含至少一个推理或思考的机会。
-${depthAnchorZh}
+年级规格（字数、句子结构、词汇）：参见系统消息。
 
 同时创建${questionsPerChapter}道阅读理解题。
 题型分布（基于${grade}年级标准）:
 ${typeExamples}
 每道题4个选项（A/B/C/D），只有一个正确答案。
+
+inference 题目示例（必须模仿此格式生成至少1道类似题目）：
+{
+  "question_text": "从文中第三段可以推断出，主人公为什么选择了YYY？",
+  "question_type": "inference",
+  "options": [
+    {"label":"A","text":"因为..."},
+    {"label":"B","text":"因为..."},
+    {"label":"C","text":"因为..."},
+    {"label":"D","text":"因为..."}
+  ],
+  "correct_answer": "B",
+  "difficulty": 3,
+  "hint": "注意文中关于XXX的描写",
+  "explanation": "文中提到...，因此可以推断..."
+}
 
 返回严格JSON（只返回JSON，不要markdown代码块）：
 {
@@ -1208,9 +1290,7 @@ async function generateSingleChapter(
     messages: [
       {
         role: "system",
-        content: isEn
-          ? "You write children's reading content. Return only valid JSON."
-          : "你创作儿童阅读内容。仅返回有效JSON。",
+        content: buildChapterSystemMessage(grade, lang, opts),
       },
       { role: "user", content: chapterPrompt },
     ],
@@ -1299,6 +1379,152 @@ async function generateChapterizedContent(
   };
 }
 
+/**
+ * Smart retry: regenerate questions only (not the full article).
+ * Uses Route A style prompt — LLM sees existing article, generates new questions.
+ */
+export async function regenerateQuestionsOnly(
+  article: GeneratedArticle,
+  grade: number,
+  lang: "en" | "zh",
+  opts?: { category?: string; topicKey?: string }
+): Promise<GeneratedQuestion[]> {
+  const totalQ = getTotalQuestionCount(grade, lang);
+  const bloomDist = getBloomDistribution(grade, lang);
+  const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
+  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const qTypes: string[] = [];
+  for (let i = 0; i < totalQ; i++) {
+    const pos = i % 4;
+    qTypes.push(blooms[pos] > 0 ? typeNames[pos] : "detail");
+  }
+  const questionDistribution = qTypes.map((t, i) => `  Q${i + 1}: question_type="${t}"`).join("\n");
+  const focusAreas = [...new Set(qTypes)].join(", ");
+
+  const sourceText = article.content || "";
+
+  if (lang === "en") {
+    const prompt = `You are a children's reading assessment expert. Given a complete article, create comprehension questions and metadata. DO NOT output the article content.
+
+Article:
+${sourceText}
+
+Create ${totalQ} comprehension questions.
+Question types: ${focusAreas}
+Mix of: main_idea, detail, inference, vocabulary, sequence.
+Each question MUST have EXACTLY 4 options labeled "A", "B", "C", "D" with non-empty text.
+Exactly one correct answer. Difficulty scale: 1 (easiest) to 5 (hardest).
+
+Question type distribution:
+${questionDistribution}
+
+At least 30% of questions MUST be inference type.
+
+Return STRICT JSON with ONLY a "questions" array:
+{
+  "questions": [
+    {
+      "question_text": "...",
+      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
+      "correct_answer": "A",
+      "difficulty": 3,
+      "hint": "Reading strategy tip (1-2 sentences), NOT the answer.",
+      "explanation": "Why the correct answer is right, in child-friendly language."
+    }
+  ]
+}`;
+
+    const resp = await callLLM({
+      model: getModel(),
+      messages: [
+        { role: "system", content: buildChapterSystemMessage(grade, "en", {} as GenerateReadingOptions) },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+    });
+
+    const text = resp.choices?.[0]?.message?.content || "{}";
+    const parsed = JSON.parse(text);
+
+    if (parsed.questions && Array.isArray(parsed.questions)) {
+      return parsed.questions as GeneratedQuestion[];
+    }
+    if (Array.isArray(parsed)) {
+      return parsed as GeneratedQuestion[];
+    }
+    return [];
+  }
+
+  // Chinese version
+  const promptZh = `你是一位中文儿童阅读测评专家。请根据给定的完整文章，仅创建阅读理解题。请勿输出文章正文。
+
+文章：
+${sourceText}
+
+创建${totalQ}道阅读理解题。
+题型：${focusAreas}
+混合题型：main_idea（主旨）、detail（细节）、inference（推理）、vocabulary（词汇）、sequence（顺序）。
+每道题必须有且仅有4个选项，标记为"A"、"B"、"C"、"D"，每个选项必须有文字内容。
+只有一个正确答案。难度：1（最简单）到5（最难）。
+
+题型分布：
+${questionDistribution}
+
+inference 题目示例（必须模仿此格式生成至少1道类似题目）：
+{
+  "question_text": "从文中第三段可以推断出，主人公为什么选择了YYY？",
+  "question_type": "inference",
+  "options": [
+    {"label":"A","text":"因为..."},
+    {"label":"B","text":"因为..."},
+    {"label":"C","text":"因为..."},
+    {"label":"D","text":"因为..."}
+  ],
+  "correct_answer": "B",
+  "difficulty": 3,
+  "hint": "注意文中关于XXX的描写",
+  "explanation": "文中提到...，因此可以推断..."
+}
+
+返回严格JSON，只包含questions数组：
+{
+  "questions": [
+    {
+      "question_text": "...",
+      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
+      "correct_answer": "A",
+      "difficulty": number (1-5),
+      "hint": "阅读策略提示（1-2句话），不是答案",
+      "explanation": "为什么正确答案是对的，用儿童友好语言解释"
+    }
+  ]
+}`;
+
+  const resp = await callLLM({
+    model: getModel(),
+    messages: [
+      { role: "system", content: buildChapterSystemMessage(grade, "zh", {} as GenerateReadingOptions) },
+      { role: "user", content: promptZh },
+    ],
+    temperature: 0.7,
+    response_format: { type: "json_object" },
+  });
+
+  const text = resp.choices?.[0]?.message?.content || "{}";
+  const parsed = JSON.parse(text);
+
+  if (parsed.questions && Array.isArray(parsed.questions)) {
+    return parsed.questions as GeneratedQuestion[];
+  }
+  if (Array.isArray(parsed)) {
+    return parsed as GeneratedQuestion[];
+  }
+  return [];
+}
+
 export async function generateReadingContent(
   opts: GenerateReadingOptions
 ): Promise<{
@@ -1308,10 +1534,11 @@ export async function generateReadingContent(
 }> {
   const effectiveGradeForDifficulty = deriveEffectiveGrade(opts);
 
-  // G3+ uses chapterized generation for better depth and token management
-  // G3 gets 2 chapters (gradeHasChapters returns false for G3 since JSON has chapterCount=1)
+  // G3-G4: use single-pass generation (1 LLM call) for efficiency.
+  // These articles are short (200-800 chars/words) and chapterized generation
+  // often produces empty chapters. G5+ use chapterized for better depth.
   const lang = opts.language || "en";
-  const useChapters = opts.route !== "A" && (gradeHasChapters(effectiveGradeForDifficulty, lang) || effectiveGradeForDifficulty <= 3);
+  const useChapters = opts.route !== "A" && effectiveGradeForDifficulty >= 5 && gradeHasChapters(effectiveGradeForDifficulty, lang);
   if (useChapters) {
     return generateChapterizedContent(opts, effectiveGradeForDifficulty, lang);
   }
