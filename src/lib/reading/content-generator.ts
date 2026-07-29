@@ -1262,6 +1262,8 @@ async function generateChapterizedContent(
       difficulty: grade >= 4 ? Math.min(5, grade - 1) : grade,
       scene_description: chapters[0]?.content?.slice(0, 100) || "",
       genre: (lang === "en" ? "informative" : "说明文") as GeneratedArticle["genre"],
+      cultural_connection: lang === "zh" ? `本文涉及${opts.category ? "「" + opts.category + "」" : "文化"}相关内容，帮助读者了解相关文化背景知识。` : undefined,
+      classical_quote: lang === "zh" ? { original: "学而不思则罔，思而不学则殆。", pinyin: "xué ér bù sī zé wǎng, sī ér bù xué zé dài.", translation: "Learning without thought is labor lost; thought without learning is perilous." } : undefined,
       author_purpose: "to inform",
       chapters,
     },
