@@ -733,11 +733,30 @@ async function main(): Promise<void> {
 
   // Create global pacer for LLM call concurrency (max 3 concurrent across all tasks)
   const pacer = new Pacer(3);
-  const tasks = workItems.map((item, index) =>
-    processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, dailyCounter)
-  );
 
-  const results = await Promise.all(tasks);
+  let results: ProcessResult[];
+  if (dailyMode) {
+    // Daily mode: process sequentially, stop early when limit reached
+    results = [];
+    for (let i = 0; i < workItems.length; i++) {
+      if (dailyCounter && dailyCounter.count >= dailyCounter.limit) {
+        console.log(`\nDAILY LIMIT REACHED (${dailyCounter.count}/${dailyCounter.limit}) — stopping early`);
+        // Fill remaining as skipped
+        for (let j = i; j < workItems.length; j++) {
+          results.push({ status: "skipped" as const });
+        }
+        break;
+      }
+      const result = await processWorkItem(workItems[i], i + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, dailyCounter);
+      results.push(result);
+    }
+  } else {
+    // Monthly mode: process all items concurrently
+    const tasks = workItems.map((item, index) =>
+      processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, dailyCounter)
+    );
+    results = await Promise.all(tasks);
+  }
 
   for (const result of results) {
     total++;
