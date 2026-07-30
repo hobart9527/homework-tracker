@@ -50,15 +50,23 @@ export default function HomeworkListPage() {
   const getChildName = (childId: string) =>
     children.find((c) => c.id === childId)?.name || t('parent.homework.unknownChild');
 
-  const listView = buildHomeworkListView(children, homeworks, {
+  const activeHomeworks = homeworks.filter((h) => h.is_active !== false);
+  const archivedHomeworks = homeworks.filter((h) => h.is_active === false);
+
+  const listView = buildHomeworkListView(children, activeHomeworks, {
     selectedChildId,
     date: new Date(),
   });
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('parent.homework.deleteConfirm'))) return;
-    await supabase.from("homeworks").delete().eq("id", id);
-    setHomeworks((prev) => prev.filter((h) => h.id !== id));
+  const handleArchive = async (id: string) => {
+    if (!confirm(t('parent.homework.archiveConfirm'))) return;
+    await supabase.from("homeworks").update({ is_active: false }).eq("id", id);
+    setHomeworks((prev) => prev.map((h) => (h.id === id ? { ...h, is_active: false } : h)));
+  };
+
+  const handleRestore = async (id: string) => {
+    await supabase.from("homeworks").update({ is_active: true }).eq("id", id);
+    setHomeworks((prev) => prev.map((h) => (h.id === id ? { ...h, is_active: true } : h)));
   };
 
   if (loading) {
@@ -68,6 +76,10 @@ export default function HomeworkListPage() {
       </div>
     );
   }
+
+  const filteredArchived = selectedChildId === "all"
+    ? archivedHomeworks
+    : archivedHomeworks.filter((h) => h.child_id === selectedChildId);
 
   return (
     <div className="max-w-7xl mx-auto space-y-space-6">
@@ -191,10 +203,10 @@ export default function HomeworkListPage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleDelete(hw.id)}
+                              onClick={() => handleArchive(hw.id)}
                               className="text-coral-600"
                             >
-                              {t('common.delete')}
+                              {t('parent.homework.archive')}
                             </Button>
                           </div>
                         </div>
@@ -203,6 +215,46 @@ export default function HomeworkListPage() {
                   </div>
                 </section>
               ))}
+
+              {filteredArchived.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-ui-lg font-ui-display font-semibold text-ink-400">
+                    {t('parent.homework.archivedItems')}
+                  </h2>
+                  <div className="space-y-3">
+                    {filteredArchived.map((hw) => (
+                      <Card key={hw.id}>
+                        <div className="flex items-start gap-3">
+                          <span className="text-ui-3xl">{hw.type_icon}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-space-2">
+                              <h3 className="font-semibold text-ink-400">
+                                {hw.title}
+                              </h3>
+                              <span className="text-ui-xs text-ink-400">
+                                {getChildName(hw.child_id)}
+                              </span>
+                            </div>
+                            <p className="mt-space-1 text-ui-sm text-ink-500">
+                              {hw.type_name} • {hw.point_value}{t('parent.homework.points')}
+                            </p>
+                          </div>
+                          <div className="flex gap-space-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleRestore(hw.id)}
+                              className="text-green-600"
+                            >
+                              {t('parent.homework.restore')}
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           </div>
         )}

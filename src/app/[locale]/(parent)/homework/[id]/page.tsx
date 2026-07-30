@@ -30,9 +30,13 @@ export default function EditHomeworkPage({ params }: { params: { id: string } })
     fetchHomework();
   }, [supabase, params.id]);
 
-  const handleDelete = async () => {
-    if (!confirm(t('parent.homework.deleteConfirm'))) return;
-    await supabase.from("homeworks").delete().eq("id", params.id);
+  const handleArchive = async () => {
+    await supabase.from("homeworks").update({ is_active: false }).eq("id", params.id);
+    router.push("/homework");
+  };
+
+  const handleRestore = async () => {
+    await supabase.from("homeworks").update({ is_active: true }).eq("id", params.id);
     router.push("/homework");
   };
 
@@ -54,9 +58,20 @@ export default function EditHomeworkPage({ params }: { params: { id: string } })
         <h1 className="text-ui-2xl font-ui-display font-bold text-forest-800">
           {t('parent.homework.editHomework')}
         </h1>
-        <Button variant="ghost" size="sm" onClick={() => router.push('/homework')}>
-          {t('common.back')}
-        </Button>
+        <div className="flex gap-space-2">
+          {homework.is_active === false ? (
+            <Button variant="ghost" size="sm" onClick={handleRestore} className="text-green-600">
+              {t('parent.homework.restore')}
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={handleArchive}>
+              {t('parent.homework.archive')}
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => router.push('/homework')}>
+            {t('common.back')}
+          </Button>
+        </div>
       </div>
       <HomeworkForm homework={homework} onSuccess={() => router.push("/homework")} />
     </div>
