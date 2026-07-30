@@ -258,6 +258,16 @@ export default function ParentDashboardClient({
           { event: "INSERT", schema: "public", table: "check_ins" },
           handleRefresh
         )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "homework_auto_matches" },
+          handleRefresh
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "learning_events" },
+          handleRefresh
+        )
         .subscribe();
       cleanupChannel = () => {
         void channel.unsubscribe();

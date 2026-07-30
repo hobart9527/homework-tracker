@@ -109,7 +109,7 @@ export async function ingestLearningEvent(input: {
   );
   const sessionId = getSessionIdFromRawPayload(input.event.rawPayload);
 
-  if (input.event.platform === "ixl" && input.event.subject) {
+  if (input.event.subject) {
     const existingLookup = await input.supabase
       .from("learning_events")
       .select?.("id, duration_minutes, raw_payload")
@@ -150,12 +150,30 @@ export async function ingestLearningEvent(input: {
             }
           : input.event.rawPayload;
 
+      // Atomic duration merge via RPC (migration 066) so concurrent updates
+      // for the same event both apply. The raw_payload merge remains a
+      // read-modify-write because sessionIds is a JSONB array and the
+      // narrow race window is acceptable; see ponytail comment below.
+      const sb = input.supabase as any;
+      const rpcResult = await sb.rpc("increment_learning_event_duration", {
+        event_id: String(existingLookup.data.id),
+        amount: input.event.durationMinutes ?? 0,
+      });
+
+      const rpcError = rpcResult?.error;
+      if (rpcError) {
+        throw new Error(rpcError.message);
+      }
+
+      const rpcData = Array.isArray(rpcResult?.data) ? rpcResult.data[0] : rpcResult?.data;
+
+      // Apply the raw_payload + score update separately. ponytail: when two
+      // platforms ship a concurrent JSONB merge, the last-write-wins on
+      // sessionIds is acceptable for now; switch to a JSONB-merge RPC when
+      // we have a second concurrent source.
       const { data, error } = await input.supabase
         .from("learning_events")
         .update({
-          duration_minutes:
-            (Number(existingLookup.data.duration_minutes ?? 0) || 0) +
-            (input.event.durationMinutes ?? 0),
           score: input.event.score,
           raw_payload: mergedRawPayload,
         })
@@ -167,10 +185,17 @@ export async function ingestLearningEvent(input: {
         throw new Error(error.message);
       }
 
+      // Normalize return shape — the merge row may have started with no
+      // duration but the RPC gave us the new total.
+      const merged = data ?? {
+        ...(rpcData ?? {}),
+        id: String(existingLookup.data.id),
+      };
+
       return {
         status: "merged" as const,
         localDateKey,
-        event: data,
+        event: merged,
       };
     }
   }

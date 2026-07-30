@@ -1,5 +1,8 @@
 import { applyAutoCheckinMatches } from "@/lib/auto-checkins";
-import { createLearningEventReview } from "@/lib/learning-event-reviews";
+import {
+  createLearningEventReview,
+  recordDuplicateSuppressedReview,
+} from "@/lib/learning-event-reviews";
 import {
   getHomeworksForDate,
   getLocalDayBounds,
@@ -82,7 +85,8 @@ export async function loadAutoCheckinContext(input: {
   const { data: homeworks, error: homeworkError } = await sb
     .from("homeworks")
     .select("*")
-    .eq("child_id", input.childId);
+    .eq("child_id", input.childId)
+    .eq("is_active", true);
 
   if (homeworkError) {
     throw new Error(homeworkError.message);
@@ -195,6 +199,28 @@ export async function syncLearningEventAutoCheckins(input: {
   });
 
   if (ingestResult.status === "duplicate" || !ingestResult.event) {
+    // The unique constraint on learning_events swallowed this insert.
+    // Write a learning_event_reviews row explaining the suppression so we
+    // don't lose the audit trail.
+    try {
+      await recordDuplicateSuppressedReview({
+        supabase: input.supabase as any,
+        sourceRef: input.event.sourceRef,
+        platformAccountId: input.event.platformAccountId,
+        occurredAt: input.event.occurredAt,
+        title: input.event.title,
+        subject: input.event.subject,
+        eventType: input.event.eventType,
+        rawPayload:
+          input.event.rawPayload && typeof input.event.rawPayload === "object" && !Array.isArray(input.event.rawPayload)
+            ? (input.event.rawPayload as Record<string, unknown>)
+            : {},
+      });
+    } catch (reviewErr) {
+      // Best-effort — never block on the review write.
+      console.warn("[auto-checkins] failed to record duplicate review", reviewErr);
+    }
+
     return {
       ingestStatus: ingestResult.status,
       learningEventId: null,

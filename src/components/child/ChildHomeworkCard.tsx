@@ -8,6 +8,7 @@ import { IconStar, IconClock, IconMapPin, IconPaperclip, IconBookOpen } from "@/
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { AudioPlayer } from "@/components/ui/AudioPlayer";
+import { platformLabel } from "@/lib/platform-labels";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
 
@@ -37,12 +38,6 @@ interface ChildHomeworkCardProps {
   onComplete: () => void;
 }
 
-const PLATFORM_LABELS: Record<string, string> = {
-  ixl: "IXL",
-  "khan-academy": "可汗学院",
-  "raz-kids": "Raz-Kids",
-  epic: "Epic",
-};
 
 function formatAutoSourceTime(occurredAt: string | null) {
   if (!occurredAt) {
@@ -217,7 +212,7 @@ export function ChildHomeworkCard({
               {isCompleted && autoSource ? (
                 <p className="mt-1 truncate text-xs text-forest-500">
                   {"✨"} 自动完成 ·{" "}
-                  {PLATFORM_LABELS[autoSource.platform] ?? autoSource.platform} ·{" "}
+                  {platformLabel(autoSource.platform, locale === "en" ? "en" : "zh")} ·{" "}
                   {autoSource.title}
                   {formatAutoSourceTime(autoSource.occurredAt)
                     ? ` · ${formatAutoSourceTime(autoSource.occurredAt)}`

@@ -3,6 +3,7 @@ import {
   syncLearningEventAutoCheckins,
 } from "@/lib/learning-event-auto-checkins";
 import { getDateKeyInTimeZone } from "@/lib/learning-sync";
+import { normalizeKhanLearningEvent } from "@/lib/platform-adapters/khan-academy";
 import type { LearningEventInput } from "@/lib/learning-events";
 
 /**
@@ -13,6 +14,62 @@ import type { LearningEventInput } from "@/lib/learning-events";
  * learning_events_account_source_key dedup) → homework auto-match →
  * check_ins / homework_auto_matches / learning_event_reviews writes.
  */
+
+export type NormalizedKhanActivity = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  durationMinutes: number | null;
+  eventTimestamp: string | null;
+  courseName?: string | null;
+  masteryLevel?: string | null;
+  progressPercent?: number | null;
+  durationSeconds?: number | null;
+};
+
+export function buildKhanLearningEvent(input: {
+  childId: string;
+  platformAccountId: string;
+  activity: NormalizedKhanActivity;
+}): LearningEventInput {
+  const occurredAt = input.activity.eventTimestamp
+    ? new Date(input.activity.eventTimestamp).toISOString()
+    : new Date().toISOString();
+
+  const normalized = normalizeKhanLearningEvent({
+    occurredAt,
+    lessonId: input.activity.id,
+    lessonTitle: input.activity.title,
+    courseName: input.activity.courseName ?? input.activity.subtitle ?? null,
+    masteryLevel: input.activity.masteryLevel ?? null,
+    progressPercent: input.activity.progressPercent ?? null,
+    durationSeconds: input.activity.durationSeconds ?? null,
+  });
+
+  return {
+    childId: input.childId,
+    platform: "khan-academy",
+    platformAccountId: input.platformAccountId,
+    occurredAt,
+    eventType: normalized.eventType,
+    title: normalized.title,
+    subject: normalized.subject,
+    durationMinutes: normalized.durationMinutes,
+    score: normalized.score,
+    completionState: normalized.completionState,
+    sourceRef: normalized.sourceRef,
+    rawPayload: {
+      ...input.activity,
+      lessonId: input.activity.id,
+      lessonTitle: input.activity.title,
+      courseName: input.activity.courseName ?? null,
+      masteryLevel: input.activity.masteryLevel ?? null,
+      progressPercent: input.activity.progressPercent ?? null,
+      durationSeconds: input.activity.durationSeconds ?? null,
+    },
+  };
+}
+
 export async function runKhanEventPipeline(input: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any;

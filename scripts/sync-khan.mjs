@@ -71,7 +71,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 // TypeScript auto-checkin pipeline bridge (ingest + homework auto-match +
 // check_ins), loaded through tsx so this .mjs script can call the TS modules.
-const { runKhanEventPipeline } = await (async () => {
+const { buildKhanLearningEvent, runKhanEventPipeline } = await (async () => {
   const { tsImport } = await import("tsx/esm/api");
   return tsImport(
     "../src/lib/platform-adapters/khan-gha-bridge.ts",
@@ -318,25 +318,21 @@ async function syncKhanAccount(account) {
     const householdTimeZone = "Asia/Shanghai";
 
     for (const activity of uniqueActivities) {
-      const ts = activity.eventTimestamp ? new Date(activity.eventTimestamp) : new Date();
-
-      const event = {
+      // Build the event shape via the shared normalizer so the GHA path
+      // matches what khan-connector.ts produces (eventType/title/subject/
+      // sourceRef all come from normalizeKhanLearningEvent).
+      const occurredAt = activity.eventTimestamp
+        ? new Date(activity.eventTimestamp).toISOString()
+        : new Date().toISOString();
+      const event = buildKhanLearningEvent({
         childId: account.child_id,
-        platform: "khan-academy",
         platformAccountId: account.id,
-        occurredAt: ts.toISOString(),
-        eventType: "skill_practice",
-        title: activity.title,
-        subject: activity.subtitle || null,
-        durationMinutes: activity.durationMinutes || null,
-        score:
-          activity.correctCount !== null && activity.problemCount !== null && activity.problemCount > 0
-            ? activity.correctCount / activity.problemCount
-            : null,
-        completionState: "completed",
-        sourceRef: `khan:${activity.id}`,
-        rawPayload: activity,
-      };
+        activity: {
+          ...activity,
+          courseName: activity.subtitle || null,
+          masteryLevel: activity.activityKind || null,
+        },
+      });
 
       let result;
       try {

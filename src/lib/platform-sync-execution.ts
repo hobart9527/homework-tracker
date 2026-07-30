@@ -17,6 +17,7 @@ import {
 } from "@/lib/platform-sync";
 import { sendTelegramTextMessage } from "@/lib/telegram";
 import type { LearningEventInput } from "@/lib/learning-events";
+import { getDateKeyInTimeZone } from "@/lib/learning-sync";
 import type { Json } from "@/lib/supabase/types";
 
 type SupabaseLike = {
@@ -220,7 +221,7 @@ export async function executeManagedSessionSync(input: {
 }) {
   async function handleSuccess(connectorResult: {
     summary: { fetchedCount: number };
-    events: ReturnType<typeof importNormalizedEvent> extends Promise<infer T> ? T[] : never;
+    events: NormalizedEvent[];
   }) {
     if (!connectorResult.events[0]) {
       await completePlatformSyncJob({
@@ -242,15 +243,65 @@ export async function executeManagedSessionSync(input: {
       };
     }
 
-    const importedResults = [];
+    // 5.3 — Hoist loadAutoCheckinContext out of the per-event loop. All events
+    // come from the same platform_account (same child), but they may span
+    // different local dates; group by local_date_key so each distinct day
+    // gets one context load instead of one per event.
+    const sb = input.supabase as any;
+    const dateKeys = new Set<string>();
+    for (const event of connectorResult.events) {
+      dateKeys.add(
+        getDateKeyInTimeZone(event.occurredAt, input.householdTimeZone)
+      );
+    }
 
+    const contextByDateKey = new Map<
+      string,
+      Awaited<ReturnType<typeof loadAutoCheckinContext>>
+    >();
+    for (const dateKey of dateKeys) {
+      contextByDateKey.set(
+        dateKey,
+        await loadAutoCheckinContext({
+          supabase: sb,
+          childId: input.account.child_id,
+          localDateKey: dateKey,
+        })
+      );
+    }
+
+    const importedResults: Array<Awaited<ReturnType<typeof syncLearningEventAutoCheckins>>> = [];
     for (const normalizedEvent of connectorResult.events) {
+      const dateKey = getDateKeyInTimeZone(
+        normalizedEvent.occurredAt,
+        input.householdTimeZone
+      );
+      const ctx = contextByDateKey.get(dateKey);
+      if (!ctx) continue;
+
       importedResults.push(
-        await importNormalizedEvent({
-          supabase: input.supabase,
-          account: input.account,
+        await syncLearningEventAutoCheckins({
+          supabase: sb,
           householdTimeZone: input.householdTimeZone,
-          normalizedEvent: normalizedEvent as any,
+          event: {
+            childId: input.account.child_id,
+            platform: input.account.platform,
+            platformAccountId: input.account.id,
+            occurredAt: normalizedEvent.occurredAt,
+            eventType: normalizedEvent.eventType,
+            title: normalizedEvent.title,
+            subject: normalizedEvent.subject ?? null,
+            durationMinutes: normalizedEvent.durationMinutes ?? null,
+            score: normalizedEvent.score ?? null,
+            completionState: normalizedEvent.completionState ?? null,
+            sourceRef: normalizedEvent.sourceRef,
+            rawPayload: normalizedEvent.rawPayload ?? {},
+          },
+          candidateHomeworks: ctx.candidateHomeworks,
+          existingCheckInsByHomeworkId: ctx.existingCheckInsByHomeworkId,
+          groupNamesById: ctx.groupNamesById,
+          typeBindingsById: ctx.typeBindingsById,
+          subjectMappings: ctx.subjectMappings,
         })
       );
     }

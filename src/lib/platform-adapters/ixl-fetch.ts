@@ -157,7 +157,7 @@ function toFetchedActivity(activity: Record<string, unknown>): IxlFetchedActivit
   };
 }
 
-function parseStudentUsageRunResponse(value: unknown): IxlFetchedActivity[] | null {
+function parseStudentUsageRunResponse(value: unknown, subjectLabel?: string): IxlFetchedActivity[] | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -214,7 +214,7 @@ function parseStudentUsageRunResponse(value: unknown): IxlFetchedActivity[] | nu
         occurredAt,
         skillId,
         skillName,
-        subject: null,
+        subject: subjectLabel ?? null,
         scorePercent:
           typeof skillRecord.score === "number" ? skillRecord.score : null,
         durationSeconds:
@@ -301,10 +301,10 @@ function isIxlLoginPage(html: string) {
   );
 }
 
-export function parseIxlActivityResponse(html: string): IxlFetchedActivity[] {
+export function parseIxlActivityResponse(html: string, subjectLabel?: string): IxlFetchedActivity[] {
   const extractedPayload = extractBootstrapJson(html);
   const parsed = tryParseJson(extractedPayload);
-  const studentUsageActivities = parseStudentUsageRunResponse(parsed);
+  const studentUsageActivities = parseStudentUsageRunResponse(parsed, subjectLabel);
 
   if (studentUsageActivities) {
     return studentUsageActivities;
@@ -407,10 +407,7 @@ export async function fetchIxlManagedSessionActivities(input: {
 
     let subjectActivities: IxlFetchedActivity[];
     try {
-      subjectActivities = parseIxlActivityResponse(body).map((activity) => ({
-        ...activity,
-        subject: subject.label,
-      }));
+      subjectActivities = parseIxlActivityResponse(body, subject.label);
     } catch (err) {
       throw new IxlManagedSessionError(
         `IXL activity parse failed: ${err instanceof Error ? err.message : String(err)}`

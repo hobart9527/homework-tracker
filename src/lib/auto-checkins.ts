@@ -59,6 +59,21 @@ export async function applyAutoCheckinMatches(input: {
     };
   }
 
+  // 6.3 — If a check-in already exists for this homework today (manual or
+  // previously auto-inserted) and the homework does not allow multiple
+  // submissions per day, skip the auto completion. The schema does not have
+  // an explicit multi-submission flag, so the default is "one per day".
+  // input.existingCheckIn is populated by loadAutoCheckinContext from the
+  // same-day check-ins, so this is the correct guard.
+  const preExistingCheckInId = input.existingCheckIn?.id ?? null;
+  if (preExistingCheckInId) {
+    return {
+      decision: "unmatched" as const,
+      createdCheckInId: null,
+      primaryLearningEventId: primaryMatch.learningEventId,
+    };
+  }
+
   const baseDecision = resolveAutoCheckinDecision({
     requiredMinutes: input.homework.estimated_minutes,
     requiredCheckpointType: input.homework.required_checkpoint_type,
@@ -77,28 +92,71 @@ export async function applyAutoCheckinMatches(input: {
   let createdCheckInId: string | null = null;
 
   if (decision === "auto_completed") {
-    const { data, error } = await input.supabase
+    // Race guard: re-query existing check_ins for the same (child, homework, day)
+    // before inserting. If another sync wrote one for the same local day, reuse
+    // it instead of inserting a duplicate. The DB unique index
+    // uq_checkins_child_homework_day (migration 065) is the backstop.
+    const matchedDate = new Date(primaryMatch.matchedAt);
+    const { start, end } = getLocalDayBounds(matchedDate);
+    const sb = input.supabase as any;
+    const { data: dayRows, error: dayLookupError } = await sb
       .from("check_ins")
-      .insert!({
-        homework_id: input.homework.id,
-        child_id: input.childId,
-        completed_at: primaryMatch.matchedAt,
-        submitted_at: primaryMatch.matchedAt,
-        points_earned: input.homework.point_value ?? 0,
-        awarded_points: input.homework.point_value ?? 0,
-        is_scored: true,
-        is_late: false,
-        proof_type: null,
-        note: "Auto-completed from synced learning activity",
-      })
-      .select()
-      .single();
+      .select("id")
+      .eq("homework_id", input.homework.id)
+      .eq("child_id", input.childId)
+      .gte("completed_at", start)
+      .lte("completed_at", end)
+      .limit(1);
 
-    if (error || !data) {
-      throw new Error(error?.message || "Failed to create auto check-in");
+    if (dayLookupError) {
+      throw new Error(dayLookupError.message);
     }
 
-    createdCheckInId = String(data.id);
+    const existingDayRow = dayRows && dayRows.length > 0 ? dayRows[0] : null;
+
+    if (existingDayRow) {
+      createdCheckInId = String(existingDayRow.id);
+    } else {
+      const { data, error } = await input.supabase
+        .from("check_ins")
+        .insert!({
+          homework_id: input.homework.id,
+          child_id: input.childId,
+          completed_at: primaryMatch.matchedAt,
+          submitted_at: primaryMatch.matchedAt,
+          points_earned: input.homework.point_value ?? 0,
+          awarded_points: input.homework.point_value ?? 0,
+          is_scored: true,
+          is_late: false,
+          proof_type: null,
+          note: "Auto-completed from synced learning activity",
+        })
+        .select()
+        .single();
+
+      // Unique-constraint backstop: another writer raced us into the same day.
+      if (error?.message?.includes("uq_checkins_child_homework_day")) {
+        const { data: raceRows } = await sb
+          .from("check_ins")
+          .select("id")
+          .eq("homework_id", input.homework.id)
+          .eq("child_id", input.childId)
+          .gte("completed_at", start)
+          .lte("completed_at", end)
+          .limit(1);
+        if (raceRows && raceRows.length > 0) {
+          createdCheckInId = String(raceRows[0].id);
+        } else {
+          throw new Error(
+            error.message || "Failed to create auto check-in (race)"
+          );
+        }
+      } else if (error || !data) {
+        throw new Error(error?.message || "Failed to create auto check-in");
+      } else {
+        createdCheckInId = String(data.id);
+      }
+    }
   }
 
   for (const match of sortedMatches) {

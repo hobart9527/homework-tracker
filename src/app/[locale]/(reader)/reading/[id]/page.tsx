@@ -167,7 +167,13 @@ function ReadingArticleContent({
     async (result: { score: number; total: number; pointsEarned: number }) => {
       window.dispatchEvent(new CustomEvent("child-points-changed"));
 
-      // ── Reading auto-checkin ──
+      // 6.4 — Reading auto-checkin is performed authoritatively by
+      // /api/reading/quiz/submit (server route) and surfaces the result in
+      // the API response. The page does NOT call createReadingAutoCheckin
+      // here, because doing so would race with the server and risk two
+      // check-ins per article. We only surface the check-in status from the
+      // API response in the page UI.
+      void result;
       if (!childId) return;
 
       setCheckinStatus("pending");
