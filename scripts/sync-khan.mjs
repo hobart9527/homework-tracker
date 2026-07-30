@@ -69,6 +69,16 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// TypeScript auto-checkin pipeline bridge (ingest + homework auto-match +
+// check_ins), loaded through tsx so this .mjs script can call the TS modules.
+const { runKhanEventPipeline } = await (async () => {
+  const { tsImport } = await import("tsx/esm/api");
+  return tsImport(
+    "../src/lib/platform-adapters/khan-gha-bridge.ts",
+    import.meta.url
+  );
+})();
+
 const ACTIVITY_QUERY = `query ActivitySessionsV2Query($studentKaid: String!, $endDate: Date, $startDate: Date, $courseType: String, $activityKind: String, $after: ID, $pageSize: Int) {
   user(kaid: $studentKaid) {
     id
@@ -300,47 +310,65 @@ async function syncKhanAccount(account) {
       }
     }
 
-    // Insert into learning_events
+    // Insert into learning_events + run the auto-checkin pipeline
     let inserted = 0;
     let duplicates = 0;
+    let autoMatched = 0;
+    let unmatched = 0;
     const householdTimeZone = "Asia/Shanghai";
 
     for (const activity of uniqueActivities) {
       const ts = activity.eventTimestamp ? new Date(activity.eventTimestamp) : new Date();
-      const localDateKey = new Intl.DateTimeFormat("en-CA", {
-        timeZone: householdTimeZone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(ts);
 
-      const eventData = {
-        child_id: account.child_id,
+      const event = {
+        childId: account.child_id,
         platform: "khan-academy",
-        platform_account_id: account.id,
-        occurred_at: ts.toISOString(),
-        local_date_key: localDateKey,
-        event_type: "skill_practice",
+        platformAccountId: account.id,
+        occurredAt: ts.toISOString(),
+        eventType: "skill_practice",
         title: activity.title,
         subject: activity.subtitle || null,
-        duration_minutes: activity.durationMinutes || null,
+        durationMinutes: activity.durationMinutes || null,
         score:
           activity.correctCount !== null && activity.problemCount !== null && activity.problemCount > 0
             ? activity.correctCount / activity.problemCount
             : null,
-        completion_state: "completed",
-        source_ref: `khan:${activity.id}`,
-        raw_payload: activity,
+        completionState: "completed",
+        sourceRef: `khan:${activity.id}`,
+        rawPayload: activity,
       };
 
-      const { error } = await supabase.from("learning_events").insert(eventData);
+      let result;
+      try {
+        result = await runKhanEventPipeline({
+          supabase,
+          householdTimeZone,
+          event,
+        });
+      } catch (pipelineErr) {
+        console.log(`    ❌ 插入失败: ${pipelineErr.message}`);
+        continue;
+      }
 
-      if (error?.message?.includes("learning_events_account_source_key")) {
+      // Dedup via learning_events_account_source_key → skip auto-match
+      if (result.ingestStatus === "duplicate") {
         duplicates++;
-      } else if (error) {
-        console.log(`    ❌ 插入失败: ${error.message}`);
+        continue;
+      }
+
+      inserted++;
+
+      if (result.homeworkResults.length > 0) {
+        autoMatched++;
+        const titles = result.matchedTitles.length
+          ? result.matchedTitles
+          : result.homeworkResults.map((item) => item.homeworkId);
+        for (const title of titles) {
+          console.log(`    ✅ Auto-matched to homework "${title}", created check-in`);
+        }
       } else {
-        inserted++;
+        unmatched++;
+        console.log(`    ⚠️ No matching homework — recorded as unmatched review`);
       }
     }
 
@@ -353,13 +381,17 @@ async function syncKhanAccount(account) {
       })
       .eq("id", account.id);
 
-    console.log(`  📊 插入: ${inserted}, 重复: ${duplicates}`);
+    console.log(
+      `  📊 插入: ${inserted}, 重复: ${duplicates}, 自动打卡: ${autoMatched}, 待复核: ${unmatched}`
+    );
 
     return {
       status: "completed",
       fetchedCount: activities.length,
       insertedCount: inserted,
       duplicateCount: duplicates,
+      autoMatchedCount: autoMatched,
+      unmatchedCount: unmatched,
     };
   } catch (err) {
     await browser.close();

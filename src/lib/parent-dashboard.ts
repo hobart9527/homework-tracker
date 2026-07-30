@@ -1,6 +1,6 @@
 import type { Database } from "@/lib/supabase/types";
 import { formatDateKey, getHomeworksForDate, isAfterCutoff, parseDateValue } from "@/lib/homework-utils";
-import { buildDailyTaskStatuses, type DailyTaskStatus } from "@/lib/tasks/daily-task";
+import { buildDailyTaskStatuses, type DailyTaskStatus, type LearningEventSource } from "@/lib/tasks/daily-task";
 
 type Child = Database["public"]["Tables"]["children"]["Row"];
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
@@ -98,6 +98,8 @@ export type RecentCheckIn = {
   childAvatar: string | null;
   proofType: "photo" | "audio" | null;
   points: number;
+  /** Learning event that auto-completed this check-in; undefined for manual ones. */
+  autoSource?: LearningEventSource | null;
 };
 
 export type IncompleteHomework = {
@@ -119,6 +121,19 @@ type ParentDashboardInput = {
   month?: string;
   reminderStates?: ParentReminderState[];
   selectedChildId?: string | null;
+  /**
+   * Raw homework_auto_matches joined with learning_events (is_primary = true).
+   * Derived by the caller from `loadAutoSourcesByCheckInId`.
+   */
+  autoMatches?: Array<{
+    triggered_check_in_id: string | null;
+    learning_events: {
+      platform: string;
+      title: string;
+      occurred_at: string | null;
+      duration_minutes: number | null;
+    } | null;
+  }>;
 };
 
 type ChildDashboardBuild = {
@@ -433,11 +448,35 @@ function buildWeakestTypes(
     });
 }
 
+function deriveAutoSourcesByCheckInId(
+  matches: ParentDashboardInput["autoMatches"]
+): Record<string, LearningEventSource> | undefined {
+  if (!matches || matches.length === 0) return undefined;
+
+  const result: Record<string, LearningEventSource> = {};
+
+  for (const row of matches) {
+    if (!row.triggered_check_in_id || !row.learning_events) {
+      continue;
+    }
+
+    result[row.triggered_check_in_id] = {
+      platform: row.learning_events.platform as LearningEventSource["platform"],
+      title: row.learning_events.title,
+      occurredAt: row.learning_events.occurred_at,
+      durationMinutes: row.learning_events.duration_minutes,
+    };
+  }
+
+  return result;
+}
+
 function buildRecentCheckIns(
   children: Child[],
   homeworks: Homework[],
   checkIns: CheckIn[],
-  date: string
+  date: string,
+  autoSourcesByCheckInId?: Record<string, LearningEventSource>
 ): RecentCheckIn[] {
   const childMap = new Map(children.map((c) => [c.id, c]));
   const homeworkMap = new Map(homeworks.map((h) => [h.id, h]));
@@ -464,6 +503,7 @@ function buildRecentCheckIns(
       childAvatar: child?.avatar ?? null,
       proofType: (ci.proof_type ?? null) as "photo" | "audio" | null,
       points: ci.awarded_points ?? ci.points_earned ?? 0,
+      autoSource: autoSourcesByCheckInId?.[ci.id],
     };
   });
 }
@@ -579,7 +619,13 @@ export function buildParentDashboard(
     weakestTypes: buildWeakestTypes(filteredHomeworks, filteredCheckIns, month),
     monthlyStats: buildMonthlyStats(filteredHomeworks, filteredCheckIns, month),
     checkInHeatmap: buildCheckInHeatmap(filteredCheckIns, month),
-    recentCheckIns: buildRecentCheckIns(input.children, input.homeworks, input.checkIns, input.date),
+    recentCheckIns: buildRecentCheckIns(
+      input.children,
+      input.homeworks,
+      input.checkIns,
+      input.date,
+      deriveAutoSourcesByCheckInId(input.autoMatches)
+    ),
     incompleteHomeworks: buildIncompleteHomeworks(input.children, input.homeworks, input.checkIns, input.date),
   };
 }

@@ -14,7 +14,9 @@
     "delete": "Delete",
     "edit": "Edit",
     "add": "Add",
-    "back": "Back"
+    "back": "Back",
+    "autoCompleted": "Auto-completed",
+    "sourceLabel": "from"
   },
   "auth": {
     "login": "Login",

@@ -9,6 +9,16 @@ type Child = Database["public"]["Tables"]["children"]["Row"];
 type Homework = Database["public"]["Tables"]["homeworks"]["Row"];
 type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 
+type ParentDashboardAutoMatch = {
+  triggered_check_in_id: string | null;
+  learning_events: {
+    platform: string;
+    title: string;
+    occurred_at: string | null;
+    duration_minutes: number | null;
+  } | null;
+};
+
 interface ParentDashboardPageProps {
   params: { locale: string };
 }
@@ -46,12 +56,13 @@ export default async function ParentDashboardPage({
 
   let initialHomeworks: Homework[] = [];
   let initialCheckIns: CheckIn[] = [];
+  let initialAutoMatches: ParentDashboardAutoMatch[] = [];
 
   if (children.length > 0) {
     const childIds = children.map((child) => child.id);
     const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-    const results = await Promise.all([
+    const [homeworkResult, checkInResult] = await Promise.all([
       supabase
         .from("homeworks")
         .select("id, child_id, type_name, type_icon, title, repeat_type, repeat_days, repeat_interval, repeat_start_date, repeat_end_date, point_value, daily_cutoff_time, is_active, required_checkpoint_type")
@@ -63,8 +74,12 @@ export default async function ParentDashboardPage({
         .gte("completed_at", threeMonthsAgo),
     ]);
 
-    initialHomeworks = (results[0].data ?? []) as Homework[];
-    initialCheckIns = (results[1].data ?? []) as CheckIn[];
+    initialHomeworks = (homeworkResult.data ?? []) as Homework[];
+    initialCheckIns = (checkInResult.data ?? []) as CheckIn[];
+
+    // Auto-matches are fetched on-demand in the client to keep the initial
+    // server payload small; loadAutoSourcesByCheckInId handles this.
+    initialAutoMatches = [];
   }
 
   const today = formatDateKey(new Date());
@@ -76,6 +91,7 @@ export default async function ParentDashboardPage({
     checkIns: initialCheckIns,
     date: today,
     month: thisMonth,
+    autoMatches: initialAutoMatches,
   });
 
   return (

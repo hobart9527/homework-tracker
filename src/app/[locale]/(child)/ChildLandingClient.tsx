@@ -14,7 +14,7 @@ import {
   getWeekCheckIns,
   getWeekDays,
 } from "@/lib/homework-utils";
-import { buildDailyTaskStatuses } from "@/lib/tasks/daily-task";
+import { buildDailyTaskStatuses, type LearningEventSource, loadAutoSourcesByCheckInId } from "@/lib/tasks/daily-task";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
 import type { AttachmentUploadStatus } from "@/lib/attachment-types";
@@ -25,6 +25,7 @@ type CheckIn = Database["public"]["Tables"]["check_ins"]["Row"];
 interface ChildLandingClientProps {
   initialHomeworks: Homework[];
   initialCheckIns: CheckIn[];
+  initialAutoSources: Record<string, LearningEventSource>;
   locale: string;
 }
 
@@ -44,6 +45,7 @@ function getHistoricalHomeworksForDate(homeworks: Homework[], date: string) {
 export default function ChildLandingClient({
   initialHomeworks,
   initialCheckIns,
+  initialAutoSources,
   locale,
 }: ChildLandingClientProps) {
   const { t } = useTranslation();
@@ -51,6 +53,9 @@ export default function ChildLandingClient({
   const [supabase] = useState(() => createClient());
   const [homeworks, setHomeworks] = useState<Homework[]>(initialHomeworks);
   const [checkIns, setCheckIns] = useState<CheckIn[]>(initialCheckIns);
+  const [autoSourcesByCheckInId, setAutoSourcesByCheckInId] = useState<
+    Record<string, LearningEventSource>
+  >(initialAutoSources);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(
@@ -100,6 +105,18 @@ export default function ChildLandingClient({
 
       setHomeworks(homeworkResponse.data || []);
       setCheckIns(checkInResponse.data || []);
+
+      // Refresh auto-sources alongside check-ins.
+      try {
+        const ids = (checkInResponse.data || []).map((ci) => ci.id);
+        const map = await loadAutoSourcesByCheckInId({
+          supabase,
+          checkInIds: ids,
+        });
+        setAutoSourcesByCheckInId(map || {});
+      } catch {
+        // Non-fatal: keep stale auto sources; user can refresh.
+      }
     } catch (fetchError) {
       if (requestId !== requestIdRef.current) {
         return;
@@ -142,7 +159,12 @@ export default function ChildLandingClient({
     (value) => value.total > 0 && value.completed > 0
   ).length;
   const visibleHomeworks = getHistoricalHomeworksForDate(homeworks, selectedDate);
-  const taskStatuses = buildDailyTaskStatuses(visibleHomeworks, checkIns, selectedDate);
+  const taskStatuses = buildDailyTaskStatuses(
+    visibleHomeworks,
+    checkIns,
+    selectedDate,
+    autoSourcesByCheckInId
+  );
   const priorityTask =
     taskStatuses.find((task) => !task.completed) || taskStatuses[0] || null;
 
@@ -304,6 +326,7 @@ export default function ChildLandingClient({
             checkIns={checkIns}
             onSelectHomework={setSelectedHomework}
             attachmentUploadStatuses={attachmentUploadStatuses}
+            autoSourcesByCheckInId={autoSourcesByCheckInId}
           />
         </section>
       </div>

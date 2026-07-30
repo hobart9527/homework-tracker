@@ -29,7 +29,34 @@ interface ChildHomeworkCardProps {
     message?: string;
   };
   statusText?: string;
+  autoSource?: {
+    platform: string;
+    title: string;
+    occurredAt: string | null;
+  } | null;
   onComplete: () => void;
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  ixl: "IXL",
+  "khan-academy": "可汗学院",
+  "raz-kids": "Raz-Kids",
+  epic: "Epic",
+};
+
+function formatAutoSourceTime(occurredAt: string | null) {
+  if (!occurredAt) {
+    return null;
+  }
+
+  const date = new Date(occurredAt);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return `${String(date.getHours()).padStart(2, "0")}:${String(
+    date.getMinutes()
+  ).padStart(2, "0")}`;
 }
 
 export function ChildHomeworkCard({
@@ -41,6 +68,7 @@ export function ChildHomeworkCard({
   latestProofType = null,
   attachmentUploadStatus,
   statusText,
+  autoSource = null,
   onComplete,
 }: ChildHomeworkCardProps) {
   const proofLabel = {
@@ -184,6 +212,18 @@ export function ChildHomeworkCard({
                   </span>
                 ) : null}
               </div>
+
+              {/* 自动完成来源 */}
+              {isCompleted && autoSource ? (
+                <p className="mt-1 truncate text-xs text-forest-500">
+                  {"✨"} 自动完成 ·{" "}
+                  {PLATFORM_LABELS[autoSource.platform] ?? autoSource.platform} ·{" "}
+                  {autoSource.title}
+                  {formatAutoSourceTime(autoSource.occurredAt)
+                    ? ` · ${formatAutoSourceTime(autoSource.occurredAt)}`
+                    : ""}
+                </p>
+              ) : null}
 
               {/* Meta 行：时间 + 积分 */}
               <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-ink-500">

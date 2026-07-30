@@ -7,6 +7,13 @@ interface TodayActivityFeedProps {
   compact?: boolean;
 }
 
+const PLATFORM_LABELS: Record<string, string> = {
+  ixl: "IXL",
+  "khan-academy": "可汗学院",
+  "raz-kids": "Raz-Kids",
+  epic: "Epic",
+};
+
 function formatTime(iso: string): string {
   try {
     const d = new Date(iso);
@@ -61,6 +68,11 @@ export function TodayActivityFeed({ checkIns, compact }: TodayActivityFeedProps)
                         {ci.typeIcon ? `${ci.typeIcon} ` : ""}{ci.homeworkTitle}
                       </p>
                       <p className="text-ui-xs text-ink-500">{ci.childName}</p>
+                      {ci.autoSource ? (
+                        <p className="truncate text-ui-xs text-forest-500">
+                          {"\u{1F916}"} 来自 {PLATFORM_LABELS[ci.autoSource.platform] ?? ci.autoSource.platform} · {ci.autoSource.title}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 
@@ -95,6 +107,11 @@ export function TodayActivityFeed({ checkIns, compact }: TodayActivityFeedProps)
                         {ci.typeIcon ? `${ci.typeIcon} ` : ""}{ci.homeworkTitle}
                       </p>
                       <p className="text-ui-xs text-ink-500">{ci.childName}</p>
+                      {ci.autoSource ? (
+                        <p className="truncate text-ui-xs text-forest-500">
+                          {"\u{1F916}"} 来自 {PLATFORM_LABELS[ci.autoSource.platform] ?? ci.autoSource.platform} · {ci.autoSource.title}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 

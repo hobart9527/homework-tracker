@@ -1,6 +1,9 @@
 import { isAfterCutoff } from "@/lib/homework-utils";
 import { ChildHomeworkCard } from "@/components/child/ChildHomeworkCard";
-import { buildDailyTaskStatuses } from "@/lib/tasks/daily-task";
+import {
+  buildDailyTaskStatuses,
+  type LearningEventSource,
+} from "@/lib/tasks/daily-task";
 import type { Database } from "@/lib/supabase/types";
 import type { AttachmentUploadStatus } from "@/lib/attachment-types";
 
@@ -13,6 +16,7 @@ interface DayHomeworkViewProps {
   checkIns: CheckIn[];
   onSelectHomework: (homework: Homework) => void;
   attachmentUploadStatuses?: Record<string, AttachmentUploadStatus>;
+  autoSourcesByCheckInId?: Record<string, LearningEventSource>;
 }
 
 export function DayHomeworkView({
@@ -21,8 +25,14 @@ export function DayHomeworkView({
   checkIns,
   onSelectHomework,
   attachmentUploadStatuses = {},
+  autoSourcesByCheckInId,
 }: DayHomeworkViewProps) {
-  const taskStatuses = buildDailyTaskStatuses(homeworks, checkIns, date);
+  const taskStatuses = buildDailyTaskStatuses(
+    homeworks,
+    checkIns,
+    date,
+    autoSourcesByCheckInId
+  );
 
   return (
     <div className="rounded-radius-xl bg-white p-5 shadow-elevation-floating ring-1 ring-cream-200">
@@ -66,6 +76,7 @@ export function DayHomeworkView({
                 latestCheckInId={task.latestCheckInId}
                 latestProofType={task.latestProofType}
                 attachmentUploadStatus={attachmentUploadStatuses[homework.id]}
+                autoSource={task.autoSource ?? null}
                 statusText={
                   task.completed
                     ? task.late

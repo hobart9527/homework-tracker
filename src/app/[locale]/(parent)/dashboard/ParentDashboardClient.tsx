@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatDateKey } from "@/lib/homework-utils";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { Database } from "@/lib/supabase/types";
+import { loadAutoSourcesByCheckInId } from "@/lib/tasks/daily-task";
 import { Button } from "@/components/ui/Button";
 import { ChildSelector } from "@/components/parent/ChildSelector";
 import { ParentCheckInHeatmap } from "@/components/parent/ParentCheckInHeatmap";
@@ -86,10 +87,14 @@ export default function ParentDashboardClient({
     children: Child[];
     homeworks: Homework[];
     checkIns: CheckIn[];
+    autoMatches: NonNullable<
+      Parameters<typeof buildParentDashboard>[0]["autoMatches"]
+    >;
   }>({
     children: initialChildren,
     homeworks: initialHomeworks,
     checkIns: initialCheckIns,
+    autoMatches: [],
   });
 
   // Skip initial data fetch — data already provided via props from server component
@@ -155,7 +160,28 @@ export default function ParentDashboardClient({
           return;
         }
 
-        rawDataRef.current = { children, homeworks: homeworksData, checkIns: checkInsData };
+        rawDataRef.current = { children, homeworks: homeworksData, checkIns: checkInsData, autoMatches: [] };
+
+        const checkInIds = checkInsData.map((ci) => ci.id);
+        const autoSources = await loadAutoSourcesByCheckInId({
+          supabase,
+          checkInIds,
+        });
+        const autoMatches = Object.entries(autoSources).map(([id, source]) => ({
+          triggered_check_in_id: id,
+          learning_events: {
+            platform: source.platform,
+            title: source.title,
+            occurred_at: source.occurredAt,
+            duration_minutes: source.durationMinutes,
+          },
+        }));
+        rawDataRef.current = {
+          children,
+          homeworks: homeworksData,
+          checkIns: checkInsData,
+          autoMatches,
+        };
 
         const nextDashboard = buildParentDashboard({
           children,
@@ -163,6 +189,7 @@ export default function ParentDashboardClient({
           checkIns: checkInsData,
           date: selectedDate,
           month: selectedMonth,
+          autoMatches,
         });
 
         if (cancelled) {
@@ -195,13 +222,14 @@ export default function ParentDashboardClient({
     }
 
     if (rawDataRef.current.children.length > 0) {
-      const { children, homeworks, checkIns } = rawDataRef.current;
+      const { children, homeworks, checkIns, autoMatches } = rawDataRef.current;
       const nextDashboard = buildParentDashboard({
         children,
         homeworks,
         checkIns,
         date: selectedDate,
         month: selectedMonth,
+        autoMatches,
       });
       setDashboard(nextDashboard);
       return;
@@ -244,7 +272,7 @@ export default function ParentDashboardClient({
 
   // Update dashboard when selectedChildId changes (without refetching data)
   useEffect(() => {
-    const { children, homeworks, checkIns } = rawDataRef.current;
+    const { children, homeworks, checkIns, autoMatches } = rawDataRef.current;
     const nextDashboard = buildParentDashboard({
       children,
       homeworks,
@@ -252,6 +280,7 @@ export default function ParentDashboardClient({
       date: selectedDate,
       month: selectedMonth,
       selectedChildId: selectedChildId === "__all__" ? null : selectedChildId,
+      autoMatches,
     });
 
     setDashboard(nextDashboard);
