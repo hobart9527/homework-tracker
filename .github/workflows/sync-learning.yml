@@ -2,8 +2,8 @@ name: Sync Learning Data
 
 on:
   schedule:
-    # 08:00-15:45 UTC = 16:00-23:45 CST — 每天下午4点后每15分钟同步 IXL/RAZ/Epic
-    - cron: "*/15 8-15 * * *"
+    # 08:00-15:30 UTC = 16:00-23:30 CST — 每天下午4点后每30分钟同步 IXL/RAZ/Epic
+    - cron: "*/30 8-15 * * *"
     # 每6小时刷新平台登录态 — 确保 session 不过期
     - cron: "0 */6 * * *"
     # 每6小时同步 Khan Academy 数据（需要 Playwright，无法在 Vercel 运行）
@@ -15,13 +15,17 @@ on:
         type: string
         required: false
 
+concurrency:
+  group: sync-learning-${{ github.event_name }}
+  cancel-in-progress: false
+
 jobs:
   platform-sync:
     name: Platform daily sync
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: |
-      (github.event_name == 'schedule' && github.event.schedule == '*/15 8-15 * * *')
+      (github.event_name == 'schedule' && github.event.schedule == '*/30 8-15 * * *')
       || (github.event_name == 'workflow_dispatch' && !inputs.account_id)
 
     steps:
@@ -33,9 +37,9 @@ jobs:
             -X GET "${{ secrets.VERCEL_BASE_URL }}/api/platform-sync/run" \
             -H "x-cron-secret: ${{ secrets.CRON_SECRET }}")
           echo "HTTP Status: $HTTP_CODE"
+          echo "Response body:"
+          cat /tmp/sync-response.json || true
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "Response body:"
-            cat /tmp/sync-response.json || true
             exit 1
           fi
 
