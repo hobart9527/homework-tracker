@@ -74,10 +74,14 @@ export async function POST(request: Request) {
 
     // Update assignment status if applicable
     if (assignmentId) {
-      await supabase
+      const { error: assignmentError } = await supabase
         .from("reading_assignments")
         .update({ status: "completed", completed_at: new Date().toISOString() })
         .eq("id", assignmentId);
+
+      if (assignmentError) {
+        console.error("Failed to complete assignment:", assignmentError);
+      }
     }
 
     // -----------------------------------------------------------------

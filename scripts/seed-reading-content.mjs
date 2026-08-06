@@ -617,6 +617,26 @@ async function insertArticle(supabase, { topicKey, category, gradeLevel, title, 
   return article.id;
 }
 
+// Canonical question types (must match reading_questions CHECK constraint).
+// Bloom "evaluate" → main_idea, "synthesize" → sequence.
+const CANONICAL_QT = new Set(["main_idea", "detail", "inference", "vocabulary", "sequence"]);
+function coerceQuestionType(v) {
+  if (typeof v !== "string") return "detail";
+  const key = v.trim().toLowerCase().replace(/\s+/g, "_");
+  const alias = {
+    main_idea: "main_idea", mainidea: "main_idea",
+    detail: "detail", details: "detail",
+    inference: "inference", infer: "inference",
+    vocabulary: "vocabulary", vocab: "vocabulary",
+    sequence: "sequence", sequencing: "sequence", order: "sequence",
+    evaluate: "main_idea", evaluation: "main_idea",
+    synthesize: "sequence", synthesis: "sequence",
+  };
+  if (alias[key]) return alias[key];
+  if (CANONICAL_QT.has(key)) return key;
+  return "detail";
+}
+
 async function insertQuestions(supabase, articleId, questions) {
   if (!questions || questions.length === 0) return;
 
@@ -624,7 +644,7 @@ async function insertQuestions(supabase, articleId, questions) {
     questions.map((q, i) => ({
       article_id: articleId,
       question_text: q.question_text,
-      question_type: q.question_type,
+      question_type: coerceQuestionType(q.question_type),
       options: q.options,
       correct_answer: q.correct_answer,
       difficulty: q.difficulty || 3,
