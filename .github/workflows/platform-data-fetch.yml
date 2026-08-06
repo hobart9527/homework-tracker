@@ -1,0 +1,55 @@
+name: Platform Data Fetch
+
+# Direct data fetches (no Vercel dependency). Each fetcher reads its own
+# managed session from Supabase. Login + retry policy is owned by the
+# individual scripts.
+
+on:
+  schedule:
+    # Every 30 min from 16:00–23:30 CST = 08:00–15:30 UTC
+    - cron: "*/30 8-15 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: platform-data-fetch
+  cancel-in-progress: false
+
+jobs:
+  ixl:
+    name: IXL activity fetch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fetch IXL data
+        run: node scripts/sync-ixl.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Optional fallback credentials for auto-relogin when DB creds missing.
+          IXL_USERNAME: ${{ secrets.IXL_USERNAME }}
+          IXL_PASSWORD: ${{ secrets.IXL_PASSWORD }}
+
+  khan:
+    name: Khan Academy activity fetch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Fetch Khan data via GraphQL
+        run: node scripts/sync-khan.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          KHAN_USERNAME: ${{ secrets.KHAN_USERNAME }}
+          KHAN_PASSWORD: ${{ secrets.KHAN_PASSWORD }}
