@@ -1,6 +1,11 @@
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
+// Vercel pro plan allows up to 300s; hobby caps at 60s. Keep 300 so a long
+// notification fan-out doesn't get truncated mid-send.
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 /**

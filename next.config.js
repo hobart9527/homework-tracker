@@ -31,6 +31,15 @@ const nextConfig = {
           },
         ],
       },
+      // Long-lived cache for hashed static assets (previously in vercel.json,
+      // moved here so headers live in one place). Only the `/_next/static/*`
+      // path — user-uploaded SVGs in /public should NOT be immutable.
+      {
+        source: "/_next/static/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
     ];
   },
   webpack: (config, { isServer }) => {

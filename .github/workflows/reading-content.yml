@@ -25,8 +25,11 @@ jobs:
           PIPELINE_GRADES: "3,4,5,6,7"
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # MINIMAX_API_KEY triggers direct MiniMax API in src/lib/reading/content-generator.ts.
+          # When unset, the script falls back to OPENAI_READING_MODEL (a 9router alias).
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_READING_MODEL: "MiniMax-M2.7"
+          OPENAI_READING_MODEL: ${{ secrets.OPENAI_READING_MODEL }}
 
   generate-zh:
     name: Generate Chinese reading content
@@ -45,8 +48,9 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_READING_MODEL: "MiniMax-M2.7"
+          OPENAI_READING_MODEL: ${{ secrets.OPENAI_READING_MODEL }}
 
   backfill-images:
     name: Backfill cover images & illustrations

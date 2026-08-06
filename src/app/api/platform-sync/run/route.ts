@@ -13,6 +13,11 @@ import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { NextResponse } from "next/server";
 
+// Vercel pro plan allows up to 300s; platform sync spans IXL/RAZ/Epic
+// and can easily exceed the default 10s cap.
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 const CRON_SECRET = process.env.CRON_SECRET;
 const DEFAULT_PLATFORMS = ["ixl", "raz-kids", "epic"] as const;
 const DEFAULT_HOUSEHOLD_TIME_ZONE = "Asia/Shanghai";
