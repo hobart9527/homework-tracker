@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { calculateObjectiveDifficulty } from "./difficulty";
-import { getWordCountRange, getTotalQuestionCount, getChapterCount, getQuestionsPerChapter, getBloomDistribution, getSyntaxDistribution, getVocabScope, getWordsPerChapter, gradeHasChapters, getEnglishStandard, getChineseStandard } from "./standards";
+import { getWordCountRange, getTotalQuestionCount, getChapterCount, getQuestionsPerChapter, getBloomDistribution, getSyntaxDistribution, getVocabScope, getWordsPerChapter, gradeHasChapters, getEnglishStandard, getChineseStandard, bloomToQuestionType, getQuestionTypeMap } from "./standards";
 import { parseJsonWithRecovery } from "./json-recovery";
 import type { GeneratedArticle, GeneratedQuestion, ArticleChapter } from "./types";
 
@@ -101,7 +101,7 @@ interface LocalGeneratedArticle {
 
 interface LocalGeneratedQuestion {
   question_text: string;
-  question_type: "main_idea" | "detail" | "inference" | "vocabulary" | "sequence";
+  question_type: "main_idea" | "detail" | "inference" | "vocabulary" | "sequence" | "evaluate" | "synthesize";
   options: { label: string; text: string }[];
   correct_answer: string;
   difficulty: number; // 1-5
@@ -277,22 +277,22 @@ function buildGradePromptEn(options: GenerateReadingOptions, grade: number): str
     });
   }
 
+  const typeMap = getQuestionTypeMap();
+
   function qTypeForIndex(idx: number): string {
     const b = qSpec[idx] || qSpec[0];
-    if (b.literal && bloomsBloom.literal > 0) return `"detail"`;
-    if (b.infer && bloomsBloom.infer > 0) return `"inference"`;
-    if (b.evaluate && bloomsBloom.evaluate > 0) return `"main_idea"`;
-    if (b.synthesize && bloomsBloom.synthesize > 0) return `"sequence"`;
-    return `"detail"`;
+    if (b.literal && bloomsBloom.literal > 0) return bloomToQuestionType("literal", lang);
+    if (b.infer && bloomsBloom.infer > 0) return bloomToQuestionType("infer", lang);
+    if (b.evaluate && bloomsBloom.evaluate > 0) return bloomToQuestionType("evaluate", lang);
+    if (b.synthesize && bloomsBloom.synthesize > 0) return bloomToQuestionType("synthesize", lang);
+    return "detail";
   }
 
   const questionLines = Array.from({ length: std.questionCount }, (_, i) => {
     const qt = qTypeForIndex(i);
-    const prefix = `Question #${i + 1}: question_type MUST be ${qt}`;
-    if (qt === `"detail"`) return `${prefix} — ask a specific fact from the text (literal comprehension)`;
-    if (qt === `"inference"`) return `${prefix} — ask what the reader can figure out from clues`;
-    if (qt === `"main_idea"`) return `${prefix} — ask for judgment or opinion`;
-    return `${prefix} — ask how events connect or build on each other`;
+    const entry = typeMap[qt];
+    const hint = entry ? entry.prompt_en : `ask a ${qt} question`;
+    return `Question #${i + 1}: question_type MUST be "${qt}" — ${hint}`;
   }).join("\n");
 
   return `You are an expert children's reading content creator. You are adapting a source text for Grade ${grade} students.
@@ -350,7 +350,7 @@ Return ONLY this JSON structure:
   "questions": [
     {
       "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "question_type": "detail|inference|evaluate|sequence|vocabulary|main_idea|synthesize",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": number (1-5),
@@ -405,22 +405,22 @@ function buildGradePromptZh(options: GenerateReadingOptions, grade: number): str
     });
   }
 
+  const typeMap = getQuestionTypeMap();
+
   function qTypeForGradeZh(idx: number): string {
     const b = qSpec[idx] || qSpec[0];
-    if (b.literal && bloomsBloom.literal > 0) return `"detail"`;
-    if (b.infer && bloomsBloom.infer > 0) return `"inference"`;
-    if (b.evaluate && bloomsBloom.evaluate > 0) return `"main_idea"`;
-    if (b.synthesize && bloomsBloom.synthesize > 0) return `"sequence"`;
-    return `"detail"`;
+    if (b.literal && bloomsBloom.literal > 0) return bloomToQuestionType("literal", "zh");
+    if (b.infer && bloomsBloom.infer > 0) return bloomToQuestionType("infer", "zh");
+    if (b.evaluate && bloomsBloom.evaluate > 0) return bloomToQuestionType("evaluate", "zh");
+    if (b.synthesize && bloomsBloom.synthesize > 0) return bloomToQuestionType("synthesize", "zh");
+    return "detail";
   }
 
   const questionLines = Array.from({ length: std.questionCount }, (_, i) => {
     const qt = qTypeForGradeZh(i);
-    const prefix = `题目 #${i + 1}：question_type 必须为 ${qt}`;
-    if (qt === `"detail"`) return `${prefix} — 考察文中具体事实（字面理解）`;
-    if (qt === `"inference"`) return `${prefix} — 考察从线索推断的能力`;
-    if (qt === `"main_idea"`) return `${prefix} — 考察判断或观点`;
-    return `${prefix} — 考察事件关联或承接关系`;
+    const entry = typeMap[qt];
+    const hint = entry ? entry.prompt_zh : `考察${qt}类型`;
+    return `题目 #${i + 1}：question_type 必须为 "${qt}" — ${hint}`;
   }).join("\n");
 
   return `你是一位专业的中文儿童阅读内容创作专家。你正为${grade}年级学生创作阅读文章。
@@ -496,7 +496,7 @@ inference 题目示例（必须模仿此格式生成至少1道类似题目）：
   "questions": [
     {
       "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "question_type": "detail|inference|evaluate|sequence|vocabulary|main_idea|synthesize",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": number (1-5),
@@ -520,7 +520,7 @@ Article:
 
 Create {{QUESTION_COUNT}} comprehension questions.
 Question types: {{FOCUS_AREAS}}
-Mix of: main_idea, detail, inference, vocabulary, sequence.
+Mix of: detail, inference, evaluate (judgment/opinion), sequence (event connections/synthesis), vocabulary, main_idea, synthesize.
 Each question MUST have EXACTLY 4 options labeled "A", "B", "C", "D" with non-empty text.
 Exactly one correct answer. Difficulty scale: 1 (easiest) to 5 (hardest).
 
@@ -531,7 +531,7 @@ Also provide:
 - author_purpose: "to inform"|"to entertain"|"to persuade"|"to explain"
 - illustrations: 1-2 objects with { paragraph_index, scene_description }
 
-At least 30% of questions MUST be inference type.
+At least 30% of questions MUST be critical-thinking types (inference, evaluate, or sequence).
 
 Question type distribution:
 {{QUESTION_DISTRIBUTION}}
@@ -567,7 +567,7 @@ const ROUTE_A_PROMPT_ZH =
 
 创建{{QUESTION_COUNT}}道阅读理解题。
 题型：{{FOCUS_AREAS}}
-混合题型：main_idea（主旨）、detail（细节）、inference（推理）、vocabulary（词汇）、sequence（顺序）。
+混合题型：detail（细节）、inference（推理）、evaluate（评判/观点）、sequence（事件关联/综合）、vocabulary（词汇）、main_idea（主旨）、synthesize（综合）。
 每道题必须有且仅有4个选项，标记为"A"、"B"、"C"、"D"，每个选项必须有文字内容。
 只有一个正确答案。难度：1（最简单）到5（最难）。
 
@@ -618,7 +618,7 @@ function buildEnglishRouteAPrompt(options: GenerateReadingOptions): string {
 
   // Build question type distribution from SSOT bloom's
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
-  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, lang === "zh" ? "zh" : "en"));
   const qTypes: string[] = [];
   for (let i = 0; i < questionCount; i++) {
     const pos = i % 4;
@@ -652,7 +652,7 @@ function buildChineseRouteAPrompt(options: GenerateReadingOptions): string {
   // Build question type distribution from SSOT bloom's
   const qTypes: string[] = [];
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
-  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, lang === "zh" ? "zh" : "en"));
   for (let i = 0; i < questionCount; i++) {
     const pos = i % 4;
     qTypes.push(blooms[pos] > 0 ? typeNames[pos] : "detail");
@@ -699,7 +699,7 @@ CONSTRAINED ADAPTATION RULES:
 
 Target length: ${wordLimit}
 Question count: ${questionCount}
-Question types: main_idea, detail, inference, vocabulary, sequence
+Question types: detail, inference, evaluate (judgment/opinion), sequence (event connections/synthesis), vocabulary, main_idea, synthesize
 
 Also provide: scene_description, genre, author_purpose, illustrations, and factual_accuracy.
 
@@ -739,7 +739,7 @@ ${sourceText.slice(0, 4000)}
 句子结构：简单句${syntaxDist.simple}%、并列句${syntaxDist.compound}%、复合句${syntaxDist.complex}%
 
 创建${questionCount}道阅读理解题。
-题型分布：detail ${bloomDist.literal}%、inference ${bloomDist.infer}%、main_idea ${bloomDist.evaluate}%、sequence ${bloomDist.synthesize}%
+题型分布：detail（字面理解）${bloomDist.literal}%、inference（推理）${bloomDist.infer}%、evaluate（评判/观点）${bloomDist.evaluate}%、sequence（事件关联/综合）${bloomDist.synthesize}%
 每道题4个选项（A/B/C/D），只有一个正确答案。
 
 还需提供：scene_description、genre（记叙文/说明文）、cultural_connection、classical_quote、illustrations。
@@ -778,7 +778,7 @@ Create an adapted version suitable for Grade ${options.gradeLevel}. Requirements
 
 Also create ${questionCount} comprehension questions (return as array).
 Question types to include: ${focusAreas}
-Mix of: main_idea, detail, inference, vocabulary, sequence.
+Mix of: detail, inference, evaluate (judgment/opinion), sequence (event connections/synthesis), vocabulary, main_idea, synthesize.
 Each question has 4 options (A/B/C/D), exactly one correct answer.
 Difficulty scale: 1 (easiest) to 5 (hardest).
 
@@ -793,7 +793,7 @@ Return STRICT JSON (no markdown, no code fences):
   "questions": [
     {
       "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "question_type": "detail|inference|evaluate|sequence|vocabulary|main_idea|synthesize",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": number (1-5),
@@ -823,9 +823,8 @@ export async function generateArticleContent(
       { role: "user", content: prompt },
     ],
     temperature: 0.7,
-    max_tokens: 8192,
-    // Only set JSON response format for non-MiniMax models
-    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+    max_tokens: 16384,
+    response_format: { type: "json_object" },
     // reasoning_split=true separates native CoT into reasoning_details field,
     // keeping content clean JSON. MiniMax models always think internally;
     // this just routes the thinking out of the content field.
@@ -879,8 +878,9 @@ function normalizeQuestions(result: Record<string, unknown>): GeneratedQuestion[
   return raw
     .filter((q): q is Record<string, unknown> => q !== null && typeof q === "object")
     .filter((q) => {
-      const opts = q.options;
-      return Array.isArray(opts) && opts.length >= 4;
+      // Accept questions with valid question_text even if options are malformed;
+      // normalizeQuestionOptions will recover or pad them below.
+      return typeof q.question_text === "string" && q.question_text.trim() !== "";
     })
     .map((q) => {
       const options = normalizeQuestionOptions(q);
@@ -981,7 +981,7 @@ ${sourceSegment ? `原文参考：\n${sourceSegment.slice(0, 2000)}` : ""}${sour
     ],
     temperature: 0.7,
     max_tokens: 2048,
-    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+    response_format: { type: "json_object" },
     reasoning_split: true,
   } as any);
 
@@ -1104,7 +1104,7 @@ function buildChapterPromptEn(
 ): string {
   const bloomDist = getBloomDistribution(grade, "en");
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
-  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, "en"));
   const qTypes: string[] = [];
   for (let i = 0; i < questionsPerChapter; i++) {
     const pos = i % 4;
@@ -1158,7 +1158,7 @@ CRITICAL: Return ONLY valid JSON. No explanations, no markdown, no code fences.
   "questions": [
     {
       "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "question_type": "detail|inference|evaluate|sequence|vocabulary|main_idea|synthesize",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": number (1-5),
@@ -1184,7 +1184,7 @@ function buildChapterPromptZh(
 ): string {
   const bloomDist = getBloomDistribution(grade, "zh");
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
-  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, "zh"));
   const qTypes: string[] = [];
   for (let i = 0; i < questionsPerChapter; i++) {
     const pos = i % 4;
@@ -1251,7 +1251,7 @@ inference 题目示例（必须模仿此格式生成至少1道类似题目）：
   "questions": [
     {
       "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "question_type": "detail|inference|evaluate|sequence|vocabulary|main_idea|synthesize",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": number (1-5),
@@ -1285,6 +1285,11 @@ async function generateSingleChapter(
   const modelName = getModel();
   const isMiniMax = modelName.toLowerCase().includes("minimax");
 
+  // Grade-aware max_tokens: higher grades have more chapters, longer content,
+  // and more questions per chapter. G7-8 (5 chapters, 1 Q each) needs more
+  // headroom than G4-6 (3-4 chapters, 2 Q each).
+  const chapterMaxTokens = grade >= 7 ? 24576 : 16384;
+
   const completion = await callLLM({
     model: modelName,
     messages: [
@@ -1295,8 +1300,8 @@ async function generateSingleChapter(
       { role: "user", content: chapterPrompt },
     ],
     temperature: 0.7,
-    max_tokens: 8192,
-    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+    max_tokens: chapterMaxTokens,
+    response_format: { type: "json_object" },
     reasoning_split: true,
   } as any);
 
@@ -1392,7 +1397,7 @@ export async function regenerateQuestionsOnly(
   const totalQ = getTotalQuestionCount(grade, lang);
   const bloomDist = getBloomDistribution(grade, lang);
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
-  const typeNames = ["detail", "inference", "main_idea", "sequence"];
+  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, lang === "zh" ? "zh" : "en"));
   const qTypes: string[] = [];
   for (let i = 0; i < totalQ; i++) {
     const pos = i % 4;
@@ -1411,21 +1416,21 @@ ${sourceText}
 
 Create ${totalQ} comprehension questions.
 Question types: ${focusAreas}
-Mix of: main_idea, detail, inference, vocabulary, sequence.
+Mix of: detail, inference, evaluate (judgment/opinion), sequence (event connections/synthesis), vocabulary, main_idea, synthesize.
 Each question MUST have EXACTLY 4 options labeled "A", "B", "C", "D" with non-empty text.
 Exactly one correct answer. Difficulty scale: 1 (easiest) to 5 (hardest).
 
 Question type distribution:
 ${questionDistribution}
 
-At least 30% of questions MUST be inference type.
+At least 30% of questions MUST be critical-thinking types (inference, evaluate, or sequence).
 
 Return STRICT JSON with ONLY a "questions" array:
 {
   "questions": [
     {
       "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "question_type": "detail|inference|evaluate|sequence|vocabulary|main_idea|synthesize",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": 3,
@@ -1438,15 +1443,22 @@ Return STRICT JSON with ONLY a "questions" array:
     const resp = await callLLM({
       model: getModel(),
       messages: [
-        { role: "system", content: buildChapterSystemMessage(grade, "en", {} as GenerateReadingOptions) },
+        { role: "system", content: "You are a children's reading assessment expert. Output only the requested JSON fields — no article content." },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
+      max_tokens: 4096,
       response_format: { type: "json_object" },
     });
 
     const text = resp.choices?.[0]?.message?.content || "{}";
-    const parsed = JSON.parse(text);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseJsonWithRecovery(text) as Record<string, unknown>;
+    } catch {
+      console.warn("[regen-questions] JSON recovery failed, returning empty");
+      return [];
+    }
 
     if (parsed.questions && Array.isArray(parsed.questions)) {
       return parsed.questions as GeneratedQuestion[];
@@ -1465,7 +1477,7 @@ ${sourceText}
 
 创建${totalQ}道阅读理解题。
 题型：${focusAreas}
-混合题型：main_idea（主旨）、detail（细节）、inference（推理）、vocabulary（词汇）、sequence（顺序）。
+混合题型：detail（细节）、inference（推理）、evaluate（评判/观点）、sequence（事件关联/综合）、vocabulary（词汇）、main_idea（主旨）、synthesize（综合）。
 每道题必须有且仅有4个选项，标记为"A"、"B"、"C"、"D"，每个选项必须有文字内容。
 只有一个正确答案。难度：1（最简单）到5（最难）。
 
@@ -1493,7 +1505,7 @@ inference 题目示例（必须模仿此格式生成至少1道类似题目）：
   "questions": [
     {
       "question_text": "...",
-      "question_type": "main_idea|detail|inference|vocabulary|sequence",
+      "question_type": "detail|inference|evaluate|sequence|vocabulary|main_idea|synthesize",
       "options": [{"label":"A","text":"..."},{"label":"B","text":"..."},{"label":"C","text":"..."},{"label":"D","text":"..."}],
       "correct_answer": "A",
       "difficulty": number (1-5),
@@ -1506,15 +1518,22 @@ inference 题目示例（必须模仿此格式生成至少1道类似题目）：
   const resp = await callLLM({
     model: getModel(),
     messages: [
-      { role: "system", content: buildChapterSystemMessage(grade, "zh", {} as GenerateReadingOptions) },
+      { role: "system", content: "你是一位儿童阅读评估专家。只输出请求的JSON字段，不要输出文章内容。" },
       { role: "user", content: promptZh },
     ],
     temperature: 0.7,
+    max_tokens: 4096,
     response_format: { type: "json_object" },
   });
 
   const text = resp.choices?.[0]?.message?.content || "{}";
-  const parsed = JSON.parse(text);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseJsonWithRecovery(text) as Record<string, unknown>;
+  } catch {
+    console.warn("[regen-questions-zh] JSON recovery failed, returning empty");
+    return [];
+  }
 
   if (parsed.questions && Array.isArray(parsed.questions)) {
     return parsed.questions as GeneratedQuestion[];
@@ -1575,7 +1594,7 @@ export async function generateReadingContent(
       ],
       temperature: 0.7,
       max_tokens: 4096,
-      ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+      response_format: { type: "json_object" },
       reasoning_split: true,
     } as any);
 
@@ -1649,7 +1668,7 @@ export async function generateReadingContent(
     ],
     temperature: 0.7,
     max_tokens: opts.route === "B" ? 16384 : (opts.language === "zh" ? 16384 : 32768),
-    ...(!isMiniMax ? { response_format: { type: "json_object" } } : {}),
+    response_format: { type: "json_object" },
     reasoning_split: true,
   } as any);
 

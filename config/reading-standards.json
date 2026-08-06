@@ -76,6 +76,14 @@
       "vocabulary": "GSL full + AWL full + academic vocabulary. Use domain-specific terminology, nuanced arguments, rhetorical devices, and evidence-based reasoning."
     }
   },
+  "questionTypes": {
+    "_comment": "Bloom's taxonomy → question_type mapping. This is the single source of truth.",
+    "detail":      { "bloom": "literal",    "criticalThinking": false, "en": "detail",      "zh": "detail",      "prompt_en": "ask a specific fact from the text (literal comprehension)", "prompt_zh": "考察文中具体事实（字面理解）" },
+    "inference":   { "bloom": "infer",       "criticalThinking": true,  "en": "inference",   "zh": "inference",   "prompt_en": "ask what the reader can figure out from clues",            "prompt_zh": "考察从线索推断的能力" },
+    "main_idea":   { "bloom": "evaluate",    "criticalThinking": true,  "en": "main_idea",   "zh": "main_idea",   "prompt_en": "ask for judgment, evaluation, or opinion",                "prompt_zh": "考察判断、评价或观点" },
+    "sequence":    { "bloom": "synthesize",  "criticalThinking": true,  "en": "sequence",    "zh": "sequence",    "prompt_en": "ask how events connect, build, or synthesize ideas",      "prompt_zh": "考察事件关联、承接或综合" },
+    "vocabulary":  { "bloom": "literal",     "criticalThinking": false, "en": "vocabulary",  "zh": "vocabulary",  "prompt_en": "ask about word meaning or usage in context",              "prompt_zh": "考察词义或语境用法" }
+  },
   "ibThemes": {
     "T1": { "name": "Who we are", "description": "Identity, relationships, well-being" },
     "T2": { "name": "Where we are in place and time", "description": "History, civilization, geography" },

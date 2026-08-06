@@ -15,6 +15,7 @@
 //   if (!ibResult.pass) { /* send to draft for review */ }
 
 import type { GeneratedArticle, GeneratedQuestion } from "./types";
+import { getCriticalThinkingTypes } from "./standards";
 
 // ---------------------------------------------------------------------------
 // Public contract
@@ -91,10 +92,13 @@ function checkCriticalThinkingRatio(
   const { questions } = input;
   if (!questions || questions.length === 0) return;
 
-  const inferenceCount = questions.filter(
-    (q) => q.question_type === "inference"
-  ).length;
-  const ratio = inferenceCount / questions.length;
+  // Critical thinking includes inference, evaluate (main_idea), and
+  // synthesize (sequence). The canonical set is defined in
+  // reading-standards.json questionTypes with criticalThinking: true.
+  const ctTypes = getCriticalThinkingTypes();
+  const ctCount = questions.filter((q) => ctTypes.has(q.question_type)).length;
+  const ratio = ctCount / questions.length;
+  const typeLabel = [...ctTypes].join("+");
 
   if (ratio < 0.15) {
     // For Chinese articles, downgrade to warn — MiniMax-M2.7 systematically
@@ -103,13 +107,13 @@ function checkCriticalThinkingRatio(
     issues.push({
       code: "critical-thinking-ratio-error",
       severity,
-      message: `Inference questions are ${(ratio * 100).toFixed(0)}% of total (${inferenceCount}/${questions.length}), expected ≥15%.`,
+      message: `Critical-thinking questions (${typeLabel}) are ${(ratio * 100).toFixed(0)}% of total (${ctCount}/${questions.length}), expected ≥15%.`,
     });
   } else if (ratio < 0.30) {
     issues.push({
       code: "critical-thinking-ratio-warn",
       severity: "warn",
-      message: `Inference questions are ${(ratio * 100).toFixed(0)}% of total (${inferenceCount}/${questions.length}), expected ≥30%.`,
+      message: `Critical-thinking questions (${typeLabel}) are ${(ratio * 100).toFixed(0)}% of total (${ctCount}/${questions.length}), target ≥30%.`,
     });
   }
 }

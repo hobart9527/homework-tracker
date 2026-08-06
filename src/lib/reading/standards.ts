@@ -214,6 +214,55 @@ export function getWordsPerChapter(grade: number, language: "en" | "zh"): { min:
     : getChineseStandard(grade).wordsPerChapter;
 }
 
+// ─────────────────────────────────────────────
+// 5. Question type map (SSOT from reading-standards.json)
+// ─────────────────────────────────────────────
+
+export interface QuestionTypeEntry {
+  bloom: string;
+  criticalThinking: boolean;
+  en: string;
+  zh: string;
+  prompt_en: string;
+  prompt_zh: string;
+}
+
+const QUESTION_TYPE_MAP: Record<string, QuestionTypeEntry> =
+  (standardsData as unknown as { questionTypes: Record<string, QuestionTypeEntry> }).questionTypes;
+
+/**
+ * Returns the canonical question type map. Each key is a question_type string
+ * (e.g. "detail", "inference", "main_idea", "sequence", "vocabulary").
+ *
+ * `criticalThinking: true` means the type counts toward the IB critical-thinking
+ * ratio (inference + main_idea + sequence).
+ */
+export function getQuestionTypeMap(): Record<string, QuestionTypeEntry> {
+  return QUESTION_TYPE_MAP;
+}
+
+/**
+ * Returns the set of question_type values that count as critical thinking.
+ */
+export function getCriticalThinkingTypes(): Set<string> {
+  return new Set(
+    Object.entries(QUESTION_TYPE_MAP)
+      .filter(([, entry]) => entry.criticalThinking)
+      .map(([type]) => type)
+  );
+}
+
+/**
+ * Given a bloom level key (literal/infer/evaluate/synthesize), return the
+ * canonical question_type for the target language.
+ */
+export function bloomToQuestionType(bloom: string, language: "en" | "zh"): string {
+  for (const entry of Object.values(QUESTION_TYPE_MAP)) {
+    if (entry.bloom === bloom) return entry[language];
+  }
+  return "detail";
+}
+
 export function gradeHasChapters(grade: number, language: "en" | "zh"): boolean {
   return getChapterCount(grade, language) > 1;
 }

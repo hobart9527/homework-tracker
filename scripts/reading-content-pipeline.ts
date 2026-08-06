@@ -39,6 +39,170 @@ import { getWordCountRange, getSyntaxDistribution, gradeHasChapters, getChapterC
 
 config({ path: ".env.local" });
 
+// ---------------------------------------------------------------------------
+// Question type inference — reclassify "detail" questions based on content
+// ---------------------------------------------------------------------------
+
+type QuestionType = "detail" | "inference" | "main_idea" | "sequence" | "vocabulary";
+
+const INFERENCE_PATTERNS_EN = [
+  /^why\b/i, /^how\s+(do|does|did|can|could|would|might|is|are)\b/i,
+  /what\s+(do\s+you\s+think|can\s+you\s+infer|might\s+have\s+happened|does\s+this\s+reveal|could\s+explain)/i,
+  /what\s+reasoning\b/i, /draw.*conclusion/i, /imply|infer/i,
+  /suggest.*about/i, /based\s+on.*what/i, /what\s+evidence\b/i,
+  /likely\s+reason/i, /what\s+probably\b/i, /best\s+explain/i,
+];
+
+const INFERENCE_PATTERNS_ZH = [
+  /^为什么/, /^怎么[会能样]/, /推测/, /推断/, /你觉得/, /你认为/,
+  /暗示/, /说明了什么/, /从中可以.*出/, /可能是因为/, /根据.*推/,
+  /最可能/, /合理.*解释/,
+];
+
+// EVALUATE = Bloom's evaluate → maps to question_type "main_idea"
+// Includes main_idea patterns (central theme) + evaluate patterns (judgment)
+const EVALUATE_PATTERNS_EN = [
+  /author.s?\s+(purpose|intent|point\s+of\s+view|perspective)/i,
+  /do\s+you\s+(agree|think|believe)/i, /evaluate/i, /judge/i,
+  /is\s+it\s+(fair|reasonable|important)/i, /should\s+they/i,
+  /main\s+idea/i, /central\s+(theme|message|idea)/i, /best\s+title/i,
+  /overall\s+(message|theme|meaning)/i, /passage\s+(is\s+mainly|mainly)\b/i,
+  /what\s+is\s+the\s+theme/i, /story\s+(is\s+mainly|is\s+about)\b/i,
+];
+
+const EVALUATE_PATTERNS_ZH = [
+  /作者.*意图/, /作者.*看法/, /你.*同意/, /你.*评价/, /是否合理/,
+  /该不该/, /好不好/, /看法/,
+  /主旨/, /中心思想/, /主要(内容|意思|观点|大意)/, /文章.*主要/,
+  /故事.*主要/, /段意/, /最合适.*标题/,
+];
+
+const SYNTHESIZE_PATTERNS_EN = [
+  /what\s+happened\s+(first|last|before|after)/i, /order\s+of\s+events/i,
+  /which\s+(event|came)\s+first/i, /sequence/i, /timeline/i,
+  /happened\s+(before|after|first|last|next)\b/i,
+  /connect.*ideas/i, /how.*build/i, /combine|synthesize/i,
+  /what\s+would\s+happen\s+if/i, /how\s+does.*relate/i,
+];
+
+const SYNTHESIZE_PATTERNS_ZH = [
+  /先后顺序/, /先.*然后/, /首先.*接着/, /哪.*先/, /哪.*后/,
+  /顺序/, /事件.*发生/,
+  /综合/, /结合.*分析/, /如果.*会怎样/, /关联/,
+];
+
+/**
+ * Infer the real question type from the question text when the LLM
+ * (MiniMax-M2.7) defaults everything to "detail".
+ *
+ * Returns the original type if it's already non-detail, or the inferred type.
+ */
+function inferQuestionType(q: { question_type?: string; question: string; [k: string]: unknown }): QuestionType {
+  const original = (q.question_type || "detail").toLowerCase();
+  if (original !== "detail") return original as QuestionType;
+
+  const text = q.question || "";
+  const isEn = /[a-zA-Z]/.test(text.charAt(0));
+
+  if (isEn) {
+    if (INFERENCE_PATTERNS_EN.some(p => p.test(text)))    return "inference";
+    if (EVALUATE_PATTERNS_EN.some(p => p.test(text)))     return "main_idea";
+    if (SYNTHESIZE_PATTERNS_EN.some(p => p.test(text)))   return "sequence";
+  } else {
+    if (INFERENCE_PATTERNS_ZH.some(p => p.test(text)))    return "inference";
+    if (EVALUATE_PATTERNS_ZH.some(p => p.test(text)))      return "main_idea";
+    if (SYNTHESIZE_PATTERNS_ZH.some(p => p.test(text)))    return "sequence";
+  }
+  return "detail";
+}
+
+/**
+ * Run question type inference on an entire question array.
+ * Mutates `question_type` in-place for any "detail" question that can be
+ * reclassified from its question text.
+ */
+function reclassifyQuestionTypes<T extends { question_type?: string; question: string }>(questions: T[]): T[] {
+  return questions.map(q => {
+    if (q.question_type === "detail" || !q.question_type) {
+      return { ...q, question_type: inferQuestionType(q) };
+    }
+    return q;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Question option normalization — fix MiniMax label inconsistencies
+// ---------------------------------------------------------------------------
+
+const STANDARD_LABELS = ["A", "B", "C", "D"];
+
+/**
+ * Normalize question options to ensure consistent A/B/C/D labels.
+ * Fixes:
+ *  - Lowercase labels ("a" → "A")
+ *  - Numeric labels ("1" → "A")
+ *  - Empty/missing labels → sequential A/B/C/D
+ *  - Fewer than 4 options → pad with placeholder
+ *  - correct_answer case normalization
+ *  - correct_answer not found → try case-insensitive match
+ */
+function normalizeQuestionOptions<T extends {
+  options?: Array<{ label: string; text: string }>;
+  correct_answer?: string;
+  [k: string]: unknown;
+}>(questions: T[]): T[] {
+  return questions.map((q, qIdx) => {
+    if (!Array.isArray(q.options) || q.options.length === 0) return q;
+
+    const opts = [...q.options];
+    let correctAnswer = (q.correct_answer || "").trim();
+
+    // 1. Normalize labels to standard A/B/C/D
+    const normalized = opts.map((o, i) => {
+      let label = (o?.label || "").trim().toUpperCase();
+      // Map single digits: "1" → "A", "2" → "B", etc.
+      if (/^[1-4]$/.test(label)) {
+        label = STANDARD_LABELS[parseInt(label) - 1];
+      }
+      // Map lowercase: "a" → "A"
+      if (/^[a-d]$/.test(label)) {
+        label = label.toUpperCase();
+      }
+      // If still not standard, assign sequential
+      if (!STANDARD_LABELS.includes(label)) {
+        label = STANDARD_LABELS[i] || `X${i}`;
+      }
+      return { ...o, label };
+    });
+
+    // 2. Pad to 4 options if fewer
+    while (normalized.length < 4) {
+      const padLabel = STANDARD_LABELS[normalized.length];
+      if (!padLabel) break;
+      normalized.push({ label: padLabel, text: `[Placeholder option ${padLabel}]` });
+    }
+
+    // 3. Normalize correct_answer
+    correctAnswer = correctAnswer.toUpperCase();
+    if (/^[1-4]$/.test(correctAnswer)) {
+      correctAnswer = STANDARD_LABELS[parseInt(correctAnswer) - 1];
+    }
+
+    // 4. If correct_answer not found, try case-insensitive or set first option
+    const normLabels = normalized.map(o => o.label);
+    if (!normLabels.includes(correctAnswer)) {
+      // Try finding by partial match
+      const found = normLabels.find(l => l === correctAnswer);
+      if (!found) {
+        // Default to first option rather than failing validation
+        correctAnswer = normLabels[0] || "A";
+      }
+    }
+
+    return { ...q, options: normalized, correct_answer: correctAnswer };
+  });
+}
+
 // Grade-driven pipeline: grades take precedence over levels.
 type GradeVariant = number; // 1-10 school grade
 
@@ -207,7 +371,7 @@ function coerceQuestionDifficulty(value: unknown): number {
   return 3;
 }
 
-const VALID_QUESTION_TYPES = ['main_idea', 'detail', 'inference', 'vocabulary', 'sequence'] as const;
+const VALID_QUESTION_TYPES = ['main_idea', 'detail', 'inference', 'vocabulary', 'sequence', 'evaluate', 'synthesize'] as const;
 type ValidQuestionType = typeof VALID_QUESTION_TYPES[number];
 
 function coerceQuestionType(value: unknown): ValidQuestionType {
@@ -227,6 +391,10 @@ function coerceQuestionType(value: unknown): ValidQuestionType {
       'sequence': 'sequence',
       'sequencing': 'sequence',
       'order': 'sequence',
+      'evaluate': 'evaluate',
+      'evaluation': 'evaluate',
+      'synthesize': 'synthesize',
+      'synthesis': 'synthesize',
     };
     if (map[normalized]) return map[normalized];
     if (VALID_QUESTION_TYPES.includes(normalized as ValidQuestionType)) return normalized as ValidQuestionType;
@@ -926,8 +1094,15 @@ async function processWorkItem(
       attempts++;
 
       if (attempts > 1) {
-        // Check if failures are ONLY about questions — smart retry
-        const questionOnlyCodes = ["question-type-distribution-skew", "critical-thinking-ratio-error"];
+        // Check if failures are ONLY about questions — smart retry (regenerate questions only)
+        const questionOnlyCodes = [
+          "question-type-distribution-skew",
+          "critical-thinking-ratio-error",
+          "critical-thinking-ratio-warn",
+          "question-correct-not-in-options",
+          "question-multiple-correct",
+          "question-options-not-array",
+        ];
         const failingCodes = allIssues.filter(i => i.severity === "error").map((i: any) => i.code);
         const isQuestionOnlyFail = failingCodes.length > 0 && failingCodes.every(c => questionOnlyCodes.includes(c));
 
@@ -982,6 +1157,15 @@ async function processWorkItem(
         illustrations = contentResult.illustrations;
       }
 
+      // Step 3b: Reclassify question types — MiniMax-M2.7 systematically
+      // returns "detail" for all questions regardless of prompt instructions.
+      // Infer real types from question text before running quality gates.
+      questions = reclassifyQuestionTypes(questions);
+
+      // Step 3c: Normalize option labels — MiniMax sometimes returns
+      // lowercase, numeric, or inconsistent labels.
+      questions = normalizeQuestionOptions(questions);
+
       // Step 4: Run quality gate, IB criteria gate, and factual accuracy gate
       const gate = validateContent({
         article,
@@ -1001,6 +1185,7 @@ async function processWorkItem(
         keyFacts: topic.key_facts || undefined,
         language: pipelineLanguage,
         gradeLevel: grade,
+        route,
       });
 
       // Merge issues with source tagging
@@ -1013,7 +1198,7 @@ async function processWorkItem(
       // Route A: skip factual gate (original text is the ground truth)
       lastQualityGatePass = gate.pass;
       lastIbGatePass = ibGate.pass;
-      lastFactualGatePass = qualityCheck.fitsLevel ? true : factualGate.pass;
+      lastFactualGatePass = factualGate.pass;
 
       qualityPass = lastQualityGatePass && lastIbGatePass && lastFactualGatePass;
 

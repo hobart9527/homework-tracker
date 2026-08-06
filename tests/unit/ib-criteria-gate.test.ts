@@ -255,12 +255,13 @@ describe("validateIBCriteria (ib-criteria-gate)", () => {
 
   // -- Critical thinking ratio --
 
-  it("21. inference ratio < 15% → error critical-thinking-ratio-error", () => {
+  it("21. critical thinking ratio < 15% → error critical-thinking-ratio-error", () => {
+    // Only detail and vocabulary — zero critical-thinking questions
     const questions: GeneratedQuestion[] = [
-      makeQuestion({ question_type: "main_idea" }),
+      makeQuestion({ question_type: "detail" }),
       makeQuestion({ question_type: "detail", correct_answer: "B" }),
       makeQuestion({ question_type: "vocabulary", correct_answer: "C" }),
-      makeQuestion({ question_type: "sequence", correct_answer: "D" }),
+      makeQuestion({ question_type: "detail", correct_answer: "D" }),
     ];
     const result = validateIBCriteria(
       baseInput({ language: "en", article: makeArticle({ genre: "narrative" }), questions })
@@ -271,13 +272,18 @@ describe("validateIBCriteria (ib-criteria-gate)", () => {
     expect(result.pass).toBe(false);
   });
 
-  it("22. inference ratio 15-30% → warn critical-thinking-ratio-warn", () => {
+  it("22. critical thinking ratio 15-30% → warn critical-thinking-ratio-warn", () => {
+    // 1 inference out of 8 total = 12.5% → actually this would be error
+    // 2 inference out of 8 total = 25% → warn
     const questions: GeneratedQuestion[] = [
       makeQuestion({ question_type: "inference" }),
-      makeQuestion({ question_type: "main_idea", correct_answer: "B" }),
+      makeQuestion({ question_type: "inference", correct_answer: "B" }),
       makeQuestion({ question_type: "detail", correct_answer: "C" }),
-      makeQuestion({ question_type: "vocabulary", correct_answer: "D" }),
-      makeQuestion({ question_type: "sequence", correct_answer: "A" }),
+      makeQuestion({ question_type: "detail", correct_answer: "D" }),
+      makeQuestion({ question_type: "vocabulary", correct_answer: "A" }),
+      makeQuestion({ question_type: "detail", correct_answer: "A" }),
+      makeQuestion({ question_type: "detail", correct_answer: "A" }),
+      makeQuestion({ question_type: "vocabulary", correct_answer: "A" }),
     ];
     const result = validateIBCriteria(
       baseInput({ language: "en", article: makeArticle({ genre: "narrative", author_purpose: "to entertain" }), questions })

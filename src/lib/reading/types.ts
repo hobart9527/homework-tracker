@@ -5,7 +5,7 @@ export type ReadingCategory =
   | "时事" | "历史" | "科学" | "人物" | "自然" | "文化"
   | "news" | "history" | "science" | "biography" | "nature" | "culture";
 
-export type ReadingQuestionType = "main_idea" | "detail" | "inference" | "vocabulary" | "sequence";
+export type ReadingQuestionType = "main_idea" | "detail" | "inference" | "vocabulary" | "sequence" | "evaluate" | "synthesize";
 
 export type ReadingAssignmentStatus = "recommended" | "in_progress" | "completed";
 

@@ -255,8 +255,9 @@ describe("generateReadingContent — Chinese G5 chapterized path", () => {
     expect(result.article.chapters!.length).toBe(4);
     expect(result.article.chapters![0].heading).toBe("太阳系简介");
     expect(result.article.chapters![0].content).toBe("Chapter body text.");
-    // Chapterized has no classical_quote or scene_description
-    expect(result.article.classical_quote).toBeUndefined();
+    // Chapterized Chinese article gets a fallback classical_quote
+    expect(result.article.classical_quote).toBeDefined();
+    expect(result.article.classical_quote!.original).toBeTruthy();
     // Content is joined chapters
     expect(result.article.content).toContain("Chapter body text.");
     // 4 chapters × 1 question each = 4 questions

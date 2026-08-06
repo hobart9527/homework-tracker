@@ -34,6 +34,14 @@ export interface FactualGateInput {
   language: "zh" | "en";
   gradeLevel: number;
   /**
+   * Content generation route:
+   *   "A" — source text used directly (fidelity check applies)
+   *   "B" — source text expanded/rewritten to grade level (bloat check skipped)
+   *   "C" — pure LLM generation from topic (bloat check skipped)
+   * When undefined, defaults to legacy behavior (bloat check applies).
+   */
+  route?: "A" | "B" | "C";
+  /**
    * Optional manually-specified key facts that MUST appear in article.
    * Used when domain expert wants to enforce specific facts (e.g., specific
    * dates, names, numbers). Each string must appear ≥ 1 time in article.content.
@@ -131,9 +139,14 @@ function checkSourceTextLength(
   input: FactualGateInput,
   issues: FactualGateIssue[]
 ): void {
-  const { article, sourceText, language } = input;
+  const { article, sourceText, language, route } = input;
 
   if (!sourceText || !sourceText.trim()) return;
+
+  // Route B (expand/rewrite) and Route C (pure LLM generation) intentionally
+  // produce content much longer than the source text. The bloat ratio check
+  // only applies to Route A (direct adaptation) where source is ground truth.
+  if (route === "B" || route === "C") return;
 
   const sourceLen = contentLength(sourceText, language);
   const articleLen = contentLength(article.content, language);
