@@ -24,7 +24,7 @@
 
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { generateReadingContent, validateContent, convertToRubyPinyin } from "@/lib/reading";
+import { generateReadingContent, validateContent, convertToRubyPinyin, coerceQuestionType } from "@/lib/reading";
 import {
   fetchAndExtract,
   NewsFetchError,
@@ -371,7 +371,7 @@ export async function POST(request: Request) {
           const questionRows = questions.map((q, i) => ({
             article_id: articleId,
             question_text: q.question_text,
-            question_type: q.question_type,
+            question_type: coerceQuestionType(q.question_type),
             options: q.options,
             correct_answer: q.correct_answer,
             difficulty: q.difficulty,

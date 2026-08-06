@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateArticleContent, convertToRubyPinyin } from "@/lib/reading";
+import { generateArticleContent, convertToRubyPinyin, coerceQuestionType } from "@/lib/reading";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const questionRows = generatedQuestions.map((q, i) => ({
       article_id: articleData.id,
       question_text: q.question_text,
-      question_type: q.question_type,
+      question_type: coerceQuestionType(q.question_type),
       options: q.options,
       correct_answer: q.correct_answer,
       difficulty: q.difficulty,

@@ -21,6 +21,7 @@
  */
 
 import { config } from "dotenv";
+import { coerceQuestionType } from "@/lib/reading/standards";
 
 config({ path: ".env.local" });
 
@@ -163,7 +164,7 @@ async function main() {
               result.questions.map((q: any, i: number) => ({
                 article_id: draft.id,
                 question_text: q.question_text,
-                question_type: q.question_type,
+                question_type: coerceQuestionType(q.question_type),
                 options: q.options,
                 correct_answer: q.correct_answer,
                 difficulty: q.difficulty,

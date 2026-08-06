@@ -8,6 +8,7 @@ import {
   validateIBCriteria,
   validateFactualAccuracy,
   convertToRubyPinyin,
+  coerceQuestionType,
 } from "@/lib/reading";
 import { decideRoute } from "@/lib/reading/route-analyzer";
 
@@ -317,7 +318,7 @@ async function runPipeline(
   const questionRows = questions.map((q, i) => ({
     article_id: articleId,
     question_text: q.question_text,
-    question_type: q.question_type,
+    question_type: coerceQuestionType(q.question_type),
     options: q.options,
     correct_answer: q.correct_answer,
     difficulty: q.difficulty,

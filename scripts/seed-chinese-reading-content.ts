@@ -10,6 +10,7 @@
 import { config } from "dotenv";
 import { getCorpusEntry } from "./reading/classic-corpus";
 import { decideRoute, type RouteDecision } from "@/lib/reading/route-analyzer";
+import { coerceQuestionType } from "@/lib/reading/standards";
 import scrapeAllSources from "./reading/scrape-all-sources";
 config({ path: ".env.local" });
 
@@ -475,7 +476,7 @@ async function main() {
         const questionsToInsert = gen.questions.map((q, idx) => ({
           article_id: articleRow.id,
           question_text: q.question_text,
-          question_type: q.question_type,
+          question_type: coerceQuestionType(q.question_type),
           options: q.options,
           correct_answer: q.correct_answer,
           difficulty: q.difficulty,

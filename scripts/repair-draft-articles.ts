@@ -243,7 +243,7 @@ ${article.content.slice(0, 4000)}
 
     return questions.map((q: any) => ({
       question_text: String(q.question_text || ""),
-      question_type: (String(q.question_type || "detail") as ReadingQuestionType),
+      question_type: coerceQuestionType(q.question_type),
       options: Array.isArray(q.options) ? q.options.slice(0, 4).map((o: any) => ({
         label: String(o.label || ""),
         text: String(o.text || ""),
@@ -261,7 +261,7 @@ ${article.content.slice(0, 4000)}
 // Word count helpers
 // ---------------------------------------------------------------------------
 
-import { getWordCountRange } from "@/lib/reading/standards";
+import { getWordCountRange, coerceQuestionType } from "@/lib/reading/standards";
 
 function countWords(content: string, lang: string): number {
   if (lang === "zh") {
@@ -439,7 +439,7 @@ async function main() {
           updatedQuestions.map((q, i) => ({
             article_id: row.id,
             question_text: q.question_text,
-            question_type: q.question_type,
+            question_type: coerceQuestionType(q.question_type),
             options: q.options,
             correct_answer: q.correct_answer,
             difficulty: q.difficulty,

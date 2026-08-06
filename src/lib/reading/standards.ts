@@ -263,6 +263,45 @@ export function bloomToQuestionType(bloom: string, language: "en" | "zh"): strin
   return "detail";
 }
 
+/**
+ * Canonical question types matching the DB CHECK constraint and the SSOT
+ * questionTypes map.  Always 5 values — "evaluate" and "synthesize" are Bloom
+ * level names, not question_type names (evaluate → main_idea, synthesize → sequence).
+ */
+const CANONICAL_QUESTION_TYPES = new Set([
+  "main_idea", "detail", "inference", "vocabulary", "sequence",
+]);
+
+/**
+ * Normalize any LLM output to one of the 5 canonical question types that the
+ * DB accepts.  Handles aliases ("infer" → "inference", "vocab" → "vocabulary",
+ * "evaluate" → "main_idea", "synthesize" → "sequence", etc.).
+ */
+export function coerceQuestionType(raw: unknown): string {
+  if (typeof raw !== "string") return "detail";
+  const key = raw.trim().toLowerCase().replace(/\s+/g, "_");
+  const aliasMap: Record<string, string> = {
+    main_idea: "main_idea",
+    mainidea: "main_idea",
+    detail: "detail",
+    details: "detail",
+    inference: "inference",
+    infer: "inference",
+    vocabulary: "vocabulary",
+    vocab: "vocabulary",
+    sequence: "sequence",
+    sequencing: "sequence",
+    order: "sequence",
+    evaluate: "main_idea",
+    evaluation: "main_idea",
+    synthesize: "sequence",
+    synthesis: "sequence",
+  };
+  if (aliasMap[key]) return aliasMap[key];
+  if (CANONICAL_QUESTION_TYPES.has(key)) return key;
+  return "detail";
+}
+
 export function gradeHasChapters(grade: number, language: "en" | "zh"): boolean {
   return getChapterCount(grade, language) > 1;
 }

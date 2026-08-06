@@ -371,13 +371,15 @@ function coerceQuestionDifficulty(value: unknown): number {
   return 3;
 }
 
-const VALID_QUESTION_TYPES = ['main_idea', 'detail', 'inference', 'vocabulary', 'sequence', 'evaluate', 'synthesize'] as const;
-type ValidQuestionType = typeof VALID_QUESTION_TYPES[number];
+// Canonical 5 types matching DB constraint and reading-standards.json SSOT.
+// Bloom "evaluate" → main_idea, Bloom "synthesize" → sequence.
+const CANONICAL_QUESTION_TYPES = ['main_idea', 'detail', 'inference', 'vocabulary', 'sequence'] as const;
+type CanonicalQuestionType = typeof CANONICAL_QUESTION_TYPES[number];
 
-function coerceQuestionType(value: unknown): ValidQuestionType {
+function coerceQuestionType(value: unknown): CanonicalQuestionType {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase().replace(/\s+/g, '_');
-    const map: Record<string, ValidQuestionType> = {
+    const map: Record<string, CanonicalQuestionType> = {
       'main_idea': 'main_idea',
       'mainidea': 'main_idea',
       'main_idea_question': 'main_idea',
@@ -391,13 +393,15 @@ function coerceQuestionType(value: unknown): ValidQuestionType {
       'sequence': 'sequence',
       'sequencing': 'sequence',
       'order': 'sequence',
-      'evaluate': 'evaluate',
-      'evaluation': 'evaluate',
-      'synthesize': 'synthesize',
-      'synthesis': 'synthesize',
+      // Bloom "evaluate" maps to main_idea (SSOT: reading-standards.json)
+      'evaluate': 'main_idea',
+      'evaluation': 'main_idea',
+      // Bloom "synthesize" maps to sequence (SSOT: reading-standards.json)
+      'synthesize': 'sequence',
+      'synthesis': 'sequence',
     };
     if (map[normalized]) return map[normalized];
-    if (VALID_QUESTION_TYPES.includes(normalized as ValidQuestionType)) return normalized as ValidQuestionType;
+    if (CANONICAL_QUESTION_TYPES.includes(normalized as CanonicalQuestionType)) return normalized as CanonicalQuestionType;
   }
   return 'detail';
 }

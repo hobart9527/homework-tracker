@@ -103,5 +103,24 @@ export type {
   FactualGateSeverity,
 } from "./factual-gate";
 
+// ── standards (SSOT helpers, question type coercion) ─────────────────────
+export {
+  coerceQuestionType,
+  getCriticalThinkingTypes,
+  bloomToQuestionType,
+  getQuestionTypeMap,
+  getWordCountRange,
+  getWPM,
+  getReadingMinutes,
+  getChapterCount,
+  getQuestionsPerChapter,
+  getTotalQuestionCount,
+  getBloomDistribution,
+  getSyntaxDistribution,
+  getVocabScope,
+  getWordsPerChapter,
+  gradeHasChapters,
+} from "./standards";
+
 // ── Wave 3 illustration-generator exports (added by W3-T2) ───────────────
 // Marker consumed above — safe to remove on next cleanup pass.
