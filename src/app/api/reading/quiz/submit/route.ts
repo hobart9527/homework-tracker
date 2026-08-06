@@ -25,25 +25,25 @@ export async function POST(request: Request) {
   const body = await request.json();
   const { childId, articleId, assignmentId, answers, timeSpentSeconds } = body;
 
-  if (!childId || !articleId || !answers) {
+  if (!childId || !articleId) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
   try {
-    // Fetch questions to validate answers
+    // Fetch questions to validate answers. Articles may legitimately have
+    // zero questions (e.g. legacy zh articles) — in that case we still
+    // record the completion attempt so the child gets credit for reading.
     const { data: questions } = await supabase
       .from("reading_questions")
       .select("id, correct_answer, explanation")
       .eq("article_id", articleId);
 
-    if (!questions || questions.length === 0) {
-      return NextResponse.json({ error: "No questions found for this article" }, { status: 404 });
-    }
+    const qList = questions ?? [];
 
     // Build answer map
-    const correctMap = new Map(questions.map((q) => [q.id, q.correct_answer]));
+    const correctMap = new Map(qList.map((q) => [q.id, q.correct_answer]));
 
-    const gradedAnswers = answers.map(
+    const gradedAnswers = (answers ?? []).map(
       (a: { questionId: string; selectedLabel: string }) => ({
         question_id: a.questionId,
         selected: a.selectedLabel,
@@ -52,8 +52,8 @@ export async function POST(request: Request) {
     );
 
     const score = gradedAnswers.filter((a: { correct: boolean }) => a.correct).length;
-    const total = questions.length;
-    const pointsEarned = Math.round(BASE_READING_POINTS * (score / total));
+    const total = qList.length;
+    const pointsEarned = total > 0 ? Math.round(BASE_READING_POINTS * (score / total)) : 0;
 
     // Insert quiz attempt
     const { error: attemptError } = await supabase

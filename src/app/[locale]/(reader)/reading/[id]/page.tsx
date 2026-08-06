@@ -380,8 +380,36 @@ function ReadingArticleContent({
                 .eq("id", childId!);
               setPinyinEnabled(newVal);
             }}
-            onStartQuiz={() => {
+            onStartQuiz={async () => {
               if (!questions || questions.length === 0) {
+                // Legacy articles with zero questions: record completion
+                // so the child gets reading credit / check-in.
+                try {
+                  const resp = await fetch("/api/reading/quiz/submit", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      childId,
+                      articleId: params.id,
+                      assignmentId: assignmentId || undefined,
+                      answers: [],
+                      timeSpentSeconds: 0,
+                    }),
+                  });
+                  if (resp.ok) {
+                    const data = await resp.json();
+                    await handleQuizComplete({
+                      score: 0,
+                      total: 0,
+                      pointsEarned: data.pointsEarned ?? 0,
+                    });
+                  } else {
+                    // Fallback: attempt check-in anyway
+                    await handleQuizComplete({ score: 0, total: 0, pointsEarned: 0 });
+                  }
+                } catch {
+                  await handleQuizComplete({ score: 0, total: 0, pointsEarned: 0 });
+                }
                 setPhase("completed");
               } else {
                 setPhase("quiz");
