@@ -46,6 +46,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - name: Fetch Khan data via GraphQL
         run: node scripts/sync-khan.mjs
         env:
