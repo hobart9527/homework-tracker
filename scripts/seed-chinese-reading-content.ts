@@ -246,7 +246,7 @@ async function main() {
     const grades = routeDecision.expandedGrades;
 
     for (const grade of grades) {
-      const topicKey = `${topic.topic_key}-G${grade}`;
+      const topicKey = topic.topic_key;
       allTasks.push({ topic, grade, topicKey, sourceText, routeDecision });
     }
   }
@@ -259,6 +259,7 @@ async function main() {
       .from("reading_articles")
       .select("id")
       .eq("topic_key", task.topicKey)
+      .eq("grade_level", task.grade)
       .eq("language", "zh")
       .maybeSingle();
 
@@ -408,6 +409,9 @@ async function main() {
           content_source: taskEntry.routeDecision.route === "A" ? "original" : taskEntry.routeDecision.route === "B" ? "adapted" : "llm",
           category: gen.category,
           grade_level: gen.grade,
+          raz_level: `L${Math.min(Math.max(gen.grade, 1), 12)}`,
+          genre: gen.article.genre || null,
+          cultural_connection: gen.article.cultural_connection || null,
           word_count: gen.article.word_count,
           estimated_minutes: gen.article.estimated_minutes,
           difficulty: gen.article.difficulty,

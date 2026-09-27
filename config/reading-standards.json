@@ -105,5 +105,97 @@
     "L2": { "fiction": 25, "non-fiction": 30, "poetry": 10, "drama": 10, "media": 10, "academic": 15 },
     "L3": { "fiction": 20, "non-fiction": 25, "poetry": 10, "drama": 10, "media": 15, "academic": 20 },
     "L4": { "fiction": 10, "non-fiction": 20, "poetry": 5, "drama": 5, "media": 20, "academic": 40 }
+  },
+  "ibFrameworkByGrade": {
+    "1": {
+      "programme": "PYP",
+      "phase": "PYP Phase 1",
+      "primaryTheme": "Who we are",
+      "keyConcepts": ["Form", "Function"],
+      "criteriaFocus": "Literal Comprehension & Observation",
+      "promptGuidanceEn": "Focus on daily life, observable characteristics, and simple actions. Connect to 'Who we are' and 'How the world works'.",
+      "promptGuidanceZh": "聚焦日常生活与直接观察，强调'我是谁'与自然界形态。简单词句，建立基本认同。"
+    },
+    "2": {
+      "programme": "PYP",
+      "phase": "PYP Phase 2",
+      "primaryTheme": "How the world works",
+      "keyConcepts": ["Form", "Causation"],
+      "criteriaFocus": "Simple Cause-Effect & Sequential Events",
+      "promptGuidanceEn": "Explore nature, living things, and how things function. Introduce simple cause-effect relations.",
+      "promptGuidanceZh": "探索自然事物与生活现象，引导'为什么会这样'的因果关系，掌握叙事承接。"
+    },
+    "3": {
+      "programme": "PYP",
+      "phase": "PYP Phase 3",
+      "primaryTheme": "Where we are in place and time",
+      "keyConcepts": ["Causation", "Change"],
+      "criteriaFocus": "Inference from Clues & Chronological Change",
+      "promptGuidanceEn": "Examine past and present, journeys, and changes over time. Ask readers to infer motives and reasons from context.",
+      "promptGuidanceZh": "探讨古往今来、历史典故与事物变迁。要求从上下文寻找线索，推断人物动机与行为原因。"
+    },
+    "4": {
+      "programme": "PYP",
+      "phase": "PYP Phase 4",
+      "primaryTheme": "Sharing the planet",
+      "keyConcepts": ["Causation", "Change", "Connection"],
+      "criteriaFocus": "Cross-Concept Connection & Multi-Paragraph Synthesis",
+      "promptGuidanceEn": "Connect human choices to environmental and community impact. Require multi-paragraph synthesis, figurative language, and reasoned judgment (Criterion A & B).",
+      "promptGuidanceZh": "聚焦人与自然、人与社会的依存与联系（Connection）。篇章层次分明，融入比喻拟人等修辞，考察原因与推断（Criterion A & B）。"
+    },
+    "5": {
+      "programme": "MYP",
+      "phase": "MYP Phase 1",
+      "primaryTheme": "Personal and cultural expression",
+      "keyConcepts": ["Connection", "Perspective"],
+      "criteriaFocus": "Perspective Identification & Contextual Vocabulary",
+      "promptGuidanceEn": "Introduce cultural traditions and differing viewpoints. Guide readers to identify author purpose and tone (Criterion A & D).",
+      "promptGuidanceZh": "展现多元文化传统与不同成长视角。识别作者立场与说明意图，理解语境学术词汇（Criterion A & D）。"
+    },
+    "6": {
+      "programme": "MYP",
+      "phase": "MYP Phase 2",
+      "primaryTheme": "Orientation in space and time",
+      "keyConcepts": ["Perspective", "Significance"],
+      "criteriaFocus": "Evidence Evaluation & Comparative Viewpoints",
+      "promptGuidanceEn": "Investigate historical turning points and scientific discoveries with contrasting interpretations. Compare evidence and evaluate claims (Criterion A & C).",
+      "promptGuidanceZh": "探讨科技发现与历史转折点中的多种解读。对比论据强弱，辨析核心观点与客观事实（Criterion A & C）。"
+    },
+    "7": {
+      "programme": "MYP",
+      "phase": "MYP Phase 3",
+      "primaryTheme": "Scientific and technical innovation",
+      "keyConcepts": ["Development", "Systems", "Perspective"],
+      "criteriaFocus": "Critical Analysis of Claims & Rhetorical Reasoning",
+      "promptGuidanceEn": "Deep analytical exploration of science, ethics, and innovation. Present at least TWO distinct perspectives, cite authoritative evidence, and evaluate societal implications (Criterion A, B & D).",
+      "promptGuidanceZh": "深度研讨科技伦理、社会发展与辩证思辨。呈现对立或补充视角，引用权威事实或名篇名言，考察论证逻辑与语言修辞（Criterion A, B & D）。"
+    },
+    "8": {
+      "programme": "MYP",
+      "phase": "MYP Phase 4",
+      "primaryTheme": "Fairness and development",
+      "keyConcepts": ["Systems", "Justice", "Perspective"],
+      "criteriaFocus": "Societal Systems & Evaluative Argumentation",
+      "promptGuidanceEn": "Analyze rights, community systems, and global resource equity. Require counter-arguments, nuanced tone, and synthesis across perspectives (Criterion A & C).",
+      "promptGuidanceZh": "分析社会制度、权益发展与深层历史经验。要求包含正反辩驳、逻辑推导与多角度评价（Criterion A & C）。"
+    },
+    "9": {
+      "programme": "MYP",
+      "phase": "MYP Phase 5",
+      "primaryTheme": "Globalization and sustainability",
+      "keyConcepts": ["Global Interactions", "Sustainability"],
+      "criteriaFocus": "Intertextual Critique & Formal Inquiry",
+      "promptGuidanceEn": "Sophisticated investigation of globalization, systemic challenges, and future sustainability. Academic register with rigorous argumentation (Criterion A, C & D).",
+      "promptGuidanceZh": "长篇学术思辨与全球视野研讨。严谨逻辑论证，剖析系统性因果与未来可持续发展议题（Criterion A, C & D）。"
+    },
+    "10": {
+      "programme": "MYP / DP Prep",
+      "phase": "DP Prep",
+      "primaryTheme": "Identities and relationships",
+      "keyConcepts": ["Philosophy", "Communication", "Transformation"],
+      "criteriaFocus": "Philosophical Synthesis & Domain Discursive Analysis",
+      "promptGuidanceEn": "College/DP preparatory level. Deep exploration of existential, scientific, and ethical philosophy with rhetorical deconstruction.",
+      "promptGuidanceZh": "大学预科/DP衔接水平。探索存在哲学、科学伦理与经典文本深度解构，要求跨学科概念综合与严密批驳。"
+    }
   }
 }

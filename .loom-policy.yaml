@@ -1,0 +1,23 @@
+# Loom mutation policy for homework-tracker
+# Governed: all mutations under these paths require an active Bound Run capability
+# or a pre-authorized break-glass grant. Exempt: read-only operations and paths
+# not listed; native Claude Code permissions remain authoritative for those.
+version: 1
+
+governed_paths:
+  - openspec/changes/**
+  - openspec/specs/**
+  - scripts/ingest-openlibrary-books.mjs
+  - src/app/[locale]/(reader)/reading/book/**
+  - supabase/migrations/**
+
+exempt_paths:
+  - .loom-policy.yaml
+  - .claude/**
+  - README.md
+  - docs/**
+  - tests/**
+  - test-results/**
+
+# Operations outside governed_paths remain under native Claude Code permission.
+# No break-glass grants are pre-authorized; runtime repair must request one.

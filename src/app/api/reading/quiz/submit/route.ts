@@ -303,7 +303,7 @@ export async function POST(request: Request) {
       total,
       pointsEarned,
       answers: gradedAnswers,
-      questions: questions.map((q) => ({
+      questions: qList.map((q) => ({
         id: q.id,
         correct_answer: q.correct_answer,
         explanation: q.explanation,

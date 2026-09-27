@@ -57,16 +57,34 @@ function countWords(text: string): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Grade expansion removed per content quality refresh.
- * Each topic generates exactly for its target grade(s).
- * No cascading — grade coverage comes from having enough topics per level.
+ * Grade expansion — widen target_grades when word count qualifies.
+ * See docs/pipeline-refactor-plan.md §二 for the algorithm.
  */
 export function expandGrades(
-  _wordCount: number,
+  wordCount: number,
   baseGrade: number,
-  _lang: "zh" | "en"
+  lang: "zh" | "en"
 ): number[] {
-  return [baseGrade];
+  const grades = new Set<number>([baseGrade]);
+
+  if (lang === "en") {
+    if (baseGrade === 3 && wordCount >= getWordCountRange("en", 4).min * 0.85) {
+      grades.add(4);
+    } else if (baseGrade === 5 && wordCount >= getWordCountRange("en", 6).min * 0.85) {
+      grades.add(6);
+    } else if (baseGrade === 6) {
+      if (wordCount >= getWordCountRange("en", 7).min * 0.85) grades.add(7);
+      if (wordCount >= getWordCountRange("en", 8).min * 0.85) grades.add(8);
+    }
+  } else {
+    // Chinese expansion
+    const nextGrade = baseGrade + 1;
+    if (nextGrade <= 8 && wordCount >= getWordCountRange("zh", nextGrade).min * 0.85) {
+      grades.add(nextGrade);
+    }
+  }
+
+  return Array.from(grades).sort((a, b) => a - b);
 }
 
 // ---------------------------------------------------------------------------

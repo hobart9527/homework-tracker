@@ -11,6 +11,7 @@
  */
 
 import standardsData from "../../../config/reading-standards.json";
+import type { ReadingQuestionType } from "./types";
 
 export type WordCountRange = { min: number; max: number };
 
@@ -48,9 +49,20 @@ interface RawChineseGradeData {
   vocab: string;
 }
 
+export interface IBGradeFramework {
+  programme: "PYP" | "MYP" | "MYP / DP Prep";
+  phase: string;
+  primaryTheme: string;
+  keyConcepts: string[];
+  criteriaFocus: string;
+  promptGuidanceEn: string;
+  promptGuidanceZh: string;
+}
+
 interface RawStandardsData {
   english: Record<string, RawEnglishGradeData>;
   chinese: Record<string, RawChineseGradeData>;
+  ibFrameworkByGrade?: Record<string, IBGradeFramework>;
 }
 
 // ─────────────────────────────────────────────
@@ -277,10 +289,10 @@ const CANONICAL_QUESTION_TYPES = new Set([
  * DB accepts.  Handles aliases ("infer" → "inference", "vocab" → "vocabulary",
  * "evaluate" → "main_idea", "synthesize" → "sequence", etc.).
  */
-export function coerceQuestionType(raw: unknown): string {
+export function coerceQuestionType(raw: unknown): ReadingQuestionType {
   if (typeof raw !== "string") return "detail";
   const key = raw.trim().toLowerCase().replace(/\s+/g, "_");
-  const aliasMap: Record<string, string> = {
+  const aliasMap: Record<string, ReadingQuestionType> = {
     main_idea: "main_idea",
     mainidea: "main_idea",
     detail: "detail",
@@ -298,12 +310,44 @@ export function coerceQuestionType(raw: unknown): string {
     synthesis: "sequence",
   };
   if (aliasMap[key]) return aliasMap[key];
-  if (CANONICAL_QUESTION_TYPES.has(key)) return key;
+  if (CANONICAL_QUESTION_TYPES.has(key)) return key as ReadingQuestionType;
   return "detail";
 }
 
 export function gradeHasChapters(grade: number, language: "en" | "zh"): boolean {
   return getChapterCount(grade, language) > 1;
+}
+
+/**
+ * Returns IB Programme Framework guidelines for a specific grade level (G1-G10).
+ */
+export function getIBFrameworkByGrade(grade: number): IBGradeFramework {
+  const clamped = Math.min(Math.max(Math.round(grade), 1), 10);
+  const frameworks = (standardsData as unknown as RawStandardsData).ibFrameworkByGrade;
+  if (frameworks && frameworks[String(clamped)]) {
+    return frameworks[String(clamped)];
+  }
+  // Fallback default
+  if (clamped <= 4) {
+    return {
+      programme: "PYP",
+      phase: `PYP Phase ${clamped}`,
+      primaryTheme: "Where we are in place and time",
+      keyConcepts: ["Form", "Causation", "Connection"],
+      criteriaFocus: "Inference & Observation",
+      promptGuidanceEn: "Inquiry into nature, communities, and changes.",
+      promptGuidanceZh: "探究自然与生活变迁，注重因果与联系。",
+    };
+  }
+  return {
+    programme: "MYP",
+    phase: `MYP Phase ${clamped - 4}`,
+    primaryTheme: "Scientific and technical innovation",
+    keyConcepts: ["Systems", "Perspective"],
+    criteriaFocus: "Critical Analysis & Evidence Evaluation",
+    promptGuidanceEn: "Analytical inquiry with contrasting perspectives.",
+    promptGuidanceZh: "辩证思辨与论据评析，多重视角呈现。",
+  };
 }
 
 // ─────────────────────────────────────────────

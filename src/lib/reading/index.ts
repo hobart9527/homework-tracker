@@ -14,9 +14,24 @@
 //   wave to extend without touching unrelated groups.
 
 // ── content-generator (article + questions LLM pipeline) ─────────────────
-export { generateArticleContent, generateReadingContent, regenerateQuestionsOnly, buildChinesePrompt, buildEnglishPrompt, resetTokenUsage, getTokenUsage } from "./content-generator";
+export {
+  generateArticleContent,
+  generateReadingContent,
+  regenerateQuestionsOnly,
+  buildChinesePrompt,
+  buildEnglishPrompt,
+  resetTokenUsage,
+  getTokenUsage,
+  inferQuestionType,
+  normalizeQuestionOptions,
+  normalizeQuestions,
+} from "./content-generator";
 export type { GenerateArticleOptions, GenerateReadingOptions, LevelVariant } from "./content-generator";
 export type { LocalGeneratedIllustration } from "./content-generator";
+
+// ── route-analyzer (content tiering & grade expansion) ───────────────────
+export { decideRoute, expandGrades } from "./route-analyzer";
+export type { RouteDecision } from "./route-analyzer";
 
 // ── types (canonical reading types + Supabase row aliases) ───────────────
 export type {

@@ -52,9 +52,16 @@ export async function GET(
     .eq("article_id", id)
     .order("paragraph_index", { ascending: true });
 
+  const { data: chapters } = await supabase
+    .from("reading_article_chapters")
+    .select("index, heading, content, word_count, summary")
+    .eq("article_id", id)
+    .order("index", { ascending: true });
+
   return NextResponse.json({
     article,
     questions: questions || [],
     illustrations: illustrations || [],
+    chapters: chapters || [],
   });
 }

@@ -101,12 +101,9 @@ function checkCriticalThinkingRatio(
   const typeLabel = [...ctTypes].join("+");
 
   if (ratio < 0.15) {
-    // For Chinese articles, downgrade to warn — MiniMax-M2.7 systematically
-    // generates detail-type questions for Chinese content despite prompt.
-    const severity = input.language === "zh" ? "warn" : "error";
     issues.push({
       code: "critical-thinking-ratio-error",
-      severity,
+      severity: "error",
       message: `Critical-thinking questions (${typeLabel}) are ${(ratio * 100).toFixed(0)}% of total (${ctCount}/${questions.length}), expected ≥15%.`,
     });
   } else if (ratio < 0.30) {

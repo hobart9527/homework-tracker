@@ -24,7 +24,14 @@
 
 import { NextResponse } from "next/server";
 import { createClient, createServiceRoleClient } from "@/lib/supabase/server";
-import { generateReadingContent, validateContent, convertToRubyPinyin, coerceQuestionType } from "@/lib/reading";
+import {
+  generateReadingContent,
+  validateContent,
+  validateIBCriteria,
+  validateFactualAccuracy,
+  convertToRubyPinyin,
+  coerceQuestionType,
+} from "@/lib/reading";
 import {
   fetchAndExtract,
   NewsFetchError,
@@ -322,7 +329,28 @@ export async function POST(request: Request) {
           gradeLevel,
         });
 
-        const articleStatus = gate.pass ? "published" : "draft";
+        const ibResult = validateIBCriteria({
+          article,
+          questions,
+          language,
+          gradeLevel,
+        });
+
+        const factualResult = validateFactualAccuracy({
+          article,
+          sourceText: extracted.text,
+          language,
+          gradeLevel,
+          route: "B",
+        });
+
+        const allIssues = [
+          ...gate.issues,
+          ...ibResult.issues,
+          ...factualResult.issues,
+        ];
+        const hasError = allIssues.some((issue) => issue.severity === "error");
+        const articleStatus = (!hasError && gate.pass && ibResult.pass && factualResult.pass) ? "published" : "draft";
 
         const isChinese = /[一-鿿]/.test(article.content);
         const articleLanguage = isChinese ? "zh" : "en";
@@ -337,13 +365,17 @@ export async function POST(request: Request) {
           source_url: extracted.url,
           category: CATEGORY,
           grade_level: gradeLevel,
+          raz_level: `L${Math.min(Math.max(gradeLevel, 1), 12)}`,
+          genre: article.genre ?? null,
+          author_purpose: article.author_purpose ?? null,
+          cultural_connection: article.cultural_connection ?? null,
           language: articleLanguage,
           word_count: article.word_count,
           estimated_minutes: article.estimated_minutes,
           difficulty: article.difficulty,
           status: articleStatus,
           scene_description: article.scene_description || null,
-          quality_issues: gate.issues.length > 0 ? gate.issues : null,
+          quality_issues: allIssues.length > 0 ? allIssues : null,
           pinyin_content,
         };
 

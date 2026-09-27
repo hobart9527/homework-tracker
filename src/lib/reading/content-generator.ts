@@ -1,6 +1,22 @@
 import OpenAI from "openai";
 import { calculateObjectiveDifficulty } from "./difficulty";
-import { getWordCountRange, getTotalQuestionCount, getChapterCount, getQuestionsPerChapter, getBloomDistribution, getSyntaxDistribution, getVocabScope, getWordsPerChapter, gradeHasChapters, getEnglishStandard, getChineseStandard, bloomToQuestionType, getQuestionTypeMap } from "./standards";
+import {
+  getWordCountRange,
+  getTotalQuestionCount,
+  getChapterCount,
+  getQuestionsPerChapter,
+  getBloomDistribution,
+  getSyntaxDistribution,
+  getVocabScope,
+  getWordsPerChapter,
+  gradeHasChapters,
+  getEnglishStandard,
+  getChineseStandard,
+  bloomToQuestionType,
+  getQuestionTypeMap,
+  coerceQuestionType,
+  getIBFrameworkByGrade,
+} from "./standards";
 import { parseJsonWithRecovery } from "./json-recovery";
 import type { GeneratedArticle, GeneratedQuestion, ArticleChapter } from "./types";
 
@@ -81,33 +97,9 @@ async function callLLM(
 
 
 // ---------------------------------------------------------------------------
-// Legacy types — kept for backward compatibility with existing callers.
+// Types
 // The canonical types live in ./types.ts and are re-exported from index.ts.
-//
-// NOTE: This local GeneratedArticle is a narrower subset of the canonical
-// GeneratedArticle in ./types.ts (which adds scene_description + IB MYP fields).
-// generateReadingContent returns the canonical type from ./types to expose
-// all IB MYP fields.
 // ---------------------------------------------------------------------------
-
-interface LocalGeneratedArticle {
-  title: string;
-  content: string;
-  summary: string;
-  word_count: number;
-  estimated_minutes: number;
-  difficulty: number; // 1-5
-}
-
-interface LocalGeneratedQuestion {
-  question_text: string;
-  question_type: "main_idea" | "detail" | "inference" | "vocabulary" | "sequence" | "evaluate" | "synthesize";
-  options: { label: string; text: string }[];
-  correct_answer: string;
-  difficulty: number; // 1-5
-  hint?: string;
-  explanation?: string;
-}
 
 export interface GenerateArticleOptions {
   sourceText: string;
@@ -295,13 +287,15 @@ function buildGradePromptEn(options: GenerateReadingOptions, grade: number): str
     return `Question #${i + 1}: question_type MUST be "${qt}" — ${hint}`;
   }).join("\n");
 
-  return `You are an expert children's reading content creator. You are adapting a source text for Grade ${grade} students.
+  const ibFramework = getIBFrameworkByGrade(grade);
+
+  return `You are an expert children's reading content creator. You are adapting a source text for Grade ${grade} students under the IB ${ibFramework.programme} curriculum framework.
 
 SOURCE TEXT:
 ${(options.sourceText || "").slice(0, 6000)}
 
---- GRADE ${grade} SPECIFICATIONS ---
-CRITICAL: The article MUST be between ${std.wordCountMin} and ${std.wordCountMax} words.
+--- GRADE ${grade} SPECIFICATIONS (IB ${ibFramework.programme} ${ibFramework.phase}) ---
+CRITICAL: The article MUST be between ${std.wordCountMin} and ${std.wordCountMax} words. Aim for the midpoint (~${Math.round((std.wordCountMin + std.wordCountMax) / 2)} words). Do NOT cut short near the minimum. Provide rich narrative, context, and descriptive detail.
 Sentence structure distribution:
   - Simple sentences: ${std.simple}%
   - Compound sentences: ${std.compound}%
@@ -310,7 +304,12 @@ Vocabulary: ${std.vocab}
 Paragraphs: ${std.paragraphSentencesMin}-${std.paragraphSentencesMax} sentences each
 ${std.allowOpinion ? "May include opinion, analysis, or argumentation." : "Stay factual and narrative. No opinion or analysis."}
 
-IB THEME: ${ibTheme}
+IB PROGRAMME: ${ibFramework.programme} (${ibFramework.phase})
+IB PRIMARY THEME: ${ibFramework.primaryTheme}
+IB KEY CONCEPTS: ${ibFramework.keyConcepts.join(", ")}
+IB CRITERIA FOCUS: ${ibFramework.criteriaFocus}
+IB GUIDANCE: ${ibFramework.promptGuidanceEn}
+
 TEXT TYPE: ${textType}
 CATEGORY: ${options.category}
 
@@ -423,14 +422,17 @@ function buildGradePromptZh(options: GenerateReadingOptions, grade: number): str
     return `题目 #${i + 1}：question_type 必须为 "${qt}" — ${hint}`;
   }).join("\n");
 
-  return `你是一位专业的中文儿童阅读内容创作专家。你正为${grade}年级学生创作阅读文章。
+  const ibFramework = getIBFrameworkByGrade(grade);
+
+  return `你是一位专业的中文儿童阅读内容创作专家。你正为 IB ${ibFramework.programme} 框架下的${grade}年级（${ibFramework.phase}）学生创作阅读文章。
 
 主题：${displayTopicKey(options)}
 类别：${options.category}
 ${options.sourceText ? `原文参考：\n${(options.sourceText || "").slice(0, 4000)}\n` : ""}
 
---- ${grade}年级规格 ---
-核心要求：文章字数在 ${std.charCountMin} 到 ${std.charCountMax} 字之间。
+--- ${grade}年级规格（IB ${ibFramework.programme} ${ibFramework.phase}）---
+核心要求：文章字数必须在 ${std.charCountMin} 到 ${std.charCountMax} 字之间（不含标点）。
+请以中位数约 ${Math.round((std.charCountMin + std.charCountMax) / 2)} 字为目标进行充分展开叙述与细节刻画，严禁贴着下限草草收尾。
 句子结构分布：
   - 简单句：${std.simple}%
   - 并列句：${std.compound}%
@@ -439,7 +441,12 @@ ${options.sourceText ? `原文参考：\n${(options.sourceText || "").slice(0, 4
 段落：每段 ${std.paragraphSentencesMin}-${std.paragraphSentencesMax} 句
 ${std.allowOpinion ? "可包含观点、分析或议论。" : "保持客观叙述。不要夹带个人观点或分析。"}
 
-IB 主题：${ibTheme}
+IB 项目：${ibFramework.programme}（${ibFramework.phase}）
+IB 主题探究：${ibFramework.primaryTheme}
+IB 核心概念：${ibFramework.keyConcepts.join("、")}
+IB 评估焦点：${ibFramework.criteriaFocus}
+IB 创作指引：${ibFramework.promptGuidanceZh}
+
 文体：${textType}
 
 --- 题目（共${std.questionCount}道）---
@@ -618,7 +625,7 @@ function buildEnglishRouteAPrompt(options: GenerateReadingOptions): string {
 
   // Build question type distribution from SSOT bloom's
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
-  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, lang === "zh" ? "zh" : "en"));
+  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, "en"));
   const qTypes: string[] = [];
   for (let i = 0; i < questionCount; i++) {
     const pos = i % 4;
@@ -652,7 +659,7 @@ function buildChineseRouteAPrompt(options: GenerateReadingOptions): string {
   // Build question type distribution from SSOT bloom's
   const qTypes: string[] = [];
   const blooms = [bloomDist.literal, bloomDist.infer, bloomDist.evaluate, bloomDist.synthesize];
-  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, lang === "zh" ? "zh" : "en"));
+  const typeNames = ["literal", "infer", "evaluate", "synthesize"].map(b => bloomToQuestionType(b, "zh"));
   for (let i = 0; i < questionCount; i++) {
     const pos = i % 4;
     qTypes.push(blooms[pos] > 0 ? typeNames[pos] : "detail");
@@ -678,24 +685,25 @@ function buildEnglishRouteBPrompt(options: GenerateReadingOptions): string {
   const effectiveGrade = deriveEffectiveGrade(options);
   const lang = options.language || "en";
   const enRange = getWordCountRange("en", effectiveGrade);
-  const wordLimit = `${enRange.min}-${enRange.max} words`;
+  const targetWords = Math.round((enRange.min + enRange.max) / 2);
+  const wordLimit = `${enRange.min}-${enRange.max} words (target ~${targetWords} words)`;
   const questionCount = getTotalQuestionCount(effectiveGrade, lang);
 
   const ageGateClause = buildAgeGateClauseEn(options);
   const continuityClause = buildPackContinuityClauseEn(options);
 
-  // B1/B2: retain all facts, only adjust vocabulary and sentence length
-  return `You are adapting a reading passage for a Grade ${effectiveGrade} student. The original text is already mostly suitable — only minor adjustments are needed.
+  // B1/B2: retain all facts, adjust vocabulary, sentence length, and adaptively elaborate if source is brief
+  return `You are adapting a reading passage for a Grade ${effectiveGrade} student.
 
 Original text:
 ${(options.sourceText || "").slice(0, 6000)}
 
 CONSTRAINED ADAPTATION RULES:
-1. RETAIN ALL FACTS: Keep every person, event, date, place, and key detail from the original. Do NOT add new facts or remove existing ones.
-2. VOCABULARY ONLY: Replace difficult words with grade-appropriate synonyms. Do NOT change meaning.
-3. SENTENCE LENGTH: Split sentences longer than 25 words. Combine sentences shorter than 5 words if they're fragments.
-4. PARAGRAPH STRUCTURE: Keep the same paragraph order and narrative sequence as the original.
-5. DO NOT: add new paragraphs, remove sections, change the story order, or add commentary.
+1. RETAIN ALL FACTS: Keep every person, event, date, place, and key detail from the original. Do NOT contradict or remove existing facts.
+2. ADAPTIVE EXPANSION & DETAIL: Target approximately ${targetWords} words (must be within ${enRange.min}-${enRange.max} words). If the original text is short, enrich the scene setting, sensory descriptions, character emotions, and historical/scientific context while remaining completely faithful to the original core facts. Do NOT cut short near the minimum.
+3. VOCABULARY: Replace overly complex or archaic words with grade-appropriate synonyms suitable for Grade ${effectiveGrade}.
+4. SENTENCE LENGTH: Split overly long sentences (>25 words) into clear, engaging sentences appropriate for Grade ${effectiveGrade}.
+5. NARRATIVE FLOW: Maintain logical progression and narrative coherence.
 
 Target length: ${wordLimit}
 Question count: ${questionCount}
@@ -712,7 +720,8 @@ function buildChineseRouteBPrompt(options: GenerateReadingOptions): string {
   const effectiveGrade = deriveEffectiveGrade(options);
   const lang = "zh";
   const zhRange = getWordCountRange("zh", effectiveGrade);
-  const charLimit = `${zhRange.min}-${zhRange.max}`;
+  const targetChars = Math.round((zhRange.min + zhRange.max) / 2);
+  const charLimit = `${zhRange.min}-${zhRange.max}字（目标约${targetChars}字）`;
   const questionCount = getTotalQuestionCount(effectiveGrade, lang);
   const syntaxDist = getSyntaxDistribution(effectiveGrade, lang);
   const vocab = getVocabScope(effectiveGrade, lang);
@@ -722,31 +731,60 @@ function buildChineseRouteBPrompt(options: GenerateReadingOptions): string {
   const ageGateClause = buildAgeGateClauseZh(options);
   const continuityClause = buildPackContinuityClauseZh(options);
 
-  return `你是一位专业的中文儿童阅读改编专家。请将以下文言文/古文逐句翻译改编成适合${effectiveGrade}年级的白话文。
+  return `你是一位专业的中文儿童阅读改编专家。请将以下文言文/古文翻译改编成适合${effectiveGrade}年级的生动白话文。
 
 原文：
 ${sourceText.slice(0, 4000)}
 
 约束性改编规则（严格遵守）：
-1. 逐句翻译：原文的每一句话都要对应1-2句白话文。不要跳过任何句子。
-2. 保留全部事实：原文中所有人物、事件、时间、地点必须完整保留。禁止添加原文没有的细节或评论。
-3. 词汇替换：生僻字替换为${effectiveGrade}年级课本常用字（${vocab}）。专业术语用通俗语言解释。
-4. 句子简化：文言文长句拆分为简短白话句。每个白话句子不超过20字。
-5. 不要改变叙事顺序：严格按原文段落顺序改写。
-6. 保留典故：原文中的成语、典故要保留并稍作解释。
+1. 逐句翻译与生动还原：原文的每一句话都要在白话文中得到充分还原，不可漏译。
+2. 保留全部事实：原文中所有人物、事件、时间、地点必须完整保留。不得与原文事实冲突。
+3. 篇幅与细节拓展（目标约${targetChars}字，必须落在${zhRange.min}-${zhRange.max}字之间）：若文言文原文篇幅较短，务必在忠实原意的前提下，展开对历史背景、人物神态动作、心理描写、场景环境与感官细节的丰富刻画，并用生动通俗的语言把道理或情节讲透，严禁贴着字数下限草率结束。
+4. 词汇替换：生僻字替换为${effectiveGrade}年级课本常用字（${vocab}）。成语和典故要保留并融入白话解释。
+5. 句子简化：长句拆分为简短白话句。每个白话句子一般不超过20-25字。
+6. 结构自然：保持叙事脉络清晰连贯。
 
-字数范围：${charLimit}字
+字数范围：${charLimit}
 句子结构：简单句${syntaxDist.simple}%、并列句${syntaxDist.compound}%、复合句${syntaxDist.complex}%
 
 创建${questionCount}道阅读理解题。
 题型分布：detail（字面理解）${bloomDist.literal}%、inference（推理）${bloomDist.infer}%、evaluate（评判/观点）${bloomDist.evaluate}%、sequence（事件关联/综合）${bloomDist.synthesize}%
-每道题4个选项（A/B/C/D），只有一个正确答案。
+每道题必须提供4个选项（A/B/C/D），每个选项必须有 label 和 text，且只有一个正确答案。
 
-还需提供：scene_description、genre（记叙文/说明文）、cultural_connection、classical_quote、illustrations。
+还需提供：scene_description、genre（记叙文/说明文/议论文/文学散文）、cultural_connection、classical_quote（包含 original, pinyin, translation）、illustrations。
 
 ${ageGateClause}${continuityClause}${LANGUAGE_LOCK_ZH}
 
-返回严格JSON格式（同标准格式）：{title, content, summary, word_count, estimated_minutes, difficulty, scene_description, genre, cultural_connection, classical_quote, factual_accuracy, illustrations, questions}`;
+返回严格JSON格式：
+{
+  "title": "适合${effectiveGrade}年级的标题",
+  "content": "白话文内容...",
+  "summary": "一句话总结（最多30字）",
+  "word_count": 0,
+  "estimated_minutes": 5,
+  "difficulty": 3,
+  "scene_description": "关键场景描述",
+  "genre": "记叙文",
+  "cultural_connection": "文化关联描述",
+  "classical_quote": { "original": "原文", "pinyin": "拼音", "translation": "译文" },
+  "illustrations": [{ "paragraph_index": 0, "scene_description": "..." }],
+  "questions": [
+    {
+      "question_text": "题目内容？",
+      "question_type": "detail",
+      "options": [
+        {"label": "A", "text": "选项A内容"},
+        {"label": "B", "text": "选项B内容"},
+        {"label": "C", "text": "选项C内容"},
+        {"label": "D", "text": "选项D内容"}
+      ],
+      "correct_answer": "A",
+      "difficulty": 3,
+      "hint": "提示",
+      "explanation": "解释"
+    }
+  ]
+}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -806,53 +844,19 @@ Return STRICT JSON (no markdown, no code fences):
 
 export async function generateArticleContent(
   options: GenerateArticleOptions
-): Promise<{ article: LocalGeneratedArticle; questions: LocalGeneratedQuestion[] }> {
-  const prompt = buildGenerationPrompt(options);
-
-  const modelName = getModel();
-  const isMiniMax = modelName.toLowerCase().includes("minimax");
-
-  const completion = await callLLM({
-    model: modelName,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an expert children's reading content creator. You adapt articles for specific grade levels and create comprehension questions. Always respond with valid JSON only, no markdown formatting.",
-      },
-      { role: "user", content: prompt },
-    ],
-    temperature: 0.7,
-    max_tokens: 16384,
-    response_format: { type: "json_object" },
-    // reasoning_split=true separates native CoT into reasoning_details field,
-    // keeping content clean JSON. MiniMax models always think internally;
-    // this just routes the thinking out of the content field.
-    // @ts-expect-error OpenAI SDK types don't include MiniMax-specific params
-    reasoning_split: true,
+): Promise<{ article: GeneratedArticle; questions: GeneratedQuestion[] }> {
+  const isChinese = /[一-鿿]/.test(options.sourceText || options.topicKey);
+  const language = isChinese ? "zh" : "en";
+  const result = await generateReadingContent({
+    topicKey: options.topicKey,
+    language,
+    category: options.category,
+    schoolGrade: options.gradeLevel,
+    sourceText: options.sourceText,
   });
-
-  const rawText = completion.choices[0]?.message?.content || "{}";
-  const result = parseJsonWithRecovery(rawText) as Record<string, any>;
-
   return {
-    article: {
-      title: result.title || "Untitled",
-      content: result.content || "",
-      summary: result.summary || "",
-      word_count: result.word_count || 0,
-      estimated_minutes: result.estimated_minutes || 5,
-      difficulty: result.difficulty || 3,
-    } satisfies LocalGeneratedArticle,
-    questions: Array.isArray(result.questions)
-      ? (result.questions as Record<string, unknown>[]).map((q) => ({
-          question_text: (q.question_text as string) || "",
-          question_type: (q.question_type as LocalGeneratedQuestion["question_type"]) || "detail",
-          options: (q.options as { label: string; text: string }[]) || [],
-          correct_answer: (q.correct_answer as string) || "A",
-          difficulty: (q.difficulty as number) || 3,
-        }))
-      : [],
+    article: result.article,
+    questions: result.questions,
   };
 }
 
@@ -860,36 +864,173 @@ export async function generateArticleContent(
 // New unified API
 // ---------------------------------------------------------------------------
 
-function normalizeQuestionOptions(q: Record<string, unknown>): { label: string; text: string }[] {
+// ---------------------------------------------------------------------------
+// Question type inference & option normalization (Model post-processing)
+// ---------------------------------------------------------------------------
+
+const STANDARD_LABELS = ["A", "B", "C", "D"];
+
+const INFERENCE_PATTERNS_EN = [
+  /^why\b/i, /^how\s+(do|does|did|can|could|would|might|is|are)\b/i,
+  /what\s+(do\s+you\s+think|can\s+you\s+infer|might\s+have\s+happened|does\s+this\s+reveal|could\s+explain)/i,
+  /what\s+reasoning\b/i, /draw.*conclusion/i, /imply|infer/i,
+  /suggest.*about/i, /based\s+on.*what/i, /what\s+evidence\b/i,
+  /likely\s+reason/i, /what\s+probably\b/i, /best\s+explain/i,
+];
+
+const INFERENCE_PATTERNS_ZH = [
+  /^为什么/, /^怎么[会能样]/, /推测/, /推断/, /你觉得/, /你认为/,
+  /暗示/, /说明了什么/, /从中可以.*出/, /可能是因为/, /根据.*推/,
+  /最可能/, /合理.*解释/,
+];
+
+const EVALUATE_PATTERNS_EN = [
+  /author.s?\s+(purpose|intent|point\s+of\s+view|perspective)/i,
+  /do\s+you\s+(agree|think|believe)/i, /evaluate/i, /judge/i,
+  /is\s+it\s+(fair|reasonable|important)/i, /should\s+they/i,
+  /main\s+idea/i, /central\s+(theme|message|idea)/i, /best\s+title/i,
+  /overall\s+(message|theme|meaning)/i, /passage\s+(is\s+mainly|mainly)\b/i,
+  /what\s+is\s+the\s+theme/i, /story\s+(is\s+mainly|is\s+about)\b/i,
+];
+
+const EVALUATE_PATTERNS_ZH = [
+  /作者.*意图/, /作者.*看法/, /你.*同意/, /你.*评价/, /是否合理/,
+  /该不该/, /好不好/, /看法/,
+  /主旨/, /中心思想/, /主要(内容|意思|观点|大意)/, /文章.*主要/,
+  /故事.*主要/, /段意/, /最合适.*标题/,
+];
+
+const SYNTHESIZE_PATTERNS_EN = [
+  /what\s+happened\s+(first|last|before|after)/i, /order\s+of\s+events/i,
+  /which\s+(event|came)\s+first/i, /sequence/i, /timeline/i,
+  /happened\s+(before|after|first|last|next)\b/i,
+  /connect.*ideas/i, /how.*build/i, /combine|synthesize/i,
+  /what\s+would\s+happen\s+if/i, /how\s+does.*relate/i,
+];
+
+const SYNTHESIZE_PATTERNS_ZH = [
+  /先后顺序/, /先.*然后/, /首先.*接着/, /哪.*先/, /哪.*后/,
+  /顺序/, /事件.*发生/,
+  /综合/, /结合.*分析/, /如果.*会怎样/, /关联/,
+];
+
+export function inferQuestionType(q: {
+  question_type?: string;
+  question_text?: string;
+  question?: string;
+  [k: string]: unknown;
+}): GeneratedQuestion["question_type"] {
+  const original = (q.question_type || "detail").toLowerCase();
+  if (original !== "detail") {
+    return (coerceQuestionType(original) as GeneratedQuestion["question_type"]) || "detail";
+  }
+
+  const text = q.question_text || q.question || "";
+  const isEn = /[a-zA-Z]/.test(text.charAt(0));
+
+  if (isEn) {
+    if (INFERENCE_PATTERNS_EN.some((p) => p.test(text))) return "inference";
+    if (EVALUATE_PATTERNS_EN.some((p) => p.test(text))) return "main_idea";
+    if (SYNTHESIZE_PATTERNS_EN.some((p) => p.test(text))) return "sequence";
+  } else {
+    if (INFERENCE_PATTERNS_ZH.some((p) => p.test(text))) return "inference";
+    if (EVALUATE_PATTERNS_ZH.some((p) => p.test(text))) return "main_idea";
+    if (SYNTHESIZE_PATTERNS_ZH.some((p) => p.test(text))) return "sequence";
+  }
+  return "detail";
+}
+
+function normalizeRawQuestionOptions(q: Record<string, unknown>): { label: string; text: string }[] {
   const raw = q.options;
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((o): o is Record<string, unknown> => o !== null && typeof o === "object")
     .map((o) => ({
-      label: String(o.label || "").trim(),
-      text: String(o.text || "").trim(),
+      label: typeof o.label === "string" ? o.label : "",
+      text: typeof o.text === "string" ? o.text : "",
     }))
     .filter((o) => o.label || o.text);
 }
 
-function normalizeQuestions(result: Record<string, unknown>): GeneratedQuestion[] {
+export function normalizeQuestionOptions(
+  rawOptions: unknown,
+  correctAnswerRaw?: string
+): { options: { label: string; text: string }[]; correct_answer: string } {
+  let opts: { label: string; text: string }[] = [];
+  if (Array.isArray(rawOptions)) {
+    opts = rawOptions
+      .filter((o): o is Record<string, unknown> => o !== null && typeof o === "object")
+      .map((o) => ({
+        label: typeof o.label === "string" ? o.label : "",
+        text: typeof o.text === "string" ? o.text : "",
+      }))
+      .filter((o) => o.label || o.text);
+  }
+
+  // 1. Normalize labels to standard A/B/C/D
+  const normalized = opts.map((o, i) => {
+    let label = (o.label || "").trim().toUpperCase();
+    if (/^[1-4]$/.test(label)) {
+      label = STANDARD_LABELS[parseInt(label, 10) - 1];
+    }
+    if (/^[a-d]$/.test(label)) {
+      label = label.toUpperCase();
+    }
+    if (!STANDARD_LABELS.includes(label)) {
+      label = STANDARD_LABELS[i] || `X${i}`;
+    }
+    return { ...o, label };
+  });
+
+  // 2. Pad to 4 options if fewer
+  while (normalized.length < 4) {
+    const padLabel = STANDARD_LABELS[normalized.length];
+    if (!padLabel) break;
+    normalized.push({ label: padLabel, text: `[选项 ${padLabel}]` });
+  }
+
+  // 3. Normalize correct_answer
+  let correctAnswer = (correctAnswerRaw || "").trim().toUpperCase();
+  if (/^[1-4]$/.test(correctAnswer)) {
+    correctAnswer = STANDARD_LABELS[parseInt(correctAnswer, 10) - 1];
+  }
+
+  // 4. Ensure correct_answer exists in options
+  const normLabels = normalized.map((o) => o.label);
+  if (!normLabels.includes(correctAnswer)) {
+    const found = normLabels.find((l) => l.toUpperCase() === correctAnswer);
+    correctAnswer = found || normLabels[0] || "A";
+  }
+
+  return { options: normalized, correct_answer: correctAnswer };
+}
+
+export function normalizeQuestions(result: Record<string, unknown>): GeneratedQuestion[] {
   const raw = result.questions;
   if (!Array.isArray(raw)) return [];
   return raw
     .filter((q): q is Record<string, unknown> => q !== null && typeof q === "object")
     .filter((q) => {
-      // Accept questions with valid question_text even if options are malformed;
-      // normalizeQuestionOptions will recover or pad them below.
-      return typeof q.question_text === "string" && q.question_text.trim() !== "";
+      const text = q.question_text || q.question;
+      return typeof text === "string" && text.trim() !== "";
     })
     .map((q) => {
-      const options = normalizeQuestionOptions(q);
+      const questionText = String(q.question_text || q.question || "").trim();
+      const rawType = String(q.question_type || "detail");
+      const options = normalizeRawQuestionOptions(q);
+      const inferredType = inferQuestionType({
+        question_type: rawType,
+        question_text: questionText,
+      });
+
       return {
-        question_text: String(q.question_text || "").trim(),
-        question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
+        question_text: questionText,
+        question_type: inferredType,
         options,
         correct_answer: String(q.correct_answer || "").trim() || "A",
         difficulty: Number(q.difficulty) || 3,
+        hint: typeof q.hint === "string" ? q.hint : undefined,
+        explanation: typeof q.explanation === "string" ? q.explanation : undefined,
       };
     });
 }
@@ -1048,10 +1189,11 @@ function buildChapterSystemMessage(
 - Simple cause-effect connections between sentences
 - Include ONE "why do you think" moment`;
 
+    const targetWpc = Math.round((wpc.min + wpc.max) / 2);
     return `You write children's reading content. Return only valid JSON.
 
 --- GRADE ${grade} SPECIFICATIONS ---
-Each chapter: ${wpc.min}-${wpc.max} words.
+Each chapter: ${wpc.min}-${wpc.max} words (target ~${targetWpc} words, do not cut short near the lower bound).
 Sentence structure:
   - Simple: ${syntaxDist.simple}%
   - Compound: ${syntaxDist.compound}%
@@ -1064,6 +1206,7 @@ IB: include at least one inference or reflection opportunity per chapter.${depth
   const zhStd = getChineseStandard(grade);
   const syntaxDistZh = getSyntaxDistribution(grade, "zh");
   const vocabZh = getVocabScope(grade, "zh");
+  const targetWpcZh = Math.round((wpc.min + wpc.max) / 2);
 
   const depthAnchorZh = grade >= 6
     ? `\n学术深度（${grade}年级）：
@@ -1083,7 +1226,7 @@ IB: include at least one inference or reflection opportunity per chapter.${depth
   return `你创作儿童阅读内容。仅返回有效JSON。
 
 --- ${grade}年级规格 ---
-每章：${wpc.min}-${wpc.max}字。
+每章：${wpc.min}-${wpc.max}字（目标约${targetWpcZh}字，充分展开叙述，切勿贴着下限草草收尾）。
 句子结构：简单句${syntaxDistZh.simple}%、并列句${syntaxDistZh.compound}%、复合句${syntaxDistZh.complex}%
 词汇范围：${vocabZh}
 段落：每段${zhStd.paragraphSentencesMin}-${zhStd.paragraphSentencesMax}句
@@ -1536,10 +1679,10 @@ inference 题目示例（必须模仿此格式生成至少1道类似题目）：
   }
 
   if (parsed.questions && Array.isArray(parsed.questions)) {
-    return parsed.questions as GeneratedQuestion[];
+    return normalizeQuestions(parsed);
   }
   if (Array.isArray(parsed)) {
-    return parsed as GeneratedQuestion[];
+    return normalizeQuestions({ questions: parsed });
   }
   return [];
 }
@@ -1625,20 +1768,7 @@ export async function generateReadingContent(
         classical_quote: result.classical_quote as { original: string; pinyin: string; translation: string } | undefined,
         factual_accuracy: undefined,
       } satisfies GeneratedArticle,
-      questions: Array.isArray(result.questions)
-        ? (result.questions as Record<string, unknown>[])
-            .filter((q) => {
-              const opts = q.options;
-              return Array.isArray(opts) && opts.length >= 4;
-            })
-            .map((q) => ({
-              question_text: (q.question_text as string) || "",
-              question_type: (q.question_type as GeneratedQuestion["question_type"]) || "detail",
-              options: (q.options as { label: string; text: string }[]) || [],
-              correct_answer: (q.correct_answer as string) || "A",
-              difficulty: (q.difficulty as number) || 3,
-            }))
-        : [],
+      questions: normalizeQuestions(result),
       illustrations: Array.isArray(result.illustrations)
         ? (result.illustrations as Record<string, unknown>[]).map((ill) => ({
             paragraph_index: (ill.paragraph_index as number) || 0,

@@ -35,173 +35,16 @@ import { config } from "dotenv";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getCorpusEntry } from "./reading/classic-corpus";
 import scrapeAllSources from "./reading/scrape-all-sources";
-import { getWordCountRange, getSyntaxDistribution, gradeHasChapters, getChapterCount, getTotalQuestionCount } from "@/lib/reading/standards";
+import {
+  getWordCountRange,
+  getSyntaxDistribution,
+  gradeHasChapters,
+  getChapterCount,
+  getTotalQuestionCount,
+  decideRoute,
+} from "@/lib/reading";
 
 config({ path: ".env.local" });
-
-// ---------------------------------------------------------------------------
-// Question type inference — reclassify "detail" questions based on content
-// ---------------------------------------------------------------------------
-
-type QuestionType = "detail" | "inference" | "main_idea" | "sequence" | "vocabulary";
-
-const INFERENCE_PATTERNS_EN = [
-  /^why\b/i, /^how\s+(do|does|did|can|could|would|might|is|are)\b/i,
-  /what\s+(do\s+you\s+think|can\s+you\s+infer|might\s+have\s+happened|does\s+this\s+reveal|could\s+explain)/i,
-  /what\s+reasoning\b/i, /draw.*conclusion/i, /imply|infer/i,
-  /suggest.*about/i, /based\s+on.*what/i, /what\s+evidence\b/i,
-  /likely\s+reason/i, /what\s+probably\b/i, /best\s+explain/i,
-];
-
-const INFERENCE_PATTERNS_ZH = [
-  /^为什么/, /^怎么[会能样]/, /推测/, /推断/, /你觉得/, /你认为/,
-  /暗示/, /说明了什么/, /从中可以.*出/, /可能是因为/, /根据.*推/,
-  /最可能/, /合理.*解释/,
-];
-
-// EVALUATE = Bloom's evaluate → maps to question_type "main_idea"
-// Includes main_idea patterns (central theme) + evaluate patterns (judgment)
-const EVALUATE_PATTERNS_EN = [
-  /author.s?\s+(purpose|intent|point\s+of\s+view|perspective)/i,
-  /do\s+you\s+(agree|think|believe)/i, /evaluate/i, /judge/i,
-  /is\s+it\s+(fair|reasonable|important)/i, /should\s+they/i,
-  /main\s+idea/i, /central\s+(theme|message|idea)/i, /best\s+title/i,
-  /overall\s+(message|theme|meaning)/i, /passage\s+(is\s+mainly|mainly)\b/i,
-  /what\s+is\s+the\s+theme/i, /story\s+(is\s+mainly|is\s+about)\b/i,
-];
-
-const EVALUATE_PATTERNS_ZH = [
-  /作者.*意图/, /作者.*看法/, /你.*同意/, /你.*评价/, /是否合理/,
-  /该不该/, /好不好/, /看法/,
-  /主旨/, /中心思想/, /主要(内容|意思|观点|大意)/, /文章.*主要/,
-  /故事.*主要/, /段意/, /最合适.*标题/,
-];
-
-const SYNTHESIZE_PATTERNS_EN = [
-  /what\s+happened\s+(first|last|before|after)/i, /order\s+of\s+events/i,
-  /which\s+(event|came)\s+first/i, /sequence/i, /timeline/i,
-  /happened\s+(before|after|first|last|next)\b/i,
-  /connect.*ideas/i, /how.*build/i, /combine|synthesize/i,
-  /what\s+would\s+happen\s+if/i, /how\s+does.*relate/i,
-];
-
-const SYNTHESIZE_PATTERNS_ZH = [
-  /先后顺序/, /先.*然后/, /首先.*接着/, /哪.*先/, /哪.*后/,
-  /顺序/, /事件.*发生/,
-  /综合/, /结合.*分析/, /如果.*会怎样/, /关联/,
-];
-
-/**
- * Infer the real question type from the question text when the LLM
- * (MiniMax-M2.7) defaults everything to "detail".
- *
- * Returns the original type if it's already non-detail, or the inferred type.
- */
-function inferQuestionType(q: { question_type?: string; question: string; [k: string]: unknown }): QuestionType {
-  const original = (q.question_type || "detail").toLowerCase();
-  if (original !== "detail") return original as QuestionType;
-
-  const text = q.question || "";
-  const isEn = /[a-zA-Z]/.test(text.charAt(0));
-
-  if (isEn) {
-    if (INFERENCE_PATTERNS_EN.some(p => p.test(text)))    return "inference";
-    if (EVALUATE_PATTERNS_EN.some(p => p.test(text)))     return "main_idea";
-    if (SYNTHESIZE_PATTERNS_EN.some(p => p.test(text)))   return "sequence";
-  } else {
-    if (INFERENCE_PATTERNS_ZH.some(p => p.test(text)))    return "inference";
-    if (EVALUATE_PATTERNS_ZH.some(p => p.test(text)))      return "main_idea";
-    if (SYNTHESIZE_PATTERNS_ZH.some(p => p.test(text)))    return "sequence";
-  }
-  return "detail";
-}
-
-/**
- * Run question type inference on an entire question array.
- * Mutates `question_type` in-place for any "detail" question that can be
- * reclassified from its question text.
- */
-function reclassifyQuestionTypes<T extends { question_type?: string; question: string }>(questions: T[]): T[] {
-  return questions.map(q => {
-    if (q.question_type === "detail" || !q.question_type) {
-      return { ...q, question_type: inferQuestionType(q) };
-    }
-    return q;
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Question option normalization — fix MiniMax label inconsistencies
-// ---------------------------------------------------------------------------
-
-const STANDARD_LABELS = ["A", "B", "C", "D"];
-
-/**
- * Normalize question options to ensure consistent A/B/C/D labels.
- * Fixes:
- *  - Lowercase labels ("a" → "A")
- *  - Numeric labels ("1" → "A")
- *  - Empty/missing labels → sequential A/B/C/D
- *  - Fewer than 4 options → pad with placeholder
- *  - correct_answer case normalization
- *  - correct_answer not found → try case-insensitive match
- */
-function normalizeQuestionOptions<T extends {
-  options?: Array<{ label: string; text: string }>;
-  correct_answer?: string;
-  [k: string]: unknown;
-}>(questions: T[]): T[] {
-  return questions.map((q, qIdx) => {
-    if (!Array.isArray(q.options) || q.options.length === 0) return q;
-
-    const opts = [...q.options];
-    let correctAnswer = (q.correct_answer || "").trim();
-
-    // 1. Normalize labels to standard A/B/C/D
-    const normalized = opts.map((o, i) => {
-      let label = (o?.label || "").trim().toUpperCase();
-      // Map single digits: "1" → "A", "2" → "B", etc.
-      if (/^[1-4]$/.test(label)) {
-        label = STANDARD_LABELS[parseInt(label) - 1];
-      }
-      // Map lowercase: "a" → "A"
-      if (/^[a-d]$/.test(label)) {
-        label = label.toUpperCase();
-      }
-      // If still not standard, assign sequential
-      if (!STANDARD_LABELS.includes(label)) {
-        label = STANDARD_LABELS[i] || `X${i}`;
-      }
-      return { ...o, label };
-    });
-
-    // 2. Pad to 4 options if fewer
-    while (normalized.length < 4) {
-      const padLabel = STANDARD_LABELS[normalized.length];
-      if (!padLabel) break;
-      normalized.push({ label: padLabel, text: `[Placeholder option ${padLabel}]` });
-    }
-
-    // 3. Normalize correct_answer
-    correctAnswer = correctAnswer.toUpperCase();
-    if (/^[1-4]$/.test(correctAnswer)) {
-      correctAnswer = STANDARD_LABELS[parseInt(correctAnswer) - 1];
-    }
-
-    // 4. If correct_answer not found, try case-insensitive or set first option
-    const normLabels = normalized.map(o => o.label);
-    if (!normLabels.includes(correctAnswer)) {
-      // Try finding by partial match
-      const found = normLabels.find(l => l === correctAnswer);
-      if (!found) {
-        // Default to first option rather than failing validation
-        correctAnswer = normLabels[0] || "A";
-      }
-    }
-
-    return { ...q, options: normalized, correct_answer: correctAnswer };
-  });
-}
 
 // Grade-driven pipeline: grades take precedence over levels.
 type GradeVariant = number; // 1-10 school grade
@@ -209,8 +52,25 @@ type GradeVariant = number; // 1-10 school grade
 // Validate env BEFORE any dynamic imports that may initialize external clients.
 validateEnv();
 
+// Parse CLI args early
+const args = process.argv.slice(2);
+const getArg = (name: string): string | undefined => {
+  const idx = args.indexOf(`--${name}`);
+  if (idx !== -1 && args[idx + 1] && !args[idx + 1].startsWith("--")) {
+    return args[idx + 1];
+  }
+  const prefix = `--${name}=`;
+  const found = args.find(a => a.startsWith(prefix));
+  return found ? found.slice(prefix.length) : undefined;
+};
+
 // Pipeline language: controls target language for topic loading and content generation.
-const pipelineLanguage = (process.env.PIPELINE_LANGUAGE || "en") as "en" | "zh";
+const cliLang = getArg("lang") || getArg("language");
+const pipelineLanguage = (cliLang || process.env.PIPELINE_LANGUAGE || "en") as "en" | "zh";
+if (pipelineLanguage !== "en" && pipelineLanguage !== "zh") {
+  console.error(`ERROR: Invalid language "${pipelineLanguage}". Must be "en" or "zh".`);
+  process.exit(1);
+}
 
 // Per-grade cap for published articles
 const TARGET_PER_GRADE = 40;
@@ -476,6 +336,10 @@ async function checkExistingArticle(
 interface UpsertArticleData {
   topicKey: string;
   gradeLevel: number;
+  razLevel?: string | null;
+  genre?: string | null;
+  authorPurpose?: string | null;
+  culturalConnection?: string | null;
   title: string;
   content: string;
   source: string | null;
@@ -505,6 +369,10 @@ async function upsertArticle(
       {
         topic_key: articleData.topicKey,
         grade_level: articleData.gradeLevel,
+        raz_level: articleData.razLevel ?? `L${Math.min(Math.max(articleData.gradeLevel, 1), 12)}`,
+        genre: articleData.genre ?? null,
+        author_purpose: articleData.authorPurpose ?? null,
+        cultural_connection: articleData.culturalConnection ?? null,
         title: articleData.title,
         content: articleData.content,
         source: articleData.source ?? "llm",
@@ -761,14 +629,14 @@ async function getGradeCounts(supabase: SupabaseClient, language: string): Promi
   for (const a of (data || []) as { grade_level: number }[]) {
     counts[a.grade_level] = (counts[a.grade_level] || 0) + 1;
   }
-  for (let g = 3; g <= 10; g++) {
+  for (let g = 1; g <= 10; g++) {
     if (counts[g] === undefined) counts[g] = 0;
   }
   return counts;
 }
 
 async function archiveSurplus(supabase: SupabaseClient, language: string, targetPerGrade: number): Promise<void> {
-  for (let grade = 3; grade <= 10; grade++) {
+  for (let grade = 1; grade <= 10; grade++) {
     const { data: articles } = await supabase
       .from("reading_articles")
       .select("id, created_at")
@@ -795,7 +663,7 @@ async function archiveSurplus(supabase: SupabaseClient, language: string, target
 }
 
 async function rotateStale(supabase: SupabaseClient, language: string): Promise<void> {
-  for (let grade = 3; grade <= 10; grade++) {
+  for (let grade = 1; grade <= 10; grade++) {
     const { data: articles } = await supabase
       .from("reading_articles")
       .select("id, created_at")
@@ -822,10 +690,13 @@ async function main(): Promise<void> {
   // Validate environment
   validateEnv();
 
-  // Parse grades (PIPELINE_GRADES takes precedence over PIPELINE_LEVELS)
-  const gradesEnv = process.env.PIPELINE_GRADES;
-  const grades: number[] = gradesEnv
-    ? gradesEnv.split(",").map(s => parseInt(s.trim(), 10)).filter(n => n >= 1 && n <= 10)
+  const cliGrades = getArg("grades");
+  const cliLimit = getArg("limit");
+
+  // Parse grades (CLI takes precedence over PIPELINE_GRADES / PIPELINE_LEVELS)
+  const gradesInput = cliGrades || process.env.PIPELINE_GRADES;
+  const grades: number[] = gradesInput
+    ? gradesInput.split(",").map(s => parseInt(s.trim(), 10)).filter(n => n >= 1 && n <= 10)
     : [];
 
   // Fallback: parse levels and map to representative grades
@@ -840,14 +711,14 @@ async function main(): Promise<void> {
     }
   }
 
-  const topicLimit = parseInt(process.env.PIPELINE_TOPIC_LIMIT || "0", 10);
+  const topicLimit = parseInt(cliLimit || process.env.PIPELINE_TOPIC_LIMIT || "0", 10);
 
   if (grades.length === 0) {
     console.error("ERROR: No valid grades configured. Use PIPELINE_GRADES=\"4,7\" or PIPELINE_LEVELS=\"L1,L2,L3\".");
     process.exit(1);
   }
 
-  const gradesDisplay = gradesEnv ? grades.join(", ") : grades.join(", ") + " (mapped from levels)";
+  const gradesDisplay = gradesInput ? grades.join(", ") : grades.join(", ") + " (mapped from levels)";
   const dryRun = process.argv.includes("--dry-run") || process.env.PIPELINE_DRY_RUN === "1";
   const dailyMode = process.argv.includes("--daily");
   const dailyLimit = parseInt(process.env.PIPELINE_DAILY_LIMIT || "2", 10);
@@ -881,18 +752,20 @@ async function main(): Promise<void> {
   // Per-grade cap enforcement
   console.log("=== CURRENT DISTRIBUTION ===");
   const gradeCounts = await getGradeCounts(supabase, pipelineLanguage);
-  for (let g = 3; g <= 10; g++) {
+  for (let g = 1; g <= 10; g++) {
     const count = gradeCounts[g] || 0;
     const status = count >= TARGET_PER_GRADE ? "CAP" : `${count}/${TARGET_PER_GRADE}`;
     console.log(`  G${g}: ${status}`);
   }
   console.log("");
 
-  // Collect all work items (topic, grade) pairs
+  // Collect all work items (topic, grade) pairs, filtering by topic target_grades if present
   let workItems: WorkItem[] = [];
   for (const grade of grades) {
     for (const topic of topics) {
-      workItems.push({ topic, grade });
+      if (!topic.target_grades || topic.target_grades.length === 0 || topic.target_grades.includes(grade)) {
+        workItems.push({ topic, grade });
+      }
     }
   }
 
@@ -1060,26 +933,24 @@ async function processWorkItem(
     // Step 2: Resolve sourceText from corpus if not provided in topic
     const corpusEntry = getCorpusEntry(topic.topic_key, pipelineLanguage);
     const sourceText = topic.source_text || corpusEntry?.content || undefined;
-
-    // Guard: if source text is missing or too short, force route C (full generation)
     const hasUsableSource = !!sourceText && sourceText.trim().length >= 50;
 
-    // Step 3: Check source text quality and decide route
-    const qualityCheck = checkSourceQuality(sourceText, grade, pipelineLanguage);
-
-    // Determine route upfront (shared across retries)
-    let route: "A" | "B" | "C";
-    let routeLog: string;
-    if (qualityCheck.fitsLevel && hasUsableSource) {
-      route = "A";
-      routeLog = "USE-DIRECT";
-    } else if (hasUsableSource) {
-      route = qualityCheck.needsExpansion ? "B" : "C";
-      routeLog = "REWRITE";
-    } else {
-      route = "C";
-      routeLog = "NO-SOURCE → GENERATE";
-    }
+    // Step 3: Decide route via unified route-analyzer (SSOT)
+    const routeDecision = decideRoute({
+      topic_key: topic.topic_key,
+      language: pipelineLanguage,
+      source: topic.source,
+      source_text: sourceText ?? null,
+      target_grades: topic.target_grades,
+      content_completeness: (topic as any).content_completeness ?? null,
+    });
+    const route: "A" | "B" | "C" = routeDecision.route;
+    const routeLog =
+      route === "A"
+        ? "USE-DIRECT (Route A)"
+        : route === "B"
+        ? `REWRITE (Route B: ${routeDecision.reason})`
+        : `GENERATE (Route C: ${routeDecision.reason})`;
 
     // Retry loop: re-generate content up to 3 times if quality gates fail
     let qualityPass = false;
@@ -1161,14 +1032,16 @@ async function processWorkItem(
         illustrations = contentResult.illustrations;
       }
 
-      // Step 3b: Reclassify question types — MiniMax-M2.7 systematically
-      // returns "detail" for all questions regardless of prompt instructions.
-      // Infer real types from question text before running quality gates.
-      questions = reclassifyQuestionTypes(questions);
-
-      // Step 3c: Normalize option labels — MiniMax sometimes returns
-      // lowercase, numeric, or inconsistent labels.
-      questions = normalizeQuestionOptions(questions);
+      // Step 3b: Ensure question options and inferred types are normalized
+      questions = (questions || []).map((q: any) => {
+        const norm = readingMod.normalizeQuestionOptions(q.options, q.correct_answer);
+        return {
+          ...q,
+          question_type: readingMod.inferQuestionType(q),
+          options: norm.options,
+          correct_answer: norm.correct_answer,
+        };
+      });
 
       // Step 4: Run quality gate, IB criteria gate, and factual accuracy gate
       const gate = validateContent({
@@ -1227,18 +1100,14 @@ async function processWorkItem(
       }
     }
 
-    // Quality gate block: skip DB insert when quality check fails
+    // Quality gate outcome: route to published or draft (records quality issues for triage)
+    const status: "draft" | "published" = qualityPass ? "published" : "draft";
+
     if (!qualityPass) {
       const issueCount = allIssues.length;
       const sampleIssues = allIssues.slice(0, 3).map((i: any) => i.message || i.code).join("; ");
-      console.log(`\n  QUALITY FAIL (${issueCount} issues): ${sampleIssues}${dryRun ? " [dry-run, skipping DB]" : ""}`);
-      if (!dryRun) {
-        console.log("  SKIPPING — article not stored");
-        return { status: "skipped", reason: `quality-fail:${issueCount} issues` };
-      }
+      console.log(`\n  QUALITY ISSUES (${issueCount} issues, saving as draft for triage): ${sampleIssues}`);
     }
-
-    const status: "draft" | "published" = qualityPass ? "published" : "draft";
 
     // Step 5: Upsert article FIRST to get real articleId
     if (dryRun) {
@@ -1250,6 +1119,10 @@ async function processWorkItem(
     const articleId = await upsertArticle(supabase, {
       topicKey: topic.topic_key,
       gradeLevel: grade,
+      razLevel: `L${Math.min(Math.max(grade, 1), 12)}`,
+      genre: article.genre || null,
+      authorPurpose: article.author_purpose || null,
+      culturalConnection: article.cultural_connection || null,
       title: article.title,
       content: article.content,
       source: topic.source,
@@ -1261,7 +1134,7 @@ async function processWorkItem(
       sceneDescription: article.scene_description,
       summary: article.summary,
       status,
-      contentSource: qualityCheck.fitsLevel ? "original" : qualityCheck.needsExpansion ? "adapted" : "llm",
+      contentSource: route === "A" ? "original" : route === "B" ? "adapted" : "llm",
       coverImageUrl: null,
       coverSource: null,
       coverSourceUrl: null,
@@ -1367,7 +1240,7 @@ async function processWorkItem(
     const sourceCount = illustrationResults.filter(r => r.source === "source-website").length;
     const aiCount = illustrationResults.length - sourceCount;
     const gateLabel = lastQualityGatePass && lastIbGatePass && lastFactualGatePass ? "published" : "draft";
-    const routeLabel = qualityCheck.fitsLevel ? "direct" : qualityCheck.needsExpansion ? "expand" : "rewrite";
+    const routeLabel = route === "A" ? "direct" : route === "B" ? "rewrite" : "generate";
     const chapterInfo = article.chapters?.length ? ` ${article.chapters.length}ch` : "";
     console.log(
       `OK — "${article.title}" route=${routeLabel}${chapterInfo} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${lastQualityGatePass ? "pass" : "fail"}, ib=${lastIbGatePass ? "pass" : "fail"}, factual=${lastFactualGatePass ? "pass" : "skip"}, ${gateLabel})`

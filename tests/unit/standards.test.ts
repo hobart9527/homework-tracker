@@ -71,11 +71,11 @@ describe("getWordCountRange — boundaries and fallback", () => {
     expect(range.max).toBe(ENGLISH_STANDARDS[1].wordCountRange.max);
   });
 
-  it("grade 8 returns valid Chinese range (highest boundary)", () => {
-    const range = getWordCountRange("zh", 8);
+  it("grade 10 returns valid Chinese range (highest boundary)", () => {
+    const range = getWordCountRange("zh", 10);
     expect(range).toBeDefined();
-    expect(range.min).toBe(CHINESE_STANDARDS[8].charCountRange.min);
-    expect(range.max).toBe(CHINESE_STANDARDS[8].charCountRange.max);
+    expect(range.min).toBe(CHINESE_STANDARDS[10].charCountRange.min);
+    expect(range.max).toBe(CHINESE_STANDARDS[10].charCountRange.max);
   });
 
   it("invalid grade 0 clamps to grade 1 for English", () => {
@@ -84,10 +84,10 @@ describe("getWordCountRange — boundaries and fallback", () => {
     expect(range.max).toBe(ENGLISH_STANDARDS[1].wordCountRange.max);
   });
 
-  it("invalid grade 99 clamps to grade 8 for Chinese", () => {
+  it("invalid grade 99 clamps to grade 10 for Chinese", () => {
     const range = getWordCountRange("zh", 99);
-    expect(range.min).toBe(CHINESE_STANDARDS[8].charCountRange.min);
-    expect(range.max).toBe(CHINESE_STANDARDS[8].charCountRange.max);
+    expect(range.min).toBe(CHINESE_STANDARDS[10].charCountRange.min);
+    expect(range.max).toBe(CHINESE_STANDARDS[10].charCountRange.max);
   });
 
   it("every returned range satisfies min <= max", () => {

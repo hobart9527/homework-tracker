@@ -1,0 +1,5 @@
+schema: spec-driven
+created: 2026-08-20
+goal: Replace AI-generated reading content with real public-domain book text
+  from Open Library while keeping AI as the comprehension/review layer; minimize
+  schema and only ingest a small curated initial set.

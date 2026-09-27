@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateArticleContent, convertToRubyPinyin, coerceQuestionType } from "@/lib/reading";
+import {
+  generateArticleContent,
+  convertToRubyPinyin,
+  coerceQuestionType,
+  validateContent,
+  validateIBCriteria,
+  validateFactualAccuracy,
+} from "@/lib/reading";
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -28,6 +35,35 @@ export async function POST(request: Request) {
     const language = isChinese ? "zh" : "en";
     const pinyin_content = isChinese ? convertToRubyPinyin(generated.content) : null;
 
+    // Quality gate validation
+    const contentResult = validateContent({
+      article: generated,
+      questions: generatedQuestions,
+      language,
+      gradeLevel,
+    });
+    const ibResult = validateIBCriteria({
+      article: generated,
+      questions: generatedQuestions,
+      language,
+      gradeLevel,
+    });
+    const factualResult = validateFactualAccuracy({
+      article: generated,
+      sourceText,
+      language,
+      gradeLevel,
+      route: "C",
+    });
+
+    const allIssues = [
+      ...contentResult.issues,
+      ...ibResult.issues,
+      ...factualResult.issues,
+    ];
+    const hasError = allIssues.some((issue) => issue.severity === "error");
+    const status = hasError ? "draft" : "published";
+
     // Insert article
     const { data: articleData, error: articleError } = await supabase
       .from("reading_articles")
@@ -39,10 +75,17 @@ export async function POST(request: Request) {
         source_url: sourceUrl || null,
         category,
         grade_level: gradeLevel,
+        raz_level: `L${Math.min(Math.max(gradeLevel, 1), 12)}`,
+        genre: generated.genre ?? null,
+        author_purpose: generated.author_purpose ?? null,
+        cultural_connection: generated.cultural_connection ?? null,
+        summary: generated.summary ?? null,
+        scene_description: generated.scene_description ?? null,
         word_count: generated.word_count,
         estimated_minutes: generated.estimated_minutes,
         difficulty: generated.difficulty,
-        status: "published",
+        status,
+        quality_issues: allIssues.length > 0 ? (allIssues as any) : null,
         language,
         pinyin_content,
       }, { onConflict: "topic_key,grade_level" })
