@@ -795,7 +795,10 @@ async function main(): Promise<void> {
     workItems = filtered;
     workItems.sort(() => Math.random() - 0.5);
   }
-  const dailyCounter = dailyMode ? { count: 0, limit: dailyLimit } : null;
+  // Per-grade daily counter: tracks count per grade variant
+  const gradeDailyCounters: Record<number, { count: number; limit: number }> | null = dailyMode
+    ? Object.fromEntries(grades.map(g => [g, { count: 0, limit: dailyLimit }]))
+    : null;
 
   let total = 0;
   let succeeded = 0;
@@ -807,24 +810,35 @@ async function main(): Promise<void> {
 
   let results: ProcessResult[];
   if (dailyMode) {
-    // Daily mode: process sequentially, stop early when limit reached
+    // Daily mode: process sequentially, stop early when all configured grades reach their limit
     results = [];
     for (let i = 0; i < workItems.length; i++) {
-      if (dailyCounter && dailyCounter.count >= dailyCounter.limit) {
-        console.log(`\nDAILY LIMIT REACHED (${dailyCounter.count}/${dailyCounter.limit}) — stopping early`);
-        // Fill remaining as skipped
+      const item = workItems[i];
+      const gCounter = gradeDailyCounters ? gradeDailyCounters[item.grade] : null;
+
+      // If all grades have reached their limit, break early
+      const allGradesDone = gradeDailyCounters && Object.values(gradeDailyCounters).every(c => c.count >= c.limit);
+      if (allGradesDone) {
+        console.log(`\nALL CONFIGURED GRADES REACHED DAILY LIMIT (${dailyLimit} each) — stopping early`);
         for (let j = i; j < workItems.length; j++) {
           results.push({ status: "skipped" as const });
         }
         break;
       }
-      const result = await processWorkItem(workItems[i], i + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, dailyCounter);
+
+      // If this specific grade is already at limit, skip it
+      if (gCounter && gCounter.count >= gCounter.limit) {
+        results.push({ status: "skipped" as const });
+        continue;
+      }
+
+      const result = await processWorkItem(item, i + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, gCounter);
       results.push(result);
     }
   } else {
     // Monthly mode: process all items concurrently
     const tasks = workItems.map((item, index) =>
-      processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, dailyCounter)
+      processWorkItem(item, index + 1, workItems.length, grades, topics, supabase, pacer, dryRun, gradeCounts, null)
     );
     results = await Promise.all(tasks);
   }

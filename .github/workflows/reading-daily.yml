@@ -18,7 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: PIPELINE_LANGUAGE=en PIPELINE_DAILY_LIMIT=2 PIPELINE_GRADES="1,2,3,4,5,6,7,8,9,10" npx tsx scripts/reading-content-pipeline.ts --daily
+      - run: PIPELINE_LANGUAGE=en PIPELINE_DAILY_LIMIT=2 PIPELINE_GRADES="4,7" npx tsx scripts/reading-content-pipeline.ts --daily
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -37,7 +37,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm install
-      - run: PIPELINE_LANGUAGE=zh PIPELINE_DAILY_LIMIT=2 PIPELINE_GRADES="1,2,3,4,5,6,7,8,9,10" npx tsx scripts/reading-content-pipeline.ts --daily
+      - run: PIPELINE_LANGUAGE=zh PIPELINE_DAILY_LIMIT=2 PIPELINE_GRADES="4,7" npx tsx scripts/reading-content-pipeline.ts --daily
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
