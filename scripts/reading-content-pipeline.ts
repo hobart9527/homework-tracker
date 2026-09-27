@@ -776,7 +776,7 @@ async function main(): Promise<void> {
       .from("reading_articles")
       .select("topic_key, grade_level")
       .eq("language", pipelineLanguage)
-      .in("status", ["published", "draft"]);
+      .eq("status", "published");
     if (existing) {
       for (const row of existing) {
         existingPairs.add(`${row.topic_key}|${row.grade_level}`);
