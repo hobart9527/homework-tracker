@@ -175,4 +175,28 @@ describe("matchesDirectPlatformBinding", () => {
       })
     ).toBe(false);
   });
+
+  it("matches when homeworkBindingSourceRef matches eventSubject", () => {
+    expect(
+      matchesDirectPlatformBinding({
+        eventPlatform: "ixl",
+        eventSourceRef: "session-456",
+        eventSubject: "math",
+        homeworkBindingPlatform: "ixl",
+        homeworkBindingSourceRef: "math",
+      })
+    ).toBe(true);
+  });
+
+  it("matches when homeworkBindingSourceRef is included in eventTitle", () => {
+    expect(
+      matchesDirectPlatformBinding({
+        eventPlatform: "ixl",
+        eventSourceRef: "session-456",
+        eventTitle: "Grade 4 Grammar Practice",
+        homeworkBindingPlatform: "ixl",
+        homeworkBindingSourceRef: "Grammar",
+      })
+    ).toBe(true);
+  });
 });

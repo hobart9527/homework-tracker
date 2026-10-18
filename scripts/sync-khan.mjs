@@ -248,14 +248,29 @@ async function syncKhanAccount(account) {
     viewport: { width: 1280, height: 800 },
   });
 
-  await context.addCookies(
-    cookies.map((c) => ({
-      name: c.name,
-      value: c.value,
-      domain: ".khanacademy.org",
+  // Deduplicate cookies by name (keeping the latest occurrence)
+  // and handle __Host- / __Secure- cookie rules correctly for Playwright.
+  const cookieMap = new Map();
+  for (const c of cookies) {
+    if (c && c.name && typeof c.value === "string") {
+      cookieMap.set(c.name, c.value);
+    }
+  }
+
+  const formattedCookies = Array.from(cookieMap.entries()).map(([name, value]) => {
+    const isHostCookie = name.startsWith("__Host-");
+    const isSecureCookie = name.startsWith("__Secure-") || isHostCookie;
+    return {
+      name,
+      value,
       path: "/",
-    }))
-  );
+      ...(isHostCookie
+        ? { url: "https://www.khanacademy.org", secure: true }
+        : { domain: ".khanacademy.org", secure: isSecureCookie }),
+    };
+  });
+
+  await context.addCookies(formattedCookies);
 
   const page = await context.newPage();
 

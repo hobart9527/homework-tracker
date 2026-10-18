@@ -155,17 +155,32 @@ export function matchesPlatformHomeworkType(input: {
 export function matchesDirectPlatformBinding(input: {
   eventPlatform: LearningPlatform;
   eventSourceRef: string;
+  eventSubject?: string | null;
+  eventTitle?: string | null;
   homeworkBindingPlatform: string | null | undefined;
   homeworkBindingSourceRef: string | null | undefined;
 }) {
   if (!input.homeworkBindingPlatform && !input.homeworkBindingSourceRef) {
     return false;
   }
+  if (input.homeworkBindingPlatform !== input.eventPlatform) {
+    return false;
+  }
+  if (!input.homeworkBindingSourceRef) {
+    return true;
+  }
 
-  return (
-    input.homeworkBindingPlatform === input.eventPlatform &&
-    input.homeworkBindingSourceRef === input.eventSourceRef
-  );
+  const bindingRef = input.homeworkBindingSourceRef.trim().toLowerCase();
+  if (input.eventSourceRef && input.eventSourceRef.trim().toLowerCase() === bindingRef) {
+    return true;
+  }
+  if (input.eventSubject && input.eventSubject.trim().toLowerCase() === bindingRef) {
+    return true;
+  }
+  if (input.eventTitle && input.eventTitle.trim().toLowerCase().includes(bindingRef)) {
+    return true;
+  }
+  return false;
 }
 
 export function matchesTypePlatformBinding(input: {

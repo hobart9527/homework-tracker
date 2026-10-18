@@ -390,6 +390,7 @@ async function upsertArticle(
         cover_source_url: articleData.coverSourceUrl,
         quality_issues: articleData.qualityIssues,
         language: articleData.language,
+        created_at: new Date().toISOString(),
       },
       { onConflict: "topic_key, grade_level" }
     )
@@ -635,7 +636,12 @@ async function getGradeCounts(supabase: SupabaseClient, language: string): Promi
   return counts;
 }
 
-async function archiveSurplus(supabase: SupabaseClient, language: string, targetPerGrade: number): Promise<void> {
+async function archiveSurplus(
+  supabase: SupabaseClient,
+  language: string,
+  targetPerGrade: number,
+  protectedIds: Set<string> = new Set()
+): Promise<void> {
   for (let grade = 1; grade <= 10; grade++) {
     const { data: articles } = await supabase
       .from("reading_articles")
@@ -647,7 +653,9 @@ async function archiveSurplus(supabase: SupabaseClient, language: string, target
 
     if (!articles || articles.length <= targetPerGrade) continue;
 
-    const toArchive = articles.slice(0, articles.length - targetPerGrade);
+    const candidates = articles.filter((a) => !protectedIds.has(a.id));
+    const surplusCount = articles.length - targetPerGrade;
+    const toArchive = candidates.slice(0, surplusCount);
     if (toArchive.length === 0) continue;
 
     const ids = toArchive.map(a => a.id);
@@ -662,7 +670,12 @@ async function archiveSurplus(supabase: SupabaseClient, language: string, target
   }
 }
 
-async function rotateStale(supabase: SupabaseClient, language: string): Promise<void> {
+async function rotateStale(
+  supabase: SupabaseClient,
+  language: string,
+  protectedIds: Set<string> = new Set()
+): Promise<void> {
+  const oneDayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   for (let grade = 1; grade <= 10; grade++) {
     const { data: articles } = await supabase
       .from("reading_articles")
@@ -670,12 +683,16 @@ async function rotateStale(supabase: SupabaseClient, language: string): Promise<
       .eq("language", language)
       .eq("status", "published")
       .eq("grade_level", grade)
+      .lt("created_at", oneDayAgo)
       .order("created_at", { ascending: true });
 
-    if (!articles || articles.length < 5) continue;
+    if (!articles) continue;
 
-    const rotateCount = Math.max(1, Math.floor(articles.length * 0.2));
-    const toRotate = articles.slice(0, rotateCount);
+    const candidates = articles.filter((a) => !protectedIds.has(a.id));
+    if (candidates.length < 5) continue;
+
+    const rotateCount = Math.max(1, Math.floor(candidates.length * 0.2));
+    const toRotate = candidates.slice(0, rotateCount);
     const ids = toRotate.map(a => a.id);
 
     console.log(`  G${grade}: rotating ${ids.length} stale articles (20%)`);
@@ -843,11 +860,19 @@ async function main(): Promise<void> {
     results = await Promise.all(tasks);
   }
 
+  const protectedArticleIds = new Set<string>();
   for (const result of results) {
     total++;
-    if (result.status === "succeeded") succeeded++;
-    else if (result.status === "skipped") skipped++;
-    else if (result.status === "failed") failed++;
+    if (result.status === "succeeded") {
+      succeeded++;
+      if (result.articleId) {
+        protectedArticleIds.add(result.articleId);
+      }
+    } else if (result.status === "skipped") {
+      skipped++;
+    } else if (result.status === "failed") {
+      failed++;
+    }
   }
 
   const usage = getTokenUsage();
@@ -864,16 +889,24 @@ async function main(): Promise<void> {
   console.log(`Skipped:   ${skipped}`);
   console.log(`Failed:    ${failed}`);
 
-  if (failed > 0) {
-    process.exit(1);
-  }
-
-  // Archive surplus and rotate stale articles
+  // Archive surplus and rotate stale articles (never touch newly generated articles)
   if (!dryRun) {
     console.log("\n=== LIFECYCLE: archive surplus ===");
-    await archiveSurplus(supabase, pipelineLanguage, TARGET_PER_GRADE);
+    await archiveSurplus(supabase, pipelineLanguage, TARGET_PER_GRADE, protectedArticleIds);
     console.log("\n=== LIFECYCLE: rotate stale ===");
-    await rotateStale(supabase, pipelineLanguage);
+    await rotateStale(supabase, pipelineLanguage, protectedArticleIds);
+  }
+
+  if (dailyMode) {
+    if (succeeded === 0 && failed > 0) {
+      console.error(`Daily pipeline failed: 0 succeeded, ${failed} failed.`);
+      process.exit(1);
+    }
+    if (failed > 0) {
+      console.warn(`Daily pipeline completed with ${succeeded} succeeded and ${failed} non-fatal failures.`);
+    }
+  } else if (failed > 0) {
+    process.exit(1);
   }
 }
 
@@ -881,6 +914,7 @@ type WorkItemStatus = "succeeded" | "skipped" | "failed";
 
 interface ProcessResult {
   status: WorkItemStatus;
+  articleId?: string;
   reason?: string;
 }
 
@@ -1260,7 +1294,7 @@ async function processWorkItem(
       `OK — "${article.title}" route=${routeLabel}${chapterInfo} (${questions.length} questions, ${illustrationResults.length} illustrations [${sourceCount} source, ${aiCount} AI], quality=${lastQualityGatePass ? "pass" : "fail"}, ib=${lastIbGatePass ? "pass" : "fail"}, factual=${lastFactualGatePass ? "pass" : "skip"}, ${gateLabel})`
     );
     if (dailyCounter) dailyCounter.count++;
-    return { status: "succeeded" };
+    return { status: "succeeded", articleId };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (isExternalServiceError(err)) {
