@@ -58,6 +58,16 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// TypeScript auto-checkin pipeline bridge (ingest + homework auto-match +
+// check_ins), loaded through tsx so this .mjs script can call the TS modules.
+const { buildIxlLearningEvent, runIxlEventPipeline } = await (async () => {
+  const { tsImport } = await import("tsx/esm/api");
+  return tsImport(
+    "../src/lib/platform-adapters/ixl-gha-bridge.ts",
+    import.meta.url
+  );
+})();
+
 // Fallback credentials (use DB credentials first, then these)
 const IXL_CREDENTIALS = {
   username: process.env.IXL_USERNAME,
@@ -198,49 +208,44 @@ async function syncIxlAccount(account) {
 
     let inserted = 0;
     let duplicates = 0;
+    let autoMatched = 0;
+    let unmatched = 0;
     const householdTimeZone = "Asia/Shanghai";
 
     for (const activity of activities) {
-      const localDateKey = new Intl.DateTimeFormat("en-CA", {
-        timeZone: householdTimeZone,
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date(activity.occurredAt));
+      const event = buildIxlLearningEvent({
+        childId: account.child_id,
+        platformAccountId: account.id,
+        activity,
+      });
 
-      const eventData = {
-        child_id: account.child_id,
-        platform: "ixl",
-        platform_account_id: account.id,
-        occurred_at: activity.occurredAt,
-        local_date_key: localDateKey,
-        event_type: "skill_practice",
-        title: activity.skillName,
-        subject: activity.subject,
-        duration_minutes: activity.durationSeconds
-          ? Math.round(activity.durationSeconds / 60)
-          : null,
-        score: activity.scorePercent !== null ? activity.scorePercent / 100 : null,
-        completion_state: "completed",
-        source_ref: activity.sessionId,
-        raw_payload: {
-          skillId: activity.skillId,
-          skillName: activity.skillName,
-          subject: activity.subject,
-          scorePercent: activity.scorePercent,
-          durationSeconds: activity.durationSeconds,
-          sessionId: activity.sessionId,
-        },
-      };
+      let result;
+      try {
+        result = await runIxlEventPipeline({
+          supabase,
+          householdTimeZone,
+          event,
+        });
+      } catch (pipelineErr) {
+        console.log(`    ❌ 插入/打卡失败: ${pipelineErr.message}`);
+        continue;
+      }
 
-      const { error } = await supabase.from("learning_events").insert(eventData);
-
-      if (error?.message?.includes("learning_events_account_source_key")) {
+      if (result.ingestStatus === "duplicate") {
         duplicates++;
-      } else if (error) {
-        console.log(`    ❌ 插入失败: ${error.message}`);
+        continue;
+      }
+
+      inserted++;
+
+      if (result.homeworkResults.length > 0) {
+        autoMatched++;
+        const titles = result.matchedTitles.length > 0
+          ? result.matchedTitles
+          : result.homeworkResults.map((r) => r.homeworkId);
+        console.log(`    🎯 自动打卡成功: ${titles.join(", ")}`);
       } else {
-        inserted++;
+        unmatched++;
       }
     }
 
@@ -253,7 +258,9 @@ async function syncIxlAccount(account) {
       })
       .eq("id", account.id);
 
-    console.log(`  📊 插入: ${inserted}, 重复: ${duplicates}`);
+    console.log(
+      `  📊 插入: ${inserted}, 重复: ${duplicates}, 自动打卡: ${autoMatched}, 未匹配: ${unmatched}`
+    );
 
     return {
       status: "completed",

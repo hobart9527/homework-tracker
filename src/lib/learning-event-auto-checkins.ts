@@ -199,35 +199,52 @@ export async function syncLearningEventAutoCheckins(input: {
   });
 
   if (ingestResult.status === "duplicate" || !ingestResult.event) {
-    // The unique constraint on learning_events swallowed this insert.
-    // Write a learning_event_reviews row explaining the suppression so we
-    // don't lose the audit trail.
-    try {
-      await recordDuplicateSuppressedReview({
-        supabase: input.supabase as any,
-        sourceRef: input.event.sourceRef,
-        platformAccountId: input.event.platformAccountId,
-        occurredAt: input.event.occurredAt,
-        title: input.event.title,
-        subject: input.event.subject,
-        eventType: input.event.eventType,
-        rawPayload:
-          input.event.rawPayload && typeof input.event.rawPayload === "object" && !Array.isArray(input.event.rawPayload)
-            ? (input.event.rawPayload as Record<string, unknown>)
-            : {},
-      });
-    } catch (reviewErr) {
-      // Best-effort — never block on the review write.
-      console.warn("[auto-checkins] failed to record duplicate review", reviewErr);
+    if (!ingestResult.event) {
+      return {
+        ingestStatus: ingestResult.status,
+        learningEventId: null,
+        localDateKey: ingestResult.localDateKey,
+        homeworkResults: [],
+        reviewStatus: null,
+      };
     }
 
-    return {
-      ingestStatus: ingestResult.status,
-      learningEventId: null,
-      localDateKey: ingestResult.localDateKey,
-      homeworkResults: [],
-      reviewStatus: null,
-    };
+    // Check if this duplicate event was already evaluated for auto-matches
+    const { data: existingMatches } = await (input.supabase as any)
+      .from("homework_auto_matches")
+      .select("id")
+      .eq("learning_event_id", String(ingestResult.event.id))
+      .limit(1);
+
+    if (existingMatches && existingMatches.length > 0) {
+      // Truly already processed — record audit trail and skip.
+      try {
+        await recordDuplicateSuppressedReview({
+          supabase: input.supabase as any,
+          sourceRef: input.event.sourceRef,
+          platformAccountId: input.event.platformAccountId,
+          occurredAt: input.event.occurredAt,
+          title: input.event.title,
+          subject: input.event.subject,
+          eventType: input.event.eventType,
+          rawPayload:
+            input.event.rawPayload && typeof input.event.rawPayload === "object" && !Array.isArray(input.event.rawPayload)
+              ? (input.event.rawPayload as Record<string, unknown>)
+              : {},
+        });
+      } catch (reviewErr) {
+        // Best-effort — never block on the review write.
+        console.warn("[auto-checkins] failed to record duplicate review", reviewErr);
+      }
+
+      return {
+        ingestStatus: ingestResult.status,
+        learningEventId: null,
+        localDateKey: ingestResult.localDateKey,
+        homeworkResults: [],
+        reviewStatus: null,
+      };
+    }
   }
 
   const homeworkResults = [];
@@ -235,6 +252,8 @@ export async function syncLearningEventAutoCheckins(input: {
     matchesDirectPlatformBinding({
       eventPlatform: input.event.platform,
       eventSourceRef: input.event.sourceRef,
+      eventSubject: input.event.subject,
+      eventTitle: input.event.title,
       homeworkBindingPlatform: homework.platform_binding_platform,
       homeworkBindingSourceRef: homework.platform_binding_source_ref,
     })
@@ -258,6 +277,8 @@ export async function syncLearningEventAutoCheckins(input: {
     const matchesDirectBinding = matchesDirectPlatformBinding({
       eventPlatform: input.event.platform,
       eventSourceRef: input.event.sourceRef,
+      eventSubject: input.event.subject,
+      eventTitle: input.event.title,
       homeworkBindingPlatform: homework.platform_binding_platform,
       homeworkBindingSourceRef: homework.platform_binding_source_ref,
     });
